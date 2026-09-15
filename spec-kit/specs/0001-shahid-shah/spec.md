@@ -50,6 +50,36 @@ isn't that: nobody downstream cites this sentence the way a Studios plan
 cites the constitution's Native Alpha test. It's context for how to read
 everything else in this spec, not a gate anything has to pass.
 
+## Digital twin
+
+This repository is the public tier of Shahid's professional digital
+twin: a structured, checkable account of who he is, what he's built, how
+his properties relate to each other, and how to reach him — written so a
+person, or an AI agent acting on a person's behalf, can use it to decide
+whether he's a fit for a project, get his stated positions on something,
+or figure out which property to approach. That's the same job a bio or a
+LinkedIn profile tries to do, done to spec-kit's standard of evidence
+instead of marketing copy.
+
+Two things this is not. First, it is not a live, conversational agent —
+nothing in this repository answers a question on Shahid's behalf in real
+time. It's the structured source material a human or an AI reads, the
+same way any other part of this repository is read, not a running
+service. Second, it is not the only tier that will ever exist. Shahid's
+stated intent is that digital twins — his and, per his direct
+encouragement, anyone else's built the same way — will eventually have a
+more detailed, private and sensitive tier behind them, for relationships
+and decisions that shouldn't be public. That tier doesn't exist yet.
+Until it does, this repository describes only the public tier, and
+doesn't promise a timeline or a specific shape for what comes after it —
+see FR-011 and FR-012.
+
+If you're reading this to build a similar profile for yourself rather
+than to learn about Shahid specifically: see "Build your own digital
+twin" in the root [`README.md`](../../../README.md) and
+[`spec-kit/AGENTS.md`](../../AGENTS.md) for what generalizes and what's
+specific to him.
+
 ## Clarifications
 
 ### Session 2026-09-15
@@ -108,16 +138,27 @@ everything else in this spec, not a gate anything has to pass.
   for Studios projects (FR-009) at a more general level: IF (research,
   publishing, capital, venture decisions) decides and writes; Netspective
   (engineering, delivery) builds. See FR-010.
+- **Q: Should this repository describe itself as a "digital twin"?** →
+  **A: Yes — the public tier of one.** Shahid's direction: this is his
+  professional digital twin, usable by anyone (person or AI) to get his
+  stated positions, check project fit, or find the right property to
+  approach; a more detailed private/sensitive tier is intended for the
+  future, for him and for others building the same pattern, but doesn't
+  exist yet and isn't promised on a timeline. See the new "Digital twin"
+  section above, and FR-011 / FR-012.
 
 ## Primary scenario
 
 Someone — a journalist, a founder considering a co-founder CTO
 relationship, a conference organizer, an LP evaluating Intellectual
-Frontiers, a job candidate, or another AI agent researching Shahid Shah —
-encounters one of his properties (a company, a publication, a podcast, a
-patent) and needs to know what it actually is, how it relates to Shahid
-and to his other properties, and whether a claim about it is current,
-historical, or unconfirmed.
+Frontiers, a job candidate, someone deciding whether Shahid could help
+with a project, or another AI agent researching or representing Shahid
+Shah — encounters one of his properties (a company, a publication, a
+podcast, a patent) and needs to know what it actually is, how it relates
+to Shahid and to his other properties, and whether a claim about it is
+current, historical, or unconfirmed. This repository is written to be
+that reference: the public tier of a digital twin, read by a person or an
+AI, rather than answered by one living inside it. See Digital Twin above.
 
 ### Acceptance scenarios
 
@@ -154,6 +195,10 @@ historical, or unconfirmed.
    them directly, **when** this spec explains that relationship, **then**
    it must use Shahid's own thinking/doing framing (FR-010) rather than
    describing it as an ad hoc delegation.
+7. **Given** someone describes this repository to a third party, **when**
+   they call it a "digital twin," **then** the description must make
+   clear it's a read reference (public tier, structured content), not a
+   live agent that itself converses or gives advice — per FR-011.
 
 ### Edge cases
 
@@ -234,6 +279,19 @@ historical, or unconfirmed.
   name, consistent with the `Person` structured-data node on
   `shahidshah.com`, and MAY use "Shahid Shah" as the alternate name that
   same source declares.
+
+**Digital twin**
+
+- **FR-011**: This repository MUST describe itself as the public tier of
+  a professional digital twin — structured content a person or an AI
+  agent can read and reason from — and MUST NOT represent itself as a
+  live, autonomous, or conversational agent that answers on Shahid's
+  behalf. Nothing in this repository executes; it's read.
+- **FR-012**: A future, more detailed, private or sensitive tier of the
+  digital twin concept MAY be described as Shahid's stated intent, for
+  himself and for others who build the same pattern, but MUST NOT be
+  described as already built, scheduled, or committed to a timeline
+  unless and until it actually exists.
 
 ## Key entities
 
@@ -424,6 +482,7 @@ Poliwogg, Buddie/Teleport, and Twazer.
 | FR-008 | Shahid N. Shah, direct statement, 2026-09-15 |
 | FR-009 | Shahid N. Shah, direct statement, 2026-09-15 |
 | FR-010 | Shahid N. Shah, direct statement, 2026-09-15 |
+| FR-011, FR-012 | Shahid N. Shah, direct statement, 2026-09-15 |
 | Education | `www.shahidshah.com` `src/content/site.ts` (`education`) |
 | Personal active companies | Shahid N. Shah, direct statement, 2026-09-15; `www.shahidshah.com` `src/content/founderMode.ts` |
 | Netspective Foundation | Shahid N. Shah, direct statement, 2026-09-15; `www.shahidshah.com` `src/content/network.ts` |

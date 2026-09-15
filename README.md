@@ -13,9 +13,19 @@
 Award-winning Government 2.0, Health IT, and Medical Device Integration
 software expert with 35 years of technology strategy, software engineering,
 entrepreneurship, speaking, and writing experience. 34 awarded U.S. patents,
-70+ open source repositories, 5 companies founded, 35+ clients served.
+70+ open source repositories, 35+ clients served.
 
-This repository specifies the person, the way
+This repository is the public tier of **Shahid Shah's professional
+digital twin**: a structured, checkable account of who he is, what he's
+built, and how his properties relate — written so a person, or an AI
+agent acting for one, can get his stated positions, judge project fit, or
+find the right property to approach, without guessing from an ordinary
+bio. It's read reference, not a live agent — nothing here answers on his
+behalf in real time. See "A professional digital twin" below for what
+that means and doesn't mean, and "Build your own digital twin" if you
+want to do the same for yourself.
+
+It's also specified the way
 [`intellectual-frontiers/.github`](https://github.com/intellectual-frontiers/.github)
 specifies the company: testable statements instead of a bio that drifts out
 of date, sourced from what's actually verifiable, with open questions marked
@@ -29,6 +39,29 @@ as open rather than quietly resolved. See "Specifying a person" below.
 | **Fractional CISO** | Security programs for regulated and safety-critical software: HIPAA, HITRUST, SOC 2, FedRAMP, FDA premarket cybersecurity. |
 | **CTVO** (Chief Technology & Venture Officer) | A role he defined: a CTO makes the technology organization better; a CTVO asks what new company, product, or business model the technology now makes possible. |
 | **Entrepreneur-in-residence** | Technology due diligence and venture-building for boards and founders. |
+
+## A professional digital twin
+
+Most people's public presence is scattered across a LinkedIn profile, a
+personal site's About page, and whatever a search engine happens to
+surface — none of it structured enough for another person, let alone an
+AI acting on their behalf, to reliably answer "is this person a fit for
+what I need, and which of their things should I actually contact?" This
+repository is built to answer exactly that, for Shahid: a public,
+structured, checkable profile — roles, active companies, brands,
+projects, historical ventures, and the boundaries between them — that
+works whether the reader is human or an AI representing one.
+
+Two things worth being precise about. First, this is a **read** reference,
+not a live agent: nothing in this repository holds a conversation or gives
+advice on its own. Second, this is the **public tier only**. Shahid's
+stated intent is that digital twins — his, and anyone else's built this
+way — eventually get a more detailed, private and sensitive tier behind
+them, for the relationships and decisions that shouldn't be public. That
+tier doesn't exist yet here, and this repository doesn't promise a
+timeline for it. See
+[`spec-kit/specs/0001-shahid-shah/spec.md`](spec-kit/specs/0001-shahid-shah/spec.md#digital-twin)
+for the full statement.
 
 ## Specifying a person
 
@@ -79,6 +112,37 @@ spec-kit/
       spec.md                  thin — cites intellectual-frontiers/.github
                                 for everything, restates nothing
 ```
+
+## Build your own digital twin
+
+This pattern isn't specific to Shahid. Anyone can build the same kind of
+structured, checkable public profile, and Shahid's encouraged it — if
+this is useful to you, here's what actually generalizes:
+
+- **The structure**: a `spec-kit/` holding a person-spec (your own version
+  of [`0001-shahid-shah`](spec-kit/specs/0001-shahid-shah/spec.md)), plus
+  a thin spec per major property you're closely identified with, built
+  from [`spec-kit/templates/spec-template.md`](spec-kit/templates/spec-template.md).
+- **The claims standard**: an observable fact should be verifiable; an
+  opinion should read as an opinion; a category you're not sure of gets
+  marked `[NEEDS CLARIFICATION]` instead of asserted. This is what keeps
+  the profile trustworthy to both a human reader and an AI agent reading
+  it on someone's behalf.
+- **The status-honesty rule**: label anything whose current status you
+  can't confirm from a recent first-party source as "Former" or
+  "Historical" rather than letting it read as current.
+- **No constitution required**: you don't need governance machinery for
+  a personal profile — see
+  [`spec-kit/specs/0001-shahid-shah/spec.md`](spec-kit/specs/0001-shahid-shah/spec.md#personal-principles)
+  for why this repository doesn't have one, and use your own judgment
+  about what fits your situation.
+
+What doesn't generalize: Shahid's specific properties, the Intellectual
+Frontiers / Netspective thinking-and-doing split, and anything else that's
+a fact about him rather than about the pattern. Copy the structure and the
+discipline, not the content. See
+[`spec-kit/AGENTS.md`](spec-kit/AGENTS.md) for the fuller entry point an
+AI agent (or you) would use to start writing your own version.
 
 ## Elsewhere
 

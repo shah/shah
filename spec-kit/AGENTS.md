@@ -73,6 +73,41 @@ own `AGENTS.md`; nothing about that layering changes here. The one added
 layer is at the top: a company's own constitution governs that company,
 but no equivalent document governs Shahid himself — see spec 0001.
 
+## Using this pattern for your own digital twin
+
+This repository is the public tier of Shahid's professional digital
+twin — see [`specs/0001-shahid-shah/spec.md`](specs/0001-shahid-shah/spec.md#digital-twin)
+for what that means (a structured, checkable, read reference; not a live
+agent; public-tier-only for now, with a more detailed private tier
+intended but not yet built). If you're an agent helping someone build the
+same kind of profile for themselves rather than editing this one, here's
+what to carry over and what not to:
+
+**Carry over:**
+- The three-layer structure: a root `README.md` that doubles as the
+  GitHub profile card, a `spec-kit/AGENTS.md` entry point like this one,
+  and `spec-kit/specs/0001-<slug>/spec.md` as the person's own spec.
+- The claims standard (FR-001 in spec 0001): verifiable facts, labeled
+  opinions, no invented categories.
+- The status-honesty rule (FR-003): "Former" / "Historical" for anything
+  whose current status can't be confirmed from a first-party source.
+- Marking real gaps `[NEEDS CLARIFICATION]` instead of guessing —
+  especially important for a public document about a real, named person.
+- No constitution. A person's own stated ethics (if any) can sit as a
+  short quoted section, the way spec 0001's Personal Principles does,
+  without building amendment/versioning machinery around it.
+
+**Do not carry over:**
+- Any of Shahid's specific facts, properties, or relationships (the
+  Intellectual Frontiers / Netspective thinking-and-doing split, his
+  specific companies, his personal principles quote). Those are his, not
+  a template.
+- The specific property categories this repository landed on (personal
+  active company, non-profit vehicle, brand/partnership, Studios-delivered
+  project). A different person's properties will sort differently —
+  derive the categories from their own facts rather than reusing these
+  labels by default.
+
 ## Versioning
 
 There is no constitution version to check against, because there is no
