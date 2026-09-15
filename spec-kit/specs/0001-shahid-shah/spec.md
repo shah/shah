@@ -87,6 +87,18 @@ everything else in this spec, not a gate anything has to pass.
 - **Note on remaining conflicts (OQ-3, OQ-4, OQ-5):** Shahid asked that
   these stay open for now ("we'll deal with conflicts later"). They are
   not resolved by this session and remain in Open Questions below.
+- **Q: What is Unblock Health, and is it a company?** → **A: An
+  Intellectual Frontiers Studios research project, implemented by
+  Netspective Communications — not a company.** It began as an IF
+  Studios research project, later became a venture pursued in
+  partnership with Grace Cordovano exploring how release-of-information
+  and medical-records-transfer processes for cancer and specialty care
+  could be improved. It currently remains an active research project,
+  not a company Shahid or anyone else owns outright. This corrects
+  `founderMode.ts`'s "Operating" status label, which described the
+  project's activity level, not a claim that it's incorporated as a
+  company. Moves Unblock Health out of "co-founded venture" and into
+  the Studios-delivered-projects category below.
 
 ## Primary scenario
 
@@ -116,10 +128,12 @@ historical, or unconfirmed.
    doctrine, units, or governance, **then** it must cite
    `intellectual-frontiers/.github` rather than restating any of it here.
 4. **Given** a named project (Medigy, Opsfolio, Qualityfolio, Fleetfolio,
-   Resource Surveillance/surveilr, and similar), **when** this spec
-   describes it, **then** it must be attributed to Intellectual
+   Resource Surveillance/surveilr, Unblock Health, and similar), **when**
+   this spec describes it, **then** it must be attributed to Intellectual
    Frontiers Studios as commissioning party and Netspective Communications
-   as builder, not presented as an independent personal venture.
+   as builder, not presented as an independent personal venture or
+   company — even where, as with Unblock Health, an outside partner
+   (Grace Cordovano) is also named.
 5. **Given** a source file on Shahid's own site (`founderMode.ts`,
    `network.ts`, `recognition.ts`, `bios.ts`) states something that
    conflicts with another of his own source files, **when** this spec
@@ -186,10 +200,11 @@ historical, or unconfirmed.
   described using that specific phrase.
 - **FR-009**: A project built by Netspective Communications for
   Intellectual Frontiers Studios (Medigy, Opsfolio, Qualityfolio,
-  Fleetfolio, Resource Surveillance/surveilr, and any other project
-  fitting this pattern) MUST be attributed to both — Studios as the
-  commissioning unit, Netspective as the builder — and MUST NOT be listed
-  as an independent company or personal venture of Shahid's.
+  Fleetfolio, Resource Surveillance/surveilr, Unblock Health, and any
+  other project fitting this pattern) MUST be attributed to both —
+  Studios as the commissioning unit, Netspective as the builder — and
+  MUST NOT be listed as an independent company or personal venture of
+  Shahid's, even where an outside partner is also named on the project.
 
 **Naming**
 
@@ -227,22 +242,23 @@ Science, Penn State Harrisburg (1990). Primary public site:
 | --- | --- | --- |
 | [HealthIMPACT](https://www.healthimpactlive.com) | Co-founder and Chair | Active since 2013. A brand built on Shahid's personal partnership with [Purpose Events](https://purposeevents.com), not a company he owns outright. |
 
-**Other co-founded venture** (operating per the site's own record, but not
-one of the two personal active companies above):
-
-| Property | Role | Status |
-| --- | --- | --- |
-| [Unblock Health](https://www.unblock.health) | Co-founder (with Grace Cordovano) | Operating, per `founderMode.ts` |
-
 **Intellectual Frontiers Studios projects, delivered by Netspective
 Communications** (per Shahid's direct statement 2026-09-15 — these are
-not independent personal ventures):
+projects, not independent personal ventures or companies):
 
 - [Medigy](https://www.medigy.com)
 - [Opsfolio](https://www.opsfolio.com)
 - [Resource Surveillance / surveilr](https://www.surveilr.com)
 - [Qualityfolio](https://qualityfolio.dev)
 - [Fleetfolio](https://fleetfolio.dev)
+- **[Unblock Health](https://www.unblock.health)** — began as an IF
+  Studios research project implemented by Netspective Communications;
+  later pursued as a venture in partnership with Grace Cordovano,
+  exploring how release-of-information and medical-records-transfer
+  processes for cancer and specialty care could be improved. Currently
+  remains an active research project, not a company. (`founderMode.ts`'s
+  "Operating" label described the project's activity, not incorporation
+  — see Clarifications.)
 - And other projects fitting the same pattern, per FR-009.
 
 **Historical / exited ventures:**
@@ -387,7 +403,7 @@ Poliwogg, Buddie/Teleport, and Twazer.
 | Personal active companies | Shahid N. Shah, direct statement, 2026-09-15; `www.shahidshah.com` `src/content/founderMode.ts` |
 | Netspective Foundation | Shahid N. Shah, direct statement, 2026-09-15; `www.shahidshah.com` `src/content/network.ts` |
 | HealthIMPACT / Purpose Events | Shahid N. Shah, direct statement, 2026-09-15; `www.shahidshah.com` `src/content/site.ts` (`healthImpact`), `src/content/founderMode.ts` |
-| Unblock Health | `www.shahidshah.com` `src/content/founderMode.ts` (`founderRecord`) |
+| Unblock Health | Shahid N. Shah, direct statement, 2026-09-15; `www.shahidshah.com` `src/content/founderMode.ts` (`founderRecord`, prior "Operating" label) |
 | Studios projects delivered by Netspective | Shahid N. Shah, direct statement, 2026-09-15 |
 | Historical ventures | `www.shahidshah.com` `src/content/founderMode.ts` (`founderRecord`) |
 | Media and publishing properties | `www.shahidshah.com` `src/content/network.ts` (`publications`) |
