@@ -38,6 +38,14 @@ This is not an implementation plan.
   [`spec-kit/specs/0001-shahid-shah/spec.md`](../0001-shahid-shah/spec.md)
   (Key Entities, FR-009) rather than here. Noted here only as a pointer,
   per this spec's own FR-001.
+- **Q: What is Intellectual Frontiers "for," relative to Netspective
+  Communications?** → **A: Thinking.** Shahid's own framing: IF is where
+  he does most of his thinking and writing (research, publishing,
+  capital and venture decisions); Netspective Communications is where
+  things actually get built. Same rule as above — recorded in full at
+  [`spec-kit/specs/0001-shahid-shah/spec.md`](../0001-shahid-shah/spec.md)
+  FR-010, since it's a fact about how two properties relate, not IF's own
+  governance.
 
 ## Primary scenario
 

@@ -99,6 +99,15 @@ everything else in this spec, not a gate anything has to pass.
   project's activity level, not a claim that it's incorporated as a
   company. Moves Unblock Health out of "co-founded venture" and into
   the Studios-delivered-projects category below.
+- **Q: How do Intellectual Frontiers and Netspective Communications
+  divide the work between them?** → **A: Intellectual Frontiers is
+  where Shahid does most of his thinking and writing; Netspective
+  Communications is where things actually get built** — software and
+  solutions for IF. Shahid's own framing: IF is for "thinking,"
+  Netspective is for "doing." This is the same pattern already stated
+  for Studios projects (FR-009) at a more general level: IF (research,
+  publishing, capital, venture decisions) decides and writes; Netspective
+  (engineering, delivery) builds. See FR-010.
 
 ## Primary scenario
 
@@ -140,6 +149,11 @@ historical, or unconfirmed.
    surfaces that fact, **then** it records the conflict as an open
    question rather than silently picking one version, unless Shahid has
    directly resolved it (see Clarifications).
+6. **Given** a reader wants to understand why Netspective Communications
+   builds Studios projects rather than Intellectual Frontiers building
+   them directly, **when** this spec explains that relationship, **then**
+   it must use Shahid's own thinking/doing framing (FR-010) rather than
+   describing it as an ad hoc delegation.
 
 ### Edge cases
 
@@ -205,6 +219,14 @@ historical, or unconfirmed.
   Studios as the commissioning unit, Netspective as the builder — and
   MUST NOT be listed as an independent company or personal venture of
   Shahid's, even where an outside partner is also named on the project.
+- **FR-010**: When describing how Intellectual Frontiers and Netspective
+  Communications relate, this repository MUST frame Intellectual
+  Frontiers as where Shahid's thinking and writing work happens
+  (research, publishing, capital and venture decisions) and Netspective
+  Communications as where building happens (engineering, delivery,
+  implementation) — per Shahid's own "thinking" / "doing" framing. This
+  repository MUST NOT describe either company doing the other's half of
+  that split as its primary characterization.
 
 **Naming**
 
@@ -225,10 +247,10 @@ Science, Penn State Harrisburg (1990). Primary public site:
 **Personal active companies** (Shahid's own term, stated directly
 2026-09-15 — see Clarifications):
 
-| Property | Role | Status |
-| --- | --- | --- |
-| [Intellectual Frontiers LLC](https://www.intellectualfrontiers.com) | Founder, owner, Managing Partner | Current — see spec 0002 |
-| [Netspective Communications LLC](https://www.netspective.com) | Founder and CEO | Founded 2001, still operating |
+| Property | Role | Status | What it's for |
+| --- | --- | --- | --- |
+| [Intellectual Frontiers LLC](https://www.intellectualfrontiers.com) | Founder, owner, Managing Partner | Current — see spec 0002 | "Thinking": research, publishing, capital and venture decisions |
+| [Netspective Communications LLC](https://www.netspective.com) | Founder and CEO | Founded 2001, still operating | "Doing": builds the software and solutions IF's thinking calls for |
 
 **Principal non-profit vehicle:**
 
@@ -244,7 +266,9 @@ Science, Penn State Harrisburg (1990). Primary public site:
 
 **Intellectual Frontiers Studios projects, delivered by Netspective
 Communications** (per Shahid's direct statement 2026-09-15 — these are
-projects, not independent personal ventures or companies):
+projects, not independent personal ventures or companies. Consistent
+with FR-010's thinking/doing split: IF Studios decides what should exist,
+Netspective builds it):
 
 - [Medigy](https://www.medigy.com)
 - [Opsfolio](https://www.opsfolio.com)
@@ -399,6 +423,7 @@ Poliwogg, Buddie/Teleport, and Twazer.
 | FR-007 | `www.shahidshah.com` `src/content/structuredData.ts` (`personNode`) |
 | FR-008 | Shahid N. Shah, direct statement, 2026-09-15 |
 | FR-009 | Shahid N. Shah, direct statement, 2026-09-15 |
+| FR-010 | Shahid N. Shah, direct statement, 2026-09-15 |
 | Education | `www.shahidshah.com` `src/content/site.ts` (`education`) |
 | Personal active companies | Shahid N. Shah, direct statement, 2026-09-15; `www.shahidshah.com` `src/content/founderMode.ts` |
 | Netspective Foundation | Shahid N. Shah, direct statement, 2026-09-15; `www.shahidshah.com` `src/content/network.ts` |
