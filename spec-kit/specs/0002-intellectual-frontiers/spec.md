@@ -26,7 +26,18 @@ This is not an implementation plan.
 
 ## Clarifications
 
-None yet.
+### Session 2026-09-15
+
+- **Q: How do Medigy, Opsfolio, Qualityfolio, Fleetfolio, and similar
+  named projects relate to Intellectual Frontiers?** → **A: They are
+  projects built by and for Intellectual Frontiers Studios, delivered by
+  Netspective Communications** (Shahid's other personal active company).
+  This is a fact about the relationship between two of Shahid's
+  properties, not a restatement of IF's own governance, so it's recorded
+  in full in
+  [`spec-kit/specs/0001-shahid-shah/spec.md`](../0001-shahid-shah/spec.md)
+  (Key Entities, FR-009) rather than here. Noted here only as a pointer,
+  per this spec's own FR-001.
 
 ## Primary scenario
 

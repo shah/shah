@@ -1,7 +1,7 @@
 # Feature Specification: Shahid N. Shah
 
 **Spec ID:** 0001-shahid-shah
-**Status:** Draft — first pass
+**Status:** Draft — clarified 2026-09-15
 **Created:** 2026-09-15
 **Decision authority:** Shahid N. Shah
 **Input:** Build a public GitHub profile repository (`shah/shah`) for
@@ -21,9 +21,10 @@ properties he holds or is closely identified with, and how they relate to
 each other — sourced from his own site's structured content
 (`shah/www.shahidshah.com`, primarily `src/content/site.ts`,
 `src/content/network.ts`, `src/content/founderMode.ts`,
-`src/content/bios.ts`, `src/content/structuredData.ts`, and
-`public/llms.txt`) rather than from this session's own memory or
-assumptions.
+`src/content/bios.ts`, `src/content/structuredData.ts`,
+`src/content/onAir.ts`, `src/routes/about.tsx`, and `public/llms.txt`) and
+from Shahid's own direct statements where the site's content needed
+correcting or didn't yet say enough.
 
 This is not an implementation plan. It says what's true and how to check
 it, not how any work gets done.
@@ -51,7 +52,41 @@ everything else in this spec, not a gate anything has to pass.
 
 ## Clarifications
 
-None yet.
+### Session 2026-09-15
+
+- **Q: Which of Shahid's companies count as his "personal active
+  companies"?** → **A: Exactly two** — Intellectual Frontiers LLC and
+  Netspective Communications LLC, per Shahid's direct statement. Every
+  other property in this spec is categorized separately (non-profit
+  vehicle, brand and partnership, co-founded venture, historical venture,
+  or Studios-delivered project) rather than counted as a personal active
+  company. Updates the Key Entities table below; resolves the "active
+  company" half of OQ-1 and OQ-2.
+- **Q: What is Netspective Foundation?** → **A: Shahid's principal
+  non-profit vehicle, which he co-founded.** Not an in-flight or
+  unconfirmed venture — `founderMode.ts`'s placement of it under
+  `currentVentureWork` describes its maturity as a business, not its
+  legal or organizational status, which Shahid has now stated directly.
+  Resolves OQ-1.
+- **Q: What is HealthIMPACT, structurally?** → **A: A brand, built on
+  Shahid's personal partnership with Purpose Events
+  ([purposeevents.com](https://purposeevents.com)), not a company he
+  owns outright.** He co-founded it and has chaired it since 2013; the
+  partnership with Purpose Events is what makes the forum run. Moved out
+  of the companies table into its own category below.
+- **Q: What are Medigy, Opsfolio, Qualityfolio, Fleetfolio, and similar
+  named projects?** → **A: Projects built by and for Intellectual
+  Frontiers Studios, delivered by Netspective Communications** — not
+  personal ventures of Shahid's, and not evidence of a company he
+  founded independently of IF and Netspective. This is a fact about how
+  two of Shahid's properties relate to each other (Netspective as the
+  engineering and delivery platform, IF Studios as the venture-decision
+  layer that commissions the work) that neither property's own source
+  material stated on its own. Resolves OQ-2, and the "project" half of
+  OQ-1.
+- **Note on remaining conflicts (OQ-3, OQ-4, OQ-5):** Shahid asked that
+  these stay open for now ("we'll deal with conflicts later"). They are
+  not resolved by this session and remain in Open Questions below.
 
 ## Primary scenario
 
@@ -80,12 +115,17 @@ historical, or unconfirmed.
    **when** this repository needs to say anything about IF's own
    doctrine, units, or governance, **then** it must cite
    `intellectual-frontiers/.github` rather than restating any of it here.
-4. **Given** a source file on Shahid's own site (`founderMode.ts`,
+4. **Given** a named project (Medigy, Opsfolio, Qualityfolio, Fleetfolio,
+   Resource Surveillance/surveilr, and similar), **when** this spec
+   describes it, **then** it must be attributed to Intellectual
+   Frontiers Studios as commissioning party and Netspective Communications
+   as builder, not presented as an independent personal venture.
+5. **Given** a source file on Shahid's own site (`founderMode.ts`,
    `network.ts`, `recognition.ts`, `bios.ts`) states something that
    conflicts with another of his own source files, **when** this spec
    surfaces that fact, **then** it records the conflict as an open
-   question rather than silently picking one version. (Several such
-   conflicts exist — see Open Questions.)
+   question rather than silently picking one version, unless Shahid has
+   directly resolved it (see Clarifications).
 
 ### Edge cases
 
@@ -95,7 +135,8 @@ historical, or unconfirmed.
 - A property is named in one source file and absent from another
   (e.g., listed as a "company" in one place and as unconfirmed "in-flight
   venture work" in another): recorded as a conflict, not resolved by
-  picking the more flattering label.
+  picking the more flattering label — unless a dated Clarification
+  session above actually resolves it.
 
 ## Requirements
 
@@ -137,6 +178,18 @@ historical, or unconfirmed.
   property MUST stay thin and cite that source, per FR-005's pattern —
   it MUST NOT fork a second, competing account of a property that already
   specifies itself elsewhere.
+- **FR-008**: Only Intellectual Frontiers LLC and Netspective
+  Communications LLC MAY be described as Shahid's "personal active
+  companies." Every other entity in Key Entities MUST use its own
+  category (non-profit vehicle, brand/partnership, co-founded venture,
+  historical venture, or Studios-delivered project) and MUST NOT be
+  described using that specific phrase.
+- **FR-009**: A project built by Netspective Communications for
+  Intellectual Frontiers Studios (Medigy, Opsfolio, Qualityfolio,
+  Fleetfolio, Resource Surveillance/surveilr, and any other project
+  fitting this pattern) MUST be attributed to both — Studios as the
+  commissioning unit, Netspective as the builder — and MUST NOT be listed
+  as an independent company or personal venture of Shahid's.
 
 **Naming**
 
@@ -149,20 +202,48 @@ historical, or unconfirmed.
 
 **Shahid N. Shah** — Fractional CTO, CISO, and Chief Technology & Venture
 Officer (CTVO); inventor (34 awarded U.S. patents); author; keynote
-speaker. 35 years of engineering experience; 5 companies founded per his
-own stated count (see Open Questions for how that count squares with the
-longer founder record below). Primary public site: `shahidshah.com`.
-Primary professional email: `shahid@shah.org`.
+speaker. 35 years of engineering experience. Education: M.Sc. in
+Technology Management, University of Maryland (1998); B.Sc. in Computer
+Science, Penn State Harrisburg (1990). Primary public site:
+`shahidshah.com`. Primary professional email: `shahid@shah.org`.
 
-**Current companies and ventures** (per `founderMode.ts`'s `founderRecord`,
-status as stated there):
+**Personal active companies** (Shahid's own term, stated directly
+2026-09-15 — see Clarifications):
 
 | Property | Role | Status |
 | --- | --- | --- |
-| [Intellectual Frontiers](https://www.intellectualfrontiers.com) | Founder, owner, Managing Partner | Current — see spec 0002 |
-| [Netspective Communications](https://www.netspective.com) | Founder and CEO | Founded 2001, still operating |
-| [Unblock Health](https://www.unblock.health) | Co-founder (with Grace Cordovano) | Operating |
-| [HealthIMPACT](https://www.healthimpactlive.com) | Co-founder and Chair | Active since 2013; 50+ forums, 200+ panels moderated |
+| [Intellectual Frontiers LLC](https://www.intellectualfrontiers.com) | Founder, owner, Managing Partner | Current — see spec 0002 |
+| [Netspective Communications LLC](https://www.netspective.com) | Founder and CEO | Founded 2001, still operating |
+
+**Principal non-profit vehicle:**
+
+| Property | Role | Status |
+| --- | --- | --- |
+| [Netspective Foundation](https://www.netspective.foundation/) | Co-founder | Shahid's principal non-profit vehicle |
+
+**Brand and personal partnership:**
+
+| Property | Role | Status |
+| --- | --- | --- |
+| [HealthIMPACT](https://www.healthimpactlive.com) | Co-founder and Chair | Active since 2013. A brand built on Shahid's personal partnership with [Purpose Events](https://purposeevents.com), not a company he owns outright. |
+
+**Other co-founded venture** (operating per the site's own record, but not
+one of the two personal active companies above):
+
+| Property | Role | Status |
+| --- | --- | --- |
+| [Unblock Health](https://www.unblock.health) | Co-founder (with Grace Cordovano) | Operating, per `founderMode.ts` |
+
+**Intellectual Frontiers Studios projects, delivered by Netspective
+Communications** (per Shahid's direct statement 2026-09-15 — these are
+not independent personal ventures):
+
+- [Medigy](https://www.medigy.com)
+- [Opsfolio](https://www.opsfolio.com)
+- [Resource Surveillance / surveilr](https://www.surveilr.com)
+- [Qualityfolio](https://qualityfolio.dev)
+- [Fleetfolio](https://fleetfolio.dev)
+- And other projects fitting the same pattern, per FR-009.
 
 **Historical / exited ventures:**
 
@@ -178,7 +259,9 @@ status as stated there):
 current-vs-historical status not stated for most of these — see Open
 Questions):
 
-- [Medigy](https://www.medigy.com)
+- [Medigy](https://www.medigy.com) — see Studios projects above; listed
+  here too because `network.ts` categorizes it as a publication, which
+  this spec doesn't resolve further than noting the overlap.
 - [GovCon Intelligence](https://govconic.com)
 - [Compliant Insecurity](https://compliantinsecurity.com/)
 - [Healthcare Guys](https://www.healthcareguys.com)
@@ -192,18 +275,12 @@ Frontiers Press, an IF Press unit function per
 `intellectual-frontiers/.github`'s glossary ("Founder writing"). Not
 duplicated here — see spec 0002.
 
-**In-flight venture work** (per `founderMode.ts`'s `currentVentureWork`,
-explicitly described there as exploratory and not confirmed as funded
-companies): Revenue Acceleration, Medigy, Opsfolio, VIP Care Health, VIP
-Care Cardio, OurHakeem, PatientTeam, Neuvist, Payshent, Coordinate with
-Care, Netspective Foundation.
-
-**Open source and product projects** (per `network.ts`'s `projects`, and
-`openSource.ts`'s 70+ repositories under the `shah` GitHub account):
-[Opsfolio](https://www.opsfolio.com),
-[Resource Surveillance / surveilr](https://www.surveilr.com),
-[Qualityfolio](https://qualityfolio.dev),
-[Fleetfolio](https://fleetfolio.dev).
+**Media channels** (broadcast and recorded work, not separate companies —
+per `onAir.ts`): *The Shahid Shah Show* (weekday radio, HealthcareNOW
+Radio); YouTube (130+ videos); SpeakerDeck (76 decks) and an older
+SlideShare archive (40 decks); *The #HCBiz Show!* (200+ episodes,
+co-hosted with Don Lee, 2017–2023, concluded); *Trending NOW*
+(HealthcareNOW Radio, concluded, superseded by *The Shahid Shah Show*).
 
 **Board, advisory, and investment roles** (per `founderMode.ts`'s
 `boardRoles`): Citus Health (Chairman, former), Hybrent (board member,
@@ -218,13 +295,16 @@ Poliwogg, Buddie/Teleport, and Twazer.
 ## Success criteria
 
 - **SC-001**: Every property named in this spec traces to a specific
-  source file or first-party statement, listed in Traceability below —
-  no property is asserted from general knowledge.
+  source file, first-party statement, or dated Clarification — no
+  property is asserted from general knowledge.
 - **SC-002**: No two source files' conflicting statements about the same
   property are silently resolved in this spec without a dated
   Clarifications entry recording how.
 - **SC-003**: A reader can determine, for any property named here,
-  whether its status is current, historical, or unconfirmed.
+  whether its status is current, historical, or unconfirmed, and which
+  category it belongs to (personal active company, non-profit vehicle,
+  brand/partnership, co-founded venture, historical venture, or
+  Studios-delivered project).
 
 ## Out of scope
 
@@ -244,29 +324,30 @@ Poliwogg, Buddie/Teleport, and Twazer.
 
 ## Open questions
 
-- **OQ-1**: `network.ts` lists Netspective Foundation under `companies`
-  (implying an established, current entity), while `founderMode.ts` lists
-  it under `currentVentureWork` — explicitly described there as
-  exploratory, not-yet-confirmed venture work. These two source files
-  disagree about the same entity's maturity. `[NEEDS CLARIFICATION]`
-- **OQ-2**: `network.ts` lists Medigy and Opsfolio under `companies` /
-  `projects` respectively, while `founderMode.ts` lists both under
-  `currentVentureWork`'s explicitly-exploratory bucket. Same conflict as
-  OQ-1, different entities. `[NEEDS CLARIFICATION]`
+- ~~**OQ-1**: Netspective Foundation's categorization.~~ **Resolved
+  2026-09-15** — see Clarifications: it's Shahid's principal non-profit
+  vehicle, co-founded by him.
+- ~~**OQ-2**: Medigy and Opsfolio's categorization.~~ **Resolved
+  2026-09-15** — see Clarifications: Studios-delivered projects, built by
+  Netspective Communications, not independent personal ventures. (Note:
+  `network.ts` still lists Medigy under `publications` too — that overlap
+  is noted in Key Entities but not further resolved.)
 - **OQ-3**: `founderMode.ts`'s `boardRoles` table labels the Hoy Health
   seat "Previously served as," but `recognition.ts`'s `advisorySeats`
   table lists the same seat as "Since 2016" with no former/past label —
   i.e., current. The two tables on the same site disagree about whether
-  this role is active. `[NEEDS CLARIFICATION]`
+  this role is active. **Left open at Shahid's request ("we'll deal with
+  conflicts later").** `[NEEDS CLARIFICATION]`
 - **OQ-4**: The same conflict as OQ-3 recurs for the Manos Health seat:
   `boardRoles` labels it "Previously served as," `advisorySeats` labels
-  it "Current." `[NEEDS CLARIFICATION]`
+  it "Current." **Left open at Shahid's request.** `[NEEDS CLARIFICATION]`
 - **OQ-5**: `site.ts`'s top-level stats state "05 Cos Founded," while
   `founderMode.ts`'s `founderRecord` lists nine named ventures plus
   Intellectual Frontiers (ten), of which several are explicitly
   co-founded rather than founded outright. It isn't stated which five
   count toward the "05" figure, or whether that figure predates some of
-  the later entries. `[NEEDS CLARIFICATION]`
+  the later entries. **Left open at Shahid's request.**
+  `[NEEDS CLARIFICATION]`
 - **OQ-6**: Whether any property beyond Intellectual Frontiers should get
   its own numbered spec (`0003-...` onward) in a future pass — and if so,
   which ones warrant it (Netspective Communications and HealthIMPACT seem
@@ -284,8 +365,8 @@ Poliwogg, Buddie/Teleport, and Twazer.
 
 - [x] Every requirement is testable (MUST / MUST NOT / MAY), not aspirational
 - [x] No implementation detail
-- [x] Every requirement and entity traces to a named source file or
-      first-party statement (see Traceability)
+- [x] Every requirement and entity traces to a named source file, a
+      dated Clarification, or a first-party statement (see Traceability)
 - [x] Ambiguities are marked `[NEEDS CLARIFICATION]`, not silently resolved
 - [x] Public-safe: no confidential information, no unverified financial or
       personal detail stated as settled fact
@@ -300,11 +381,17 @@ Poliwogg, Buddie/Teleport, and Twazer.
 | FR-004 | `intellectual-frontiers/.github/spec-kit/memory/constitution.md` §5, extended |
 | FR-005, FR-006 | `intellectual-frontiers/.github` README, "Canonical source, going forward" |
 | FR-007 | `www.shahidshah.com` `src/content/structuredData.ts` (`personNode`) |
-| Roles, stats | `www.shahidshah.com` `src/content/site.ts`, `public/llms.txt` |
-| Current companies / ventures, historical ventures | `www.shahidshah.com` `src/content/founderMode.ts` (`founderRecord`) |
+| FR-008 | Shahid N. Shah, direct statement, 2026-09-15 |
+| FR-009 | Shahid N. Shah, direct statement, 2026-09-15 |
+| Education | `www.shahidshah.com` `src/content/site.ts` (`education`) |
+| Personal active companies | Shahid N. Shah, direct statement, 2026-09-15; `www.shahidshah.com` `src/content/founderMode.ts` |
+| Netspective Foundation | Shahid N. Shah, direct statement, 2026-09-15; `www.shahidshah.com` `src/content/network.ts` |
+| HealthIMPACT / Purpose Events | Shahid N. Shah, direct statement, 2026-09-15; `www.shahidshah.com` `src/content/site.ts` (`healthImpact`), `src/content/founderMode.ts` |
+| Unblock Health | `www.shahidshah.com` `src/content/founderMode.ts` (`founderRecord`) |
+| Studios projects delivered by Netspective | Shahid N. Shah, direct statement, 2026-09-15 |
+| Historical ventures | `www.shahidshah.com` `src/content/founderMode.ts` (`founderRecord`) |
 | Media and publishing properties | `www.shahidshah.com` `src/content/network.ts` (`publications`) |
-| In-flight venture work | `www.shahidshah.com` `src/content/founderMode.ts` (`currentVentureWork`) |
-| Open source / product projects | `www.shahidshah.com` `src/content/network.ts` (`projects`); `src/content/openSource.ts` |
+| Media channels | `www.shahidshah.com` `src/content/onAir.ts` |
 | Board / advisory / investment roles | `www.shahidshah.com` `src/content/founderMode.ts` (`boardRoles`) |
 | OQ-3, OQ-4 | `www.shahidshah.com` `src/content/founderMode.ts` (`boardRoles`) vs. `src/content/recognition.ts` (`advisorySeats`) |
 | Personal principles | Shahid N. Shah, direct statement, 2026-09-15 |
