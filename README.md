@@ -13,7 +13,7 @@
 Award-winning Government 2.0, Health IT, and Medical Device Integration
 software expert with 35 years of technology strategy, software engineering,
 entrepreneurship, speaking, and writing experience. 34 awarded U.S. patents,
-90 open source repositories across GitHub, 10 companies and organizations
+102 open source repositories across GitHub, 10 companies and organizations
 founded (2 active, 3 exited via acquisition, 2 closed, 3 active
 non-profits), 35+ clients served.
 
