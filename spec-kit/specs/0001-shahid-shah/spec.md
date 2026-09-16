@@ -180,10 +180,15 @@ specific to him.
   and rolled into Medigy. Resolves OQ-7.
 - **Note:** HITSphere's founded-and-acquired history matches the pattern
   already used for Physia, simplifyMD, and Citus Health in the
-  companies-founded count (OQ-5), which raises a new question this
-  session doesn't resolve: should HITSphere be a seventh entry in that
-  count, rather than excluded alongside HealthcareGuy as "not a
-  company"? See OQ-8.
+  companies-founded count (OQ-5), which raised a question about whether
+  HITSphere should be a seventh entry there. See below.
+- **Q: Should HITSphere count as a seventh company in the
+  companies-founded figure?** → **A: No.** Per Shahid's direct statement:
+  "HITSphere was a publication with a domain but not a company." The
+  founded/acquired verbs are the same ones used for Physia, simplifyMD,
+  and Citus Health, but the underlying entity wasn't a company in the
+  way those three were. Companies-founded figure stays at six. Resolves
+  OQ-8.
 
 ## Primary scenario
 
@@ -347,10 +352,9 @@ Physia, simplifyMD, and Citus Health (co-founded, venture-backed, each
 exited via acquisition, Shahid no longer affiliated with any of the
 three); and Influential Networks (closed, no longer operating). This
 supersedes the site's "05 Cos Founded" stat, which predates Intellectual
-Frontiers' founding. **Provisional**: OQ-8 asks whether HITSphere
-(founded by Shahid, later acquired into Medigy) should be a seventh
-entry in this count — not yet resolved, so this section still states six
-pending that answer.
+Frontiers' founding. HITSphere (founded by Shahid, later acquired into
+Medigy) does not count as a seventh entry — resolved as a publication,
+not a company; see OQ-8.
 
 **Personal active companies** (Shahid's own term, stated directly
 2026-09-15 — see Clarifications; 2 of the 6 companies founded, above):
@@ -411,12 +415,13 @@ venture-backed and Shahid is no longer affiliated with any of them):
 
 Note: HealthcareGuy and HITSphere were previously listed here together as
 "founder-led media properties" and excluded from the companies-founded
-figure as a pair. A closer look (OQ-7) found the two are not alike:
-HealthcareGuy is Shahid's personal-opinion blog, correctly excluded as a
-publication. HITSphere was founded and later acquired into Medigy — the
-same founded-and-acquired pattern as Physia, simplifyMD, and Citus Health
-above, which raises a real question about whether it belongs in this
-table rather than the publications list. Not resolved here — see OQ-8.
+figure as a pair. A closer look (OQ-7, OQ-8) confirmed both are correctly
+excluded, for different reasons: HealthcareGuy is Shahid's
+personal-opinion blog, and HITSphere — despite being "founded" and later
+"acquired," the same verbs used for Physia, simplifyMD, and Citus Health
+above — was a publication with a domain, not an incorporated company.
+The founded/acquired pattern looks the same on the surface; the entity
+underneath it wasn't.
 
 **Media and publishing properties** (per `network.ts`'s `publications`;
 current-vs-historical status not stated for most of these — see Open
@@ -436,10 +441,10 @@ Questions):
   personal writing has moved to
   [shahidshah.com/writing](https://www.shahidshah.com/writing). Resolves
   OQ-7.
-- HITSphere — founded by Shahid; later acquired and rolled into
+- HITSphere — founded by Shahid; a publication with a domain, not a
+  company, later acquired and rolled into
   [Medigy](https://www.medigy.com) (see Studios projects above). Not a
-  publication still standing on its own. Resolves the relationship half
-  of OQ-7, but reopens a categorization question — see OQ-8.
+  publication still standing on its own today. Resolves OQ-7 and OQ-8.
 - [Operational Truth](https://operationaltruth.org)
 - Unsafely Compliant (no public URL given in the source)
 
@@ -533,12 +538,11 @@ and Twazer.
   (mostly historical, still live); Healthcare Guys is a separate active
   multi-contributor blog; HITSphere was founded by Shahid and later
   acquired into Medigy.
-- **OQ-8**: HITSphere's history (founded by Shahid, later acquired into
-  Medigy) matches the founded-and-acquired pattern used for Physia,
-  simplifyMD, and Citus Health in the six-companies-founded count
-  (OQ-5), but OQ-5's resolution excluded HITSphere alongside HealthcareGuy
-  as "not a company." Should HITSphere count as a seventh entry in that
-  figure? `[NEEDS CLARIFICATION]`
+- ~~**OQ-8**: Should HITSphere count as a seventh company in the
+  companies-founded figure?~~ **Resolved 2026-09-16** — see
+  Clarifications: no. HITSphere was a publication with a domain, not a
+  company; the founded/acquired verbs matched Physia, simplifyMD, and
+  Citus Health, but the underlying entity didn't. Figure stays at six.
 
 ## Review & acceptance checklist
 
@@ -577,4 +581,4 @@ and Twazer.
 | OQ-3, OQ-4 (resolved) | Shahid N. Shah, direct statement, 2026-09-16; `www.shahidshah.com` `src/content/founderMode.ts` (`boardRoles`) vs. `src/content/recognition.ts` (`advisorySeats`) |
 | Personal principles | Shahid N. Shah, direct statement, 2026-09-15 |
 | Companies founded (six); historical/closed company outcomes | Shahid N. Shah, direct statement, 2026-09-16; `www.shahidshah.com` `src/content/founderMode.ts` (`founderRecord`, `site.ts` "05 Cos Founded" superseded) |
-| HealthcareGuy / Healthcare Guys / HITSphere relationship (OQ-7) | Shahid N. Shah, direct statement, 2026-09-16; `www.shahidshah.com` `src/content/network.ts`, `src/content/posts/archive.ts` (2005 HITSphere reference) |
+| HealthcareGuy / Healthcare Guys / HITSphere relationship (OQ-7); HITSphere not a company (OQ-8) | Shahid N. Shah, direct statement, 2026-09-16; `www.shahidshah.com` `src/content/network.ts`, `src/content/posts/archive.ts` (2005 HITSphere reference) |
