@@ -23,10 +23,11 @@ each other — sourced from his own site's structured content
 `src/content/network.ts`, `src/content/founderMode.ts`,
 `src/content/bios.ts`, `src/content/structuredData.ts`,
 `src/content/onAir.ts`, `src/content/skills.ts`, `src/routes/about.tsx`,
-and `public/llms.txt`), from the live repository listing at
-[github.com/shah](https://github.com/shah), and from Shahid's own direct
-statements where those sources needed correcting or didn't yet say
-enough.
+and `public/llms.txt`), from the live repository listings at
+[github.com/shah](https://github.com/shah) and the
+[netspective](https://github.com/netspective) GitHub organization, and
+from Shahid's own direct statements where those sources needed
+correcting or didn't yet say enough.
 
 This is not an implementation plan. It says what's true and how to check
 it, not how any work gets done.
@@ -92,10 +93,14 @@ them:
   `www.shahidshah.com`'s `src/content/skills.ts` (2,513 total
   endorsements across 49 named skills, sourced from his LinkedIn
   profile).
-- **GitHub** — every public, non-fork repository under
-  [github.com/shah](https://github.com/shah): 64 public repositories as
-  of 2026-09-16 (8 forks excluded, 56 remaining), each repository's
-  primary language as GitHub itself detects it.
+- **GitHub** — every public, non-fork repository under Shahid's personal
+  account, [github.com/shah](https://github.com/shah) (64 repositories,
+  8 forks excluded, 56 remaining), plus the
+  [netspective](https://github.com/netspective) organization (38
+  repositories, 4 forks excluded, 34 remaining) — per Shahid's direct
+  statement, Netspective's org repositories count as his own evidence
+  too. 90 non-fork repositories total, checked 2026-09-16, each
+  repository's primary language as GitHub itself detects it.
 
 **Classification rule** (per Shahid's direct statement, formalized as
 FR-013): a skill is a **Proven skill** whenever there's direct evidence of
@@ -108,26 +113,36 @@ exist, yes or no), not a judgment call about which skills "feel" true —
 see the Review checklist's public-safe standard.
 
 **Proven skill — direct GitHub evidence** (a non-fork repository's
-detected primary language; LinkedIn endorsement count shown where that
-skill also happens to be endorsed there, though endorsement isn't what
-makes it Proven):
+detected primary language, across Shahid's personal `shah` account and
+the `netspective` org; LinkedIn endorsement count shown where that skill
+also happens to be endorsed there, though endorsement isn't what makes
+it Proven):
 
-| Skill | Non-fork repositories | Also LinkedIn-endorsed |
+| Skill | Non-fork repositories (shah + netspective) | Also LinkedIn-endorsed |
 | --- | --- | --- |
-| TypeScript | 29 | — |
-| Shell | 8 | — |
-| Go | 5 | — |
-| Makefile | 2 | — |
-| JavaScript | 1 (`legacy.shahidshah.com`) | 13 |
-| Python | 1 | — |
-| Perl | 1 | — |
-| Jsonnet, Dockerfile, CSS, HTML | 1 each | — |
+| TypeScript | 29 (29 + 0) | — |
+| JavaScript | 11 (1 + 10) | 13 |
+| Shell | 9 (8 + 1) | — |
+| C++ | 6 (0 + 6) | 14 |
+| Go | 6 (5 + 1) | — |
+| Java | 5 (0 + 5) | 24 |
+| HTML | 3 (1 + 2) | — |
+| Makefile | 3 (2 + 1) | — |
+| CSS | 2 (1 + 1) | — |
+| Python | 1 (1 + 0) | — |
+| Perl | 1 (1 + 0) | — |
+| PHP | 1 (0 + 1) | 11 |
+| Astro, Handlebars, ActionScript, Ruby, Jsonnet, Dockerfile | 1 each (netspective, except Jsonnet/Dockerfile which are shah) | — |
 
-**Proven skill — general software-engineering competency** (the GitHub
-portfolio as a whole — 56 non-fork public repositories, multiple
-languages, sustained activity — is itself the code evidence for these
-general skills, rather than any single repository's language tag; all
-five also happen to be LinkedIn-endorsed):
+One `netspective` repo (`enterprise-architecture`) showed licensing text
+where a language would normally appear — not counted here rather than
+guessed at.
+
+**Proven skill — general software-engineering competency** (the combined
+GitHub portfolio — 90 non-fork public repositories across `shah` and
+`netspective`, multiple languages, sustained activity — is itself the
+code evidence for these general skills, rather than any single
+repository's language tag; all five also happen to be LinkedIn-endorsed):
 
 | Skill | LinkedIn endorsements |
 | --- | --- |
@@ -137,37 +152,42 @@ five also happen to be LinkedIn-endorsed):
 | SDLC | 47 |
 | Programming | 25 |
 
-**Skill** (LinkedIn-endorsed; no direct code evidence found on GitHub or
-elsewhere): Enterprise Architecture (283), Agile Methodologies (238),
+**Skill** (LinkedIn-endorsed; no direct code evidence found across either
+GitHub source): Enterprise Architecture (283), Agile Methodologies (238),
 Software Project Management (155), IT Strategy (146), Product Management
 (111), Integration (96), Healthcare Information Technology (76), Cloud
 Computing (70), Healthcare (68), System Architecture (67), Investment
 Advisory (62), Entrepreneur (61), Engaging Public Speaker (57), Business
 Intelligence (52), Unix (51), Requirements Analysis (47), Security (39),
-SaaS (37), SQL (29), Java (24), Mobile Applications (23), Linux (23),
-Equity Research (21), Technology Strategy Development (21), Valuation
-(18), Board of Directors (16), Medical Device R&D (16), SOA (16), C++
-(14), Operating Systems (12), C (12), PHP (11), Technical Management
-(11), Information Architecture (11), Healthcare IT (11), Application
-Architecture (11), Medical Informatics (11), Relational Databases (10),
-J2EE (10), Due Diligence (9), Agile (9), Publisher (3), Writer (2).
+SaaS (37), SQL (29), Mobile Applications (23), Linux (23), Equity
+Research (21), Technology Strategy Development (21), Valuation (18),
+Board of Directors (16), Medical Device R&D (16), SOA (16), Operating
+Systems (12), C (12), Technical Management (11), Information
+Architecture (11), Healthcare IT (11), Application Architecture (11),
+Medical Informatics (11), Relational Databases (10), J2EE (10), Due
+Diligence (9), Agile (9), Publisher (3), Writer (2).
 
-Worth noting rather than smoothing over: several of these (Java, C++, C,
-PHP, J2EE, SQL) reflect an earlier point in Shahid's technology stack —
-no GitHub repository's primary language matches any of them today. Unix
-and Linux come close — eight repositories are Shell scripts, and one is
-named `linux-user-conf` — but "Shell" isn't the literal string "Unix" or
-"Linux," so under the classification rule above they stay a plain Skill
-rather than a Proven skill. That's the rule working as intended: close
-isn't the same as matched.
+Worth noting rather than smoothing over: adding the `netspective` org
+moved Java, C++, and PHP from Skill to Proven skill — evidence Shahid's
+personal `shah` account alone didn't show. C, SQL, and J2EE remain
+Skill-only: no non-fork repository in either source matches them (one
+`netspective` repo, `pdflib-2.0.1-patched-ubuntu`, is C, but it's a
+fork, and forks don't count as evidence of Shahid's own code any more
+than they did for the `shah` account). Unix and Linux come close — nine
+repositories are Shell scripts, and one is named `linux-user-conf` — but
+"Shell" isn't the literal string "Unix" or "Linux," so under the
+classification rule above they stay a plain Skill rather than a Proven
+skill. That's the rule working as intended: close isn't the same as
+matched.
 
-Read together, the two Proven-skill tables are Shahid's actual current
-technology stack by volume of public work (TypeScript-heavy, with Go,
-Shell, Python, and Perl), and it doesn't overlap much with what
-LinkedIn's endorsers voted on — an honest gap between a profile built by
-other people's endorsements over time and a portfolio he actively
-maintains today. See OQ-9 for a separate, smaller discrepancy this check
-surfaced.
+Read together, the two Proven-skill tables are Shahid's actual
+technology stack by volume of public work across both GitHub sources
+(TypeScript and JavaScript-heavy, with meaningful C++ and Java from the
+Netspective org, plus Go, Shell, Python, and Perl), and it still doesn't
+fully overlap with what LinkedIn's endorsers voted on — an honest gap
+between a profile built by other people's endorsements over time and a
+portfolio he actively maintains today. See OQ-9 for a separate, smaller
+discrepancy this check surfaced.
 
 ## Clarifications
 
@@ -301,6 +321,14 @@ surfaced.
   "Valid." This supersedes the original dual-source "Proven" rule from
   earlier in this session. See the revised "Technical skills" section
   above and FR-013.
+- **Q: Should code-evidence-gathering stay limited to the `shah` personal
+  GitHub account, or include Shahid's other GitHub organizations?** →
+  **A: Include them — starting with `netspective`.** Per Shahid's direct
+  statement, the `netspective` org's repositories (Netspective
+  Communications' own org, 38 total, 34 non-fork) count as his personal
+  code evidence too. This added Java, C++, and PHP as Proven skills that
+  weren't otherwise evidenced. The `alim-foundation` org, also found in
+  this check, is handled separately — see below.
 
 ## Primary scenario
 
@@ -721,5 +749,5 @@ and Twazer.
 | Companies founded (six); historical/closed company outcomes | Shahid N. Shah, direct statement, 2026-09-16; `www.shahidshah.com` `src/content/founderMode.ts` (`founderRecord`, `site.ts` "05 Cos Founded" superseded) |
 | HealthcareGuy / Healthcare Guys / HITSphere relationship (OQ-7); HITSphere not a company (OQ-8) | Shahid N. Shah, direct statement, 2026-09-16; `www.shahidshah.com` `src/content/network.ts`, `src/content/posts/archive.ts` (2005 HITSphere reference) |
 | No dedicated spec for Netspective Communications or HealthIMPACT (OQ-6) | Shahid N. Shah, direct statement, 2026-09-16 |
-| FR-013; Technical skills (Proven skill / Skill tables) | `www.shahidshah.com` `src/content/skills.ts` (LinkedIn-sourced); github.com/shah repository listing, fetched 2026-09-16; Shahid N. Shah, direct correction, 2026-09-16 (code evidence alone is sufficient for "Proven skill") |
+| FR-013; Technical skills (Proven skill / Skill tables) | `www.shahidshah.com` `src/content/skills.ts` (LinkedIn-sourced); github.com/shah and github.com/netspective repository listings, fetched 2026-09-16; Shahid N. Shah, direct correction, 2026-09-16 (code evidence alone is sufficient for "Proven skill"; netspective org counts as his own evidence) |
 | OQ-9 (repo count discrepancy) | `www.shahidshah.com` `src/content/openSource.ts` ("70+") vs. github.com/shah repository listing, fetched 2026-09-16 (64 total) |
