@@ -22,9 +22,11 @@ each other — sourced from his own site's structured content
 (`shah/www.shahidshah.com`, primarily `src/content/site.ts`,
 `src/content/network.ts`, `src/content/founderMode.ts`,
 `src/content/bios.ts`, `src/content/structuredData.ts`,
-`src/content/onAir.ts`, `src/routes/about.tsx`, and `public/llms.txt`) and
-from Shahid's own direct statements where the site's content needed
-correcting or didn't yet say enough.
+`src/content/onAir.ts`, `src/content/skills.ts`, `src/routes/about.tsx`,
+and `public/llms.txt`), from the live repository listing at
+[github.com/shah](https://github.com/shah), and from Shahid's own direct
+statements where those sources needed correcting or didn't yet say
+enough.
 
 This is not an implementation plan. It says what's true and how to check
 it, not how any work gets done.
@@ -79,6 +81,94 @@ than to learn about Shahid specifically: see "Build your own digital
 twin" in the root [`README.md`](../../../README.md) and
 [`spec-kit/AGENTS.md`](../../AGENTS.md) for what generalizes and what's
 specific to him.
+
+## Technical skills
+
+Two independent sources, cross-referenced rather than merged into one
+undifferentiated list, per Shahid's direct instruction on how to weigh
+them:
+
+- **LinkedIn** — the endorsed-skills list already in
+  `www.shahidshah.com`'s `src/content/skills.ts` (2,513 total
+  endorsements across 49 named skills, sourced from his LinkedIn
+  profile).
+- **GitHub** — every public, non-fork repository under
+  [github.com/shah](https://github.com/shah): 64 public repositories as
+  of 2026-09-16 (8 forks excluded, 56 remaining), each repository's
+  primary language as GitHub itself detects it.
+
+**Classification rule** (per Shahid's direct statement, formalized as
+FR-013): a skill is **Proven** only when it's evidenced by both sources —
+named on the LinkedIn list and matched by an actual GitHub repository's
+detected primary language. A skill present in only one source is
+**Valid**, labeled with which source it came from. This is a mechanical,
+reproducible check, not a judgment call about which skills "feel" true —
+see the Review checklist's public-safe standard.
+
+**Proven** (named on LinkedIn, and directly matched by a GitHub
+repository's primary language):
+
+| Skill | LinkedIn endorsements | GitHub evidence |
+| --- | --- | --- |
+| JavaScript | 13 | `legacy.shahidshah.com` |
+
+**Proven — general software-engineering competency** (the GitHub
+portfolio as a whole — 56 non-fork public repositories, multiple
+languages, sustained activity — is itself the artifact that evidences
+these specific LinkedIn-endorsed general skills, rather than any single
+repository's language tag):
+
+| Skill | LinkedIn endorsements |
+| --- | --- |
+| Software Development | 209 |
+| Software Engineering | 86 |
+| Software Design | 54 |
+| SDLC | 47 |
+| Programming | 25 |
+
+**Valid — LinkedIn only** (endorsed, but no GitHub repository's primary
+language matches): Enterprise Architecture (283), Agile Methodologies
+(238), Software Project Management (155), IT Strategy (146), Product
+Management (111), Integration (96), Healthcare Information Technology
+(76), Cloud Computing (70), Healthcare (68), System Architecture (67),
+Investment Advisory (62), Entrepreneur (61), Engaging Public Speaker
+(57), Business Intelligence (52), Unix (51), Requirements Analysis (47),
+Security (39), SaaS (37), SQL (29), Java (24), Mobile Applications (23),
+Linux (23), Equity Research (21), Technology Strategy Development (21),
+Valuation (18), Board of Directors (16), Medical Device R&D (16), SOA
+(16), C++ (14), Operating Systems (12), C (12), PHP (11), Technical
+Management (11), Information Architecture (11), Healthcare IT (11),
+Application Architecture (11), Medical Informatics (11), Relational
+Databases (10), J2EE (10), Due Diligence (9), Agile (9), Publisher (3),
+Writer (2).
+
+Worth noting rather than smoothing over: several of these (Java, C++, C,
+PHP, J2EE, SQL) reflect an earlier point in Shahid's technology stack.
+None of them match a GitHub repository's primary language today. Unix
+and Linux come close — eight repositories are Shell scripts, and one is
+named `linux-user-conf` — but "Shell" isn't the literal string "Unix" or
+"Linux," so under the classification rule above they stay Valid rather
+than Proven. That's the rule working as intended: close isn't the same
+as matched.
+
+**Valid — GitHub only** (an actively used primary language across
+non-fork repositories, not a named skill on the LinkedIn list):
+
+| Language | Non-fork repositories |
+| --- | --- |
+| TypeScript | 29 |
+| Shell | 8 |
+| Go | 5 |
+| Makefile | 2 |
+| Python | 1 |
+| Perl | 1 |
+| Jsonnet, Dockerfile, CSS, HTML | 1 each |
+
+This is Shahid's actual current technology stack by volume of public
+work, and it doesn't overlap much with what LinkedIn's endorsers voted
+on — an honest gap between a profile built by other people's
+endorsements over time and a portfolio he actively maintains today. See
+OQ-9 for a separate, smaller discrepancy this check surfaced.
 
 ## Clarifications
 
@@ -195,6 +285,16 @@ specific to him.
   the way Intellectual Frontiers does (spec 0002's actual justification),
   and per the company repo's own "start with one unit, not the whole
   thing" precedent. Both remain entries inside this spec. Resolves OQ-6.
+- **Q: What are Shahid's actual technical skills, and which are the most
+  credible?** → **A: Cross-referenced from two independent sources —**
+  the LinkedIn-endorsed skills already in `skills.ts`, and every
+  non-fork public repository under
+  [github.com/shah](https://github.com/shah) (64 total, 8 forks, 56
+  non-fork, checked 2026-09-16). Per Shahid's instruction: a skill named
+  on both is "Proven"; a skill in only one source is "Valid." See the
+  new "Technical skills" section above and FR-013. This surfaced a new
+  discrepancy — `openSource.ts` states "70+" public repos, but the
+  actual count checked today is 64 — see OQ-9.
 
 ## Primary scenario
 
@@ -248,6 +348,10 @@ AI, rather than answered by one living inside it. See Digital Twin above.
    they call it a "digital twin," **then** the description must make
    clear it's a read reference (public tier, structured content), not a
    live agent that itself converses or gives advice — per FR-011.
+8. **Given** a skill appears on the LinkedIn list but no GitHub
+   repository's primary language matches it (or vice versa), **when**
+   this spec labels that skill, **then** it must say "Valid" and name
+   the single source, never "Proven" — per FR-013.
 
 ### Edge cases
 
@@ -341,6 +445,18 @@ AI, rather than answered by one living inside it. See Digital Twin above.
   himself and for others who build the same pattern, but MUST NOT be
   described as already built, scheduled, or committed to a timeline
   unless and until it actually exists.
+
+**Technical skills**
+
+- **FR-013**: A skill MUST be labeled "Proven" only when it is both a
+  named entry on the LinkedIn-sourced skills list
+  (`www.shahidshah.com`'s `src/content/skills.ts`) and directly matched
+  by a non-fork GitHub repository's detected primary language. A skill
+  present in only one of the two sources MUST be labeled "Valid" and
+  MUST name which source it came from. A closely related term (e.g.,
+  "Unix"/"Linux" as a skill versus "Shell" as a detected language) MUST
+  NOT be treated as a match — the check is mechanical, not
+  interpretive.
 
 ## Key entities
 
@@ -548,6 +664,13 @@ and Twazer.
   Clarifications: no. HITSphere was a publication with a domain, not a
   company; the founded/acquired verbs matched Physia, simplifyMD, and
   Citus Health, but the underlying entity didn't. Figure stays at six.
+- **OQ-9**: `www.shahidshah.com`'s `src/content/openSource.ts` states
+  "70+" public repositories under github.com/shah. The actual count
+  fetched directly from GitHub on 2026-09-16 is 64 (8 forks, 56
+  non-fork). Possibly the site's figure is stale, counts something this
+  check didn't (e.g., private repos, a different account, or repos
+  since deleted or made private), or was rounded loosely from the start.
+  Not resolved here. `[NEEDS CLARIFICATION]`
 
 ## Review & acceptance checklist
 
@@ -588,3 +711,5 @@ and Twazer.
 | Companies founded (six); historical/closed company outcomes | Shahid N. Shah, direct statement, 2026-09-16; `www.shahidshah.com` `src/content/founderMode.ts` (`founderRecord`, `site.ts` "05 Cos Founded" superseded) |
 | HealthcareGuy / Healthcare Guys / HITSphere relationship (OQ-7); HITSphere not a company (OQ-8) | Shahid N. Shah, direct statement, 2026-09-16; `www.shahidshah.com` `src/content/network.ts`, `src/content/posts/archive.ts` (2005 HITSphere reference) |
 | No dedicated spec for Netspective Communications or HealthIMPACT (OQ-6) | Shahid N. Shah, direct statement, 2026-09-16 |
+| FR-013; Technical skills (Proven / Valid tables) | `www.shahidshah.com` `src/content/skills.ts` (LinkedIn-sourced); github.com/shah repository listing, fetched 2026-09-16 |
+| OQ-9 (repo count discrepancy) | `www.shahidshah.com` `src/content/openSource.ts` ("70+") vs. github.com/shah repository listing, fetched 2026-09-16 (64 total) |

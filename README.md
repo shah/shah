@@ -107,8 +107,9 @@ spec-kit/
   specs/
     0001-shahid-shah/
       spec.md                  the person, specified: roles, properties,
-                                boundaries, personal principles, open
-                                questions — not a plan
+                                boundaries, personal principles, technical
+                                skills (Proven/Valid), open questions —
+                                not a plan
     0002-intellectual-frontiers/
       spec.md                  thin — cites intellectual-frontiers/.github
                                 for everything, restates nothing
