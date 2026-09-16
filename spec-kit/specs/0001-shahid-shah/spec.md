@@ -189,6 +189,12 @@ specific to him.
   and Citus Health, but the underlying entity wasn't a company in the
   way those three were. Companies-founded figure stays at six. Resolves
   OQ-8.
+- **Q: Should Netspective Communications or HealthIMPACT get their own
+  numbered spec (0003, 0004)?** → **A: Neither, for now.** Shahid's
+  choice, given neither has its own governed spec-kit repository to cite
+  the way Intellectual Frontiers does (spec 0002's actual justification),
+  and per the company repo's own "start with one unit, not the whole
+  thing" precedent. Both remain entries inside this spec. Resolves OQ-6.
 
 ## Primary scenario
 
@@ -526,12 +532,11 @@ and Twazer.
   simplifyMD, and Citus Health (exited via acquisition); Influential
   Networks (closed). The site's "05" figure predates Intellectual
   Frontiers and is superseded.
-- **OQ-6**: Whether any property beyond Intellectual Frontiers should get
-  its own numbered spec (`0003-...` onward) in a future pass — and if so,
-  which ones warrant it (Netspective Communications and HealthIMPACT seem
-  like the strongest candidates, given they're both long-running and
-  already have public sites of their own) — is an open decision for
-  Shahid, not resolved here. See Out of Scope.
+- ~~**OQ-6**: Whether Netspective Communications or HealthIMPACT should
+  get their own numbered spec.~~ **Resolved 2026-09-16** — see
+  Clarifications: neither, for now. Both stay as entries inside this
+  spec. Revisit if either genuinely needs more depth than a summary
+  table can hold.
 - ~~**OQ-7**: How Healthcare Guys, The Healthcare IT Guy, and HITSphere
   relate to each other.~~ **Resolved 2026-09-16** — see Clarifications:
   three distinct things. The Healthcare IT Guy is Shahid's own blog
@@ -582,3 +587,4 @@ and Twazer.
 | Personal principles | Shahid N. Shah, direct statement, 2026-09-15 |
 | Companies founded (six); historical/closed company outcomes | Shahid N. Shah, direct statement, 2026-09-16; `www.shahidshah.com` `src/content/founderMode.ts` (`founderRecord`, `site.ts` "05 Cos Founded" superseded) |
 | HealthcareGuy / Healthcare Guys / HITSphere relationship (OQ-7); HITSphere not a company (OQ-8) | Shahid N. Shah, direct statement, 2026-09-16; `www.shahidshah.com` `src/content/network.ts`, `src/content/posts/archive.ts` (2005 HITSphere reference) |
+| No dedicated spec for Netspective Communications or HealthIMPACT (OQ-6) | Shahid N. Shah, direct statement, 2026-09-16 |
