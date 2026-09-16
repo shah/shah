@@ -98,25 +98,36 @@ them:
   primary language as GitHub itself detects it.
 
 **Classification rule** (per Shahid's direct statement, formalized as
-FR-013): a skill is **Proven** only when it's evidenced by both sources —
-named on the LinkedIn list and matched by an actual GitHub repository's
-detected primary language. A skill present in only one source is
-**Valid**, labeled with which source it came from. This is a mechanical,
-reproducible check, not a judgment call about which skills "feel" true —
+FR-013): a skill is a **Proven skill** whenever there's direct evidence of
+actual code — a non-fork GitHub repository's detected primary language,
+or an equivalent code artifact elsewhere — regardless of whether it also
+appears on the LinkedIn list. A skill with no code evidence, appearing
+only on the LinkedIn-endorsed list, is labeled a **Skill**, not a Proven
+skill. This is a mechanical, reproducible check (does code evidence
+exist, yes or no), not a judgment call about which skills "feel" true —
 see the Review checklist's public-safe standard.
 
-**Proven** (named on LinkedIn, and directly matched by a GitHub
-repository's primary language):
+**Proven skill — direct GitHub evidence** (a non-fork repository's
+detected primary language; LinkedIn endorsement count shown where that
+skill also happens to be endorsed there, though endorsement isn't what
+makes it Proven):
 
-| Skill | LinkedIn endorsements | GitHub evidence |
+| Skill | Non-fork repositories | Also LinkedIn-endorsed |
 | --- | --- | --- |
-| JavaScript | 13 | `legacy.shahidshah.com` |
+| TypeScript | 29 | — |
+| Shell | 8 | — |
+| Go | 5 | — |
+| Makefile | 2 | — |
+| JavaScript | 1 (`legacy.shahidshah.com`) | 13 |
+| Python | 1 | — |
+| Perl | 1 | — |
+| Jsonnet, Dockerfile, CSS, HTML | 1 each | — |
 
-**Proven — general software-engineering competency** (the GitHub
+**Proven skill — general software-engineering competency** (the GitHub
 portfolio as a whole — 56 non-fork public repositories, multiple
-languages, sustained activity — is itself the artifact that evidences
-these specific LinkedIn-endorsed general skills, rather than any single
-repository's language tag):
+languages, sustained activity — is itself the code evidence for these
+general skills, rather than any single repository's language tag; all
+five also happen to be LinkedIn-endorsed):
 
 | Skill | LinkedIn endorsements |
 | --- | --- |
@@ -126,49 +137,37 @@ repository's language tag):
 | SDLC | 47 |
 | Programming | 25 |
 
-**Valid — LinkedIn only** (endorsed, but no GitHub repository's primary
-language matches): Enterprise Architecture (283), Agile Methodologies
-(238), Software Project Management (155), IT Strategy (146), Product
-Management (111), Integration (96), Healthcare Information Technology
-(76), Cloud Computing (70), Healthcare (68), System Architecture (67),
-Investment Advisory (62), Entrepreneur (61), Engaging Public Speaker
-(57), Business Intelligence (52), Unix (51), Requirements Analysis (47),
-Security (39), SaaS (37), SQL (29), Java (24), Mobile Applications (23),
-Linux (23), Equity Research (21), Technology Strategy Development (21),
-Valuation (18), Board of Directors (16), Medical Device R&D (16), SOA
-(16), C++ (14), Operating Systems (12), C (12), PHP (11), Technical
-Management (11), Information Architecture (11), Healthcare IT (11),
-Application Architecture (11), Medical Informatics (11), Relational
-Databases (10), J2EE (10), Due Diligence (9), Agile (9), Publisher (3),
-Writer (2).
+**Skill** (LinkedIn-endorsed; no direct code evidence found on GitHub or
+elsewhere): Enterprise Architecture (283), Agile Methodologies (238),
+Software Project Management (155), IT Strategy (146), Product Management
+(111), Integration (96), Healthcare Information Technology (76), Cloud
+Computing (70), Healthcare (68), System Architecture (67), Investment
+Advisory (62), Entrepreneur (61), Engaging Public Speaker (57), Business
+Intelligence (52), Unix (51), Requirements Analysis (47), Security (39),
+SaaS (37), SQL (29), Java (24), Mobile Applications (23), Linux (23),
+Equity Research (21), Technology Strategy Development (21), Valuation
+(18), Board of Directors (16), Medical Device R&D (16), SOA (16), C++
+(14), Operating Systems (12), C (12), PHP (11), Technical Management
+(11), Information Architecture (11), Healthcare IT (11), Application
+Architecture (11), Medical Informatics (11), Relational Databases (10),
+J2EE (10), Due Diligence (9), Agile (9), Publisher (3), Writer (2).
 
 Worth noting rather than smoothing over: several of these (Java, C++, C,
-PHP, J2EE, SQL) reflect an earlier point in Shahid's technology stack.
-None of them match a GitHub repository's primary language today. Unix
+PHP, J2EE, SQL) reflect an earlier point in Shahid's technology stack —
+no GitHub repository's primary language matches any of them today. Unix
 and Linux come close — eight repositories are Shell scripts, and one is
 named `linux-user-conf` — but "Shell" isn't the literal string "Unix" or
-"Linux," so under the classification rule above they stay Valid rather
-than Proven. That's the rule working as intended: close isn't the same
-as matched.
+"Linux," so under the classification rule above they stay a plain Skill
+rather than a Proven skill. That's the rule working as intended: close
+isn't the same as matched.
 
-**Valid — GitHub only** (an actively used primary language across
-non-fork repositories, not a named skill on the LinkedIn list):
-
-| Language | Non-fork repositories |
-| --- | --- |
-| TypeScript | 29 |
-| Shell | 8 |
-| Go | 5 |
-| Makefile | 2 |
-| Python | 1 |
-| Perl | 1 |
-| Jsonnet, Dockerfile, CSS, HTML | 1 each |
-
-This is Shahid's actual current technology stack by volume of public
-work, and it doesn't overlap much with what LinkedIn's endorsers voted
-on — an honest gap between a profile built by other people's
-endorsements over time and a portfolio he actively maintains today. See
-OQ-9 for a separate, smaller discrepancy this check surfaced.
+Read together, the two Proven-skill tables are Shahid's actual current
+technology stack by volume of public work (TypeScript-heavy, with Go,
+Shell, Python, and Perl), and it doesn't overlap much with what
+LinkedIn's endorsers voted on — an honest gap between a profile built by
+other people's endorsements over time and a portfolio he actively
+maintains today. See OQ-9 for a separate, smaller discrepancy this check
+surfaced.
 
 ## Clarifications
 
@@ -290,11 +289,18 @@ OQ-9 for a separate, smaller discrepancy this check surfaced.
   the LinkedIn-endorsed skills already in `skills.ts`, and every
   non-fork public repository under
   [github.com/shah](https://github.com/shah) (64 total, 8 forks, 56
-  non-fork, checked 2026-09-16). Per Shahid's instruction: a skill named
-  on both is "Proven"; a skill in only one source is "Valid." See the
-  new "Technical skills" section above and FR-013. This surfaced a new
-  discrepancy — `openSource.ts` states "70+" public repos, but the
-  actual count checked today is 64 — see OQ-9.
+  non-fork, checked 2026-09-16). This surfaced a new discrepancy —
+  `openSource.ts` states "70+" public repos, but the actual count
+  checked today is 64 — see OQ-9.
+- **Q: Should "Proven" require both LinkedIn and GitHub evidence, or is
+  code evidence alone enough?** → **A: Code evidence alone is enough —
+  corrected.** Shahid's direct correction to the initial rule above: a
+  **Proven skill** is anything with direct code evidence (GitHub or
+  elsewhere), whether or not it's also LinkedIn-endorsed. A skill with no
+  code evidence — LinkedIn only — is labeled a plain **Skill**, not
+  "Valid." This supersedes the original dual-source "Proven" rule from
+  earlier in this session. See the revised "Technical skills" section
+  above and FR-013.
 
 ## Primary scenario
 
@@ -348,10 +354,12 @@ AI, rather than answered by one living inside it. See Digital Twin above.
    they call it a "digital twin," **then** the description must make
    clear it's a read reference (public tier, structured content), not a
    live agent that itself converses or gives advice — per FR-011.
-8. **Given** a skill appears on the LinkedIn list but no GitHub
-   repository's primary language matches it (or vice versa), **when**
-   this spec labels that skill, **then** it must say "Valid" and name
-   the single source, never "Proven" — per FR-013.
+8. **Given** a skill appears on the LinkedIn list with no matching code
+   evidence anywhere, **when** this spec labels that skill, **then** it
+   must say plain "Skill," never "Proven skill" — per FR-013. **Given** a
+   skill has direct code evidence (a GitHub repository's primary
+   language) whether or not it's separately LinkedIn-endorsed, **then**
+   it must say "Proven skill."
 
 ### Edge cases
 
@@ -448,14 +456,16 @@ AI, rather than answered by one living inside it. See Digital Twin above.
 
 **Technical skills**
 
-- **FR-013**: A skill MUST be labeled "Proven" only when it is both a
-  named entry on the LinkedIn-sourced skills list
-  (`www.shahidshah.com`'s `src/content/skills.ts`) and directly matched
-  by a non-fork GitHub repository's detected primary language. A skill
-  present in only one of the two sources MUST be labeled "Valid" and
-  MUST name which source it came from. A closely related term (e.g.,
-  "Unix"/"Linux" as a skill versus "Shell" as a detected language) MUST
-  NOT be treated as a match — the check is mechanical, not
+- **FR-013**: A skill MUST be labeled a "Proven skill" whenever there is
+  direct evidence of actual code demonstrating it — a non-fork GitHub
+  repository's detected primary language, or an equivalent code
+  artifact — regardless of whether that skill also appears on the
+  LinkedIn-sourced skills list (`www.shahidshah.com`'s
+  `src/content/skills.ts`). A skill with no code evidence, appearing
+  only on the LinkedIn list, MUST be labeled a plain "Skill," not a
+  Proven skill. A closely related term (e.g., "Unix"/"Linux" as a
+  LinkedIn skill versus "Shell" as a detected GitHub language) MUST NOT
+  be treated as a code-evidence match — the check is mechanical, not
   interpretive.
 
 ## Key entities
@@ -711,5 +721,5 @@ and Twazer.
 | Companies founded (six); historical/closed company outcomes | Shahid N. Shah, direct statement, 2026-09-16; `www.shahidshah.com` `src/content/founderMode.ts` (`founderRecord`, `site.ts` "05 Cos Founded" superseded) |
 | HealthcareGuy / Healthcare Guys / HITSphere relationship (OQ-7); HITSphere not a company (OQ-8) | Shahid N. Shah, direct statement, 2026-09-16; `www.shahidshah.com` `src/content/network.ts`, `src/content/posts/archive.ts` (2005 HITSphere reference) |
 | No dedicated spec for Netspective Communications or HealthIMPACT (OQ-6) | Shahid N. Shah, direct statement, 2026-09-16 |
-| FR-013; Technical skills (Proven / Valid tables) | `www.shahidshah.com` `src/content/skills.ts` (LinkedIn-sourced); github.com/shah repository listing, fetched 2026-09-16 |
+| FR-013; Technical skills (Proven skill / Skill tables) | `www.shahidshah.com` `src/content/skills.ts` (LinkedIn-sourced); github.com/shah repository listing, fetched 2026-09-16; Shahid N. Shah, direct correction, 2026-09-16 (code evidence alone is sufficient for "Proven skill") |
 | OQ-9 (repo count discrepancy) | `www.shahidshah.com` `src/content/openSource.ts` ("70+") vs. github.com/shah repository listing, fetched 2026-09-16 (64 total) |
