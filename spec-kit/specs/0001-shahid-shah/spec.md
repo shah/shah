@@ -25,9 +25,10 @@ each other — sourced from his own site's structured content
 `src/content/onAir.ts`, `src/content/skills.ts`, `src/routes/about.tsx`,
 and `public/llms.txt`), from the live repository listings at
 [github.com/shah](https://github.com/shah) and the
-[netspective](https://github.com/netspective) GitHub organization, and
-from Shahid's own direct statements where those sources needed
-correcting or didn't yet say enough.
+[netspective](https://github.com/netspective) and
+[alim-foundation](https://github.com/alim-foundation) GitHub
+organizations, and from Shahid's own direct statements where those
+sources needed correcting or didn't yet say enough.
 
 This is not an implementation plan. It says what's true and how to check
 it, not how any work gets done.
@@ -95,12 +96,14 @@ them:
   profile).
 - **GitHub** — every public, non-fork repository under Shahid's personal
   account, [github.com/shah](https://github.com/shah) (64 repositories,
-  8 forks excluded, 56 remaining), plus the
+  8 forks excluded, 56 remaining), the
   [netspective](https://github.com/netspective) organization (38
-  repositories, 4 forks excluded, 34 remaining) — per Shahid's direct
-  statement, Netspective's org repositories count as his own evidence
-  too. 90 non-fork repositories total, checked 2026-09-16, each
-  repository's primary language as GitHub itself detects it.
+  repositories, 4 forks excluded, 34 remaining), and the
+  [alim-foundation](https://github.com/alim-foundation) organization (12
+  repositories, no forks) — per Shahid's direct statement, all three
+  count as his own evidence. 102 non-fork repositories total, checked
+  2026-09-16, each repository's primary language as GitHub itself
+  detects it.
 
 **Classification rule** (per Shahid's direct statement, formalized as
 FR-013): a skill is a **Proven skill** whenever there's direct evidence of
@@ -114,35 +117,43 @@ see the Review checklist's public-safe standard.
 
 **Proven skill — direct GitHub evidence** (a non-fork repository's
 detected primary language, across Shahid's personal `shah` account and
-the `netspective` org; LinkedIn endorsement count shown where that skill
-also happens to be endorsed there, though endorsement isn't what makes
-it Proven):
+the `netspective` and `alim-foundation` orgs; LinkedIn endorsement count
+shown where that skill also happens to be endorsed there, though
+endorsement isn't what makes it Proven):
 
-| Skill | Non-fork repositories (shah + netspective) | Also LinkedIn-endorsed |
+| Skill | Non-fork repositories (shah + netspective + alim-foundation) | Also LinkedIn-endorsed |
 | --- | --- | --- |
-| TypeScript | 29 (29 + 0) | — |
-| JavaScript | 11 (1 + 10) | 13 |
-| Shell | 9 (8 + 1) | — |
-| C++ | 6 (0 + 6) | 14 |
-| Go | 6 (5 + 1) | — |
-| Java | 5 (0 + 5) | 24 |
-| HTML | 3 (1 + 2) | — |
-| Makefile | 3 (2 + 1) | — |
-| CSS | 2 (1 + 1) | — |
-| Python | 1 (1 + 0) | — |
-| Perl | 1 (1 + 0) | — |
-| PHP | 1 (0 + 1) | 11 |
+| TypeScript | 29 (29 + 0 + 0) | — |
+| JavaScript | 12 (1 + 10 + 1) | 13 |
+| Shell | 9 (8 + 1 + 0) | — |
+| C++ | 6 (0 + 6 + 0) | 14 |
+| Go | 6 (5 + 1 + 0) | — |
+| Java | 5 (0 + 5 + 0) | 24 |
+| HTML | 4 (1 + 2 + 1) | — |
+| Makefile | 3 (2 + 1 + 0) | — |
+| PHP | 2 (0 + 1 + 1) | 11 |
+| CSS | 2 (1 + 1 + 0) | — |
+| Python | 1 (1 + 0 + 0) | — |
+| Perl | 1 (1 + 0 + 0) | — |
+| Pascal | 1 (0 + 0 + 1) | — |
+| Smarty | 1 (0 + 0 + 1) | — |
 | Astro, Handlebars, ActionScript, Ruby, Jsonnet, Dockerfile | 1 each (netspective, except Jsonnet/Dockerfile which are shah) | — |
 
-One `netspective` repo (`enterprise-architecture`) showed licensing text
-where a language would normally appear — not counted here rather than
-guessed at.
+Two repositories showed no clearly identified language rather than one:
+`netspective`'s `enterprise-architecture` (showed licensing text where a
+language would normally appear) and seven of `alim-foundation`'s twelve
+repositories (several older Delphi-era projects — `arabic-playhouse-1.0-delphi`,
+`alim-mobile-android`, `alim-mobile-common`, `daily-islam-1.0-delphi`,
+`prayer-minder-1.0-delphi`, `www.arabicplayhouse.com`,
+`www.communityquran.com` — where GitHub didn't surface a primary
+language). None of these are counted above — not guessed at.
 
 **Proven skill — general software-engineering competency** (the combined
-GitHub portfolio — 90 non-fork public repositories across `shah` and
-`netspective`, multiple languages, sustained activity — is itself the
-code evidence for these general skills, rather than any single
-repository's language tag; all five also happen to be LinkedIn-endorsed):
+GitHub portfolio — 102 non-fork public repositories across `shah`,
+`netspective`, and `alim-foundation`, multiple languages, sustained
+activity — is itself the code evidence for these general skills, rather
+than any single repository's language tag; all five also happen to be
+LinkedIn-endorsed):
 
 | Skill | LinkedIn endorsements |
 | --- | --- |
@@ -152,7 +163,7 @@ repository's language tag; all five also happen to be LinkedIn-endorsed):
 | SDLC | 47 |
 | Programming | 25 |
 
-**Skill** (LinkedIn-endorsed; no direct code evidence found across either
+**Skill** (LinkedIn-endorsed; no direct code evidence found across any
 GitHub source): Enterprise Architecture (283), Agile Methodologies (238),
 Software Project Management (155), IT Strategy (146), Product Management
 (111), Integration (96), Healthcare Information Technology (76), Cloud
@@ -169,24 +180,28 @@ Diligence (9), Agile (9), Publisher (3), Writer (2).
 
 Worth noting rather than smoothing over: adding the `netspective` org
 moved Java, C++, and PHP from Skill to Proven skill — evidence Shahid's
-personal `shah` account alone didn't show. C, SQL, and J2EE remain
-Skill-only: no non-fork repository in either source matches them (one
-`netspective` repo, `pdflib-2.0.1-patched-ubuntu`, is C, but it's a
-fork, and forks don't count as evidence of Shahid's own code any more
-than they did for the `shah` account). Unix and Linux come close — nine
-repositories are Shell scripts, and one is named `linux-user-conf` — but
-"Shell" isn't the literal string "Unix" or "Linux," so under the
-classification rule above they stay a plain Skill rather than a Proven
-skill. That's the rule working as intended: close isn't the same as
-matched.
+personal `shah` account alone didn't show. Adding `alim-foundation`
+reinforced PHP (a second, independent repository) and added Pascal and
+Smarty — both new Proven skills with no LinkedIn counterpart at all,
+evidence of an older Delphi-era stack from the original Alim software
+(see Companies and Organizations Founded, above). C, SQL, and J2EE
+remain Skill-only: no non-fork repository in any of the three sources
+matches them (one `netspective` repo, `pdflib-2.0.1-patched-ubuntu`, is
+C, but it's a fork, and forks don't count as evidence of Shahid's own
+code). Unix and Linux come close — nine repositories are Shell scripts,
+and one is named `linux-user-conf` — but "Shell" isn't the literal
+string "Unix" or "Linux," so under the classification rule above they
+stay a plain Skill rather than a Proven skill. That's the rule working
+as intended: close isn't the same as matched.
 
 Read together, the two Proven-skill tables are Shahid's actual
-technology stack by volume of public work across both GitHub sources
-(TypeScript and JavaScript-heavy, with meaningful C++ and Java from the
-Netspective org, plus Go, Shell, Python, and Perl), and it still doesn't
-fully overlap with what LinkedIn's endorsers voted on — an honest gap
-between a profile built by other people's endorsements over time and a
-portfolio he actively maintains today. See OQ-9 for a separate, smaller
+technology stack by volume of public work across all three GitHub
+sources (TypeScript and JavaScript-heavy, with meaningful C++ and Java
+from Netspective, older Pascal and PHP work from Alim Foundation, plus
+Go, Shell, Python, and Perl), and it still doesn't fully overlap with
+what LinkedIn's endorsers voted on — an honest gap between a profile
+built by other people's endorsements over time and a portfolio he
+actively maintains today. See OQ-9 for a separate, smaller
 discrepancy this check surfaced.
 
 ## Clarifications
@@ -351,6 +366,12 @@ discrepancy this check surfaced.
   Networks, ISL Software), and 3 active non-profits (Netspective
   Foundation, Alim Foundation, Minaret of Freedom). Supersedes the
   six-company resolution earlier in this session.
+- **Q: Should `alim-foundation`'s GitHub org repositories also count as
+  Shahid's code evidence, like `netspective`'s?** → **A: Yes.** Per
+  Shahid's direct statement. Twelve repositories, no forks, added to the
+  Technical Skills evidence base (102 non-fork repositories total across
+  all three sources). This reinforced PHP and added Pascal and Smarty as
+  new Proven skills, from the original Alim software's Delphi-era stack.
 
 ## Primary scenario
 
@@ -794,5 +815,5 @@ and Twazer.
 | ISL Software, The Alim Foundation, Minaret of Freedom | Shahid N. Shah, direct statement, 2026-09-16 (not previously documented on `shahidshah.com`) |
 | HealthcareGuy / Healthcare Guys / HITSphere relationship (OQ-7); HITSphere not a company (OQ-8) | Shahid N. Shah, direct statement, 2026-09-16; `www.shahidshah.com` `src/content/network.ts`, `src/content/posts/archive.ts` (2005 HITSphere reference) |
 | No dedicated spec for Netspective Communications or HealthIMPACT (OQ-6) | Shahid N. Shah, direct statement, 2026-09-16 |
-| FR-013; Technical skills (Proven skill / Skill tables) | `www.shahidshah.com` `src/content/skills.ts` (LinkedIn-sourced); github.com/shah and github.com/netspective repository listings, fetched 2026-09-16; Shahid N. Shah, direct correction, 2026-09-16 (code evidence alone is sufficient for "Proven skill"; netspective org counts as his own evidence) |
+| FR-013; Technical skills (Proven skill / Skill tables) | `www.shahidshah.com` `src/content/skills.ts` (LinkedIn-sourced); github.com/shah, github.com/netspective, and github.com/alim-foundation repository listings, fetched 2026-09-16; Shahid N. Shah, direct statements, 2026-09-16 (code evidence alone is sufficient for "Proven skill"; all three GitHub sources count as his own evidence) |
 | OQ-9 (repo count discrepancy) | `www.shahidshah.com` `src/content/openSource.ts` ("70+") vs. github.com/shah repository listing, fetched 2026-09-16 (64 total) |
