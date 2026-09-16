@@ -94,16 +94,19 @@ them:
   `www.shahidshah.com`'s `src/content/skills.ts` (2,513 total
   endorsements across 49 named skills, sourced from his LinkedIn
   profile).
-- **GitHub** — every public, non-fork repository under Shahid's personal
-  account, [github.com/shah](https://github.com/shah) (64 repositories,
-  8 forks excluded, 56 remaining), the
+- **GitHub** — every public repository under Shahid's personal account,
+  [github.com/shah](https://github.com/shah) (70 repositories: 10 forks
+  and 1 repository with an unverified fork status excluded, 59
+  counted — including 4 archived repositories, which still count as
+  Shahid's own original code), the
   [netspective](https://github.com/netspective) organization (38
   repositories, 4 forks excluded, 34 remaining), and the
   [alim-foundation](https://github.com/alim-foundation) organization (12
   repositories, no forks) — per Shahid's direct statement, all three
-  count as his own evidence. 102 non-fork repositories total, checked
+  count as his own evidence. 105 repositories total, checked
   2026-09-16, each repository's primary language as GitHub itself
-  detects it.
+  detects it. (See OQ-9's resolution for how the `shah`-account figure
+  changed from an earlier, incomplete 64.)
 
 **Classification rule** (per Shahid's direct statement, formalized as
 FR-013): a skill is a **Proven skill** whenever there's direct evidence of
@@ -121,16 +124,16 @@ the `netspective` and `alim-foundation` orgs; LinkedIn endorsement count
 shown where that skill also happens to be endorsed there, though
 endorsement isn't what makes it Proven):
 
-| Skill | Non-fork repositories (shah + netspective + alim-foundation) | Also LinkedIn-endorsed |
+| Skill | Repositories (shah + netspective + alim-foundation) | Also LinkedIn-endorsed |
 | --- | --- | --- |
-| TypeScript | 29 (29 + 0 + 0) | — |
+| TypeScript | 32 (32 + 0 + 0) | — |
 | JavaScript | 12 (1 + 10 + 1) | 13 |
 | Shell | 9 (8 + 1 + 0) | — |
 | C++ | 6 (0 + 6 + 0) | 14 |
 | Go | 6 (5 + 1 + 0) | — |
 | Java | 5 (0 + 5 + 0) | 24 |
 | HTML | 4 (1 + 2 + 1) | — |
-| Makefile | 3 (2 + 1 + 0) | — |
+| Makefile | 4 (3 + 1 + 0) | — |
 | PHP | 2 (0 + 1 + 1) | 11 |
 | CSS | 2 (1 + 1 + 0) | — |
 | Python | 1 (1 + 0 + 0) | — |
@@ -139,20 +142,29 @@ endorsement isn't what makes it Proven):
 | Smarty | 1 (0 + 0 + 1) | — |
 | Astro, Handlebars, ActionScript, Ruby, Jsonnet, Dockerfile | 1 each (netspective, except Jsonnet/Dockerfile which are shah) | — |
 
-Two repositories showed no clearly identified language rather than one:
-`netspective`'s `enterprise-architecture` (showed licensing text where a
-language would normally appear) and seven of `alim-foundation`'s twelve
-repositories (several older Delphi-era projects — `arabic-playhouse-1.0-delphi`,
+Four `shah`-account repositories in this table are archived rather than
+active (three TypeScript: `ts-safe-template`, `tsd-typed-data-gen`,
+`tsn-periodicals-anchors-classifier`; one Makefile:
+`container-appliance-framework`) — archiving a repository doesn't erase
+that it's Shahid's own original code, so they're counted the same as
+active ones. Excluded from the table entirely: 10 forks across `shah`
+and 4 across `netspective`; one `shah` repository
+(`ts-lhncbc-lforms`) whose fork status this check couldn't verify
+consistently — an earlier fetch called it a fork, a later one didn't, so
+it's excluded rather than guessed at either way; `netspective`'s
+`enterprise-architecture` (showed licensing text where a language would
+normally appear); and seven of `alim-foundation`'s twelve repositories
+(several older Delphi-era projects — `arabic-playhouse-1.0-delphi`,
 `alim-mobile-android`, `alim-mobile-common`, `daily-islam-1.0-delphi`,
 `prayer-minder-1.0-delphi`, `www.arabicplayhouse.com`,
 `www.communityquran.com` — where GitHub didn't surface a primary
-language). None of these are counted above — not guessed at.
+language).
 
 **Proven skill — general software-engineering competency** (the combined
-GitHub portfolio — 102 non-fork public repositories across `shah`,
-`netspective`, and `alim-foundation`, multiple languages, sustained
-activity — is itself the code evidence for these general skills, rather
-than any single repository's language tag; all five also happen to be
+GitHub portfolio — 105 public repositories across `shah`, `netspective`,
+and `alim-foundation`, multiple languages, sustained activity — is
+itself the code evidence for these general skills, rather than any
+single repository's language tag; all five also happen to be
 LinkedIn-endorsed):
 
 | Skill | LinkedIn endorsements |
@@ -201,8 +213,8 @@ from Netspective, older Pascal and PHP work from Alim Foundation, plus
 Go, Shell, Python, and Perl), and it still doesn't fully overlap with
 what LinkedIn's endorsers voted on — an honest gap between a profile
 built by other people's endorsements over time and a portfolio he
-actively maintains today. See OQ-9 for a separate, smaller
-discrepancy this check surfaced.
+actively maintains today. See OQ-9 for a repo-count discrepancy this
+check surfaced, and later corrected.
 
 ## Clarifications
 
@@ -372,6 +384,17 @@ discrepancy this check surfaced.
   Technical Skills evidence base (102 non-fork repositories total across
   all three sources). This reinforced PHP and added Pascal and Smarty as
   new Proven skills, from the original Alim software's Delphi-era stack.
+- **Q: Revisit OQ-9 — why did `openSource.ts` say "70+" repos when this
+  check found only 64?** → **A: This check was wrong, not the site.**
+  The original fetch used GitHub's `type=source` filter, which silently
+  drops archived repositories and some forks. Refetched with
+  `type=all`: 70 total, matching "70+." Corrected count: 10 forks, 1
+  repository (`ts-lhncbc-lforms`) with an unverified fork status
+  (excluded rather than guessed at), 4 archived (still counted as
+  Shahid's own code), 59 counted from the `shah` account — up from the
+  earlier, incomplete 56. Combined with `netspective` (34) and
+  `alim-foundation` (12): 105 repositories total. Resolves OQ-9. See the
+  revised Technical Skills section above.
 
 ## Primary scenario
 
@@ -767,13 +790,17 @@ and Twazer.
   Clarifications: no. HITSphere was a publication with a domain, not a
   company; the founded/acquired verbs matched Physia, simplifyMD, and
   Citus Health, but the underlying entity didn't. Figure stays at six.
-- **OQ-9**: `www.shahidshah.com`'s `src/content/openSource.ts` states
-  "70+" public repositories under github.com/shah. The actual count
-  fetched directly from GitHub on 2026-09-16 is 64 (8 forks, 56
-  non-fork). Possibly the site's figure is stale, counts something this
-  check didn't (e.g., private repos, a different account, or repos
-  since deleted or made private), or was rounded loosely from the start.
-  Not resolved here. `[NEEDS CLARIFICATION]`
+- ~~**OQ-9**: `openSource.ts` states "70+" repos under github.com/shah;
+  an earlier check here found only 64.~~ **Resolved 2026-09-16** — the
+  site was right; this repository's own first check was wrong. That
+  first pass used GitHub's `type=source` filter, which silently
+  excludes archived repositories and some forks. Refetched with
+  `type=all`: **70 repositories** total, matching the site's "70+"
+  almost exactly. 10 are forks, 1 (`ts-lhncbc-lforms`) has a fork status
+  this check couldn't verify consistently across two fetches and is
+  excluded rather than guessed at, and 4 are archived — still counted,
+  since archiving doesn't erase that Shahid wrote the code. See the
+  revised Technical Skills section above.
 
 ## Review & acceptance checklist
 
@@ -816,4 +843,4 @@ and Twazer.
 | HealthcareGuy / Healthcare Guys / HITSphere relationship (OQ-7); HITSphere not a company (OQ-8) | Shahid N. Shah, direct statement, 2026-09-16; `www.shahidshah.com` `src/content/network.ts`, `src/content/posts/archive.ts` (2005 HITSphere reference) |
 | No dedicated spec for Netspective Communications or HealthIMPACT (OQ-6) | Shahid N. Shah, direct statement, 2026-09-16 |
 | FR-013; Technical skills (Proven skill / Skill tables) | `www.shahidshah.com` `src/content/skills.ts` (LinkedIn-sourced); github.com/shah, github.com/netspective, and github.com/alim-foundation repository listings, fetched 2026-09-16; Shahid N. Shah, direct statements, 2026-09-16 (code evidence alone is sufficient for "Proven skill"; all three GitHub sources count as his own evidence) |
-| OQ-9 (repo count discrepancy) | `www.shahidshah.com` `src/content/openSource.ts` ("70+") vs. github.com/shah repository listing, fetched 2026-09-16 (64 total) |
+| OQ-9 (resolved: 70 repos, matching "70+") | `www.shahidshah.com` `src/content/openSource.ts` ("70+"); github.com/shah repository listing, refetched with `type=all` 2026-09-16 (70 total, 10 forks, 1 unverified, 4 archived, 59 counted) |
