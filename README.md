@@ -13,8 +13,9 @@
 Award-winning Government 2.0, Health IT, and Medical Device Integration
 software expert with 35 years of technology strategy, software engineering,
 entrepreneurship, speaking, and writing experience. 34 awarded U.S. patents,
-70+ open source repositories, 6 companies founded (2 active, 3 exited via
-acquisition, 1 closed), 35+ clients served.
+90 open source repositories across GitHub, 10 companies and organizations
+founded (2 active, 3 exited via acquisition, 2 closed, 3 active
+non-profits), 35+ clients served.
 
 This repository is the public tier of **Shahid Shah's professional
 digital twin**: a structured, checkable account of who he is, what he's
