@@ -163,6 +163,12 @@ specific to him.
   instead. This doesn't fully resolve OQ-7 (how the three related
   publications relate to each other), but confirms neither counts toward
   the companies-founded figure.
+- **Q: Is the Hoy Health board seat current or former?** → **A: Former.**
+  Resolves OQ-3 in favor of `founderMode.ts`'s "Previously served as"
+  label over `recognition.ts`'s "Since 2016" (current) label.
+- **Q: Is the Manos Health advisory seat current or former?** → **A:
+  Current.** Resolves OQ-4 in favor of `recognition.ts`'s "Current" label
+  over `founderMode.ts`'s "Previously served as" label.
 
 ## Primary scenario
 
@@ -423,14 +429,15 @@ co-hosted with Don Lee, 2017–2023, concluded); *Trending NOW*
 (HealthcareNOW Radio, concluded, superseded by *The Shahid Shah Show*).
 
 **Board, advisory, and investment roles** (per `founderMode.ts`'s
-`boardRoles`): Citus Health (Chairman, former), Hybrent (board member,
-former), Caristix (board member, previously), OSEHRA (Chairman of
-Strategic Board of Advisors, previously), Hoy Health (Strategic Board of
-Advisors, previously per this table — but see Open Questions), Larta
+`boardRoles`, with Hoy Health and Manos Health's status confirmed
+directly by Shahid 2026-09-16 — see Clarifications): Citus Health
+(Chairman, former), Hybrent (board member, former), Caristix (board
+member, previously), OSEHRA (Chairman of Strategic Board of Advisors,
+previously), Hoy Health (Strategic Board of Advisors, **former**), Larta
 Institute (advisor, previously), AHIP Innovation Lab (adviser and EiR,
-previously), Manos Health (Regulatory and Technology Advisor, previously
-per this table — but see Open Questions), plus investor roles in Goomzee,
-Poliwogg, Buddie/Teleport, and Twazer.
+previously), Manos Health (Regulatory and Technology Advisor,
+**current**), plus investor roles in Goomzee, Poliwogg, Buddie/Teleport,
+and Twazer.
 
 ## Success criteria
 
@@ -472,15 +479,14 @@ Poliwogg, Buddie/Teleport, and Twazer.
   Netspective Communications, not independent personal ventures. (Note:
   `network.ts` still lists Medigy under `publications` too — that overlap
   is noted in Key Entities but not further resolved.)
-- **OQ-3**: `founderMode.ts`'s `boardRoles` table labels the Hoy Health
-  seat "Previously served as," but `recognition.ts`'s `advisorySeats`
-  table lists the same seat as "Since 2016" with no former/past label —
-  i.e., current. The two tables on the same site disagree about whether
-  this role is active. **Left open at Shahid's request ("we'll deal with
-  conflicts later").** `[NEEDS CLARIFICATION]`
-- **OQ-4**: The same conflict as OQ-3 recurs for the Manos Health seat:
-  `boardRoles` labels it "Previously served as," `advisorySeats` labels
-  it "Current." **Left open at Shahid's request.** `[NEEDS CLARIFICATION]`
+- ~~**OQ-3**: Hoy Health seat, current or former.~~ **Resolved
+  2026-09-16** — see Clarifications: former. `founderMode.ts`'s
+  "Previously served as" label was correct; `recognition.ts`'s "Since
+  2016" (current) label is superseded.
+- ~~**OQ-4**: Manos Health seat, current or former.~~ **Resolved
+  2026-09-16** — see Clarifications: current. `recognition.ts`'s
+  "Current" label was correct; `founderMode.ts`'s "Previously served as"
+  label is superseded.
 - ~~**OQ-5**: Which companies count toward "5 Cos Founded."~~ **Resolved
   2026-09-16** — see Clarifications: six companies, not five —
   Netspective Communications and Intellectual Frontiers (active); Physia,
@@ -537,7 +543,7 @@ Poliwogg, Buddie/Teleport, and Twazer.
 | Media and publishing properties | `www.shahidshah.com` `src/content/network.ts` (`publications`) |
 | Media channels | `www.shahidshah.com` `src/content/onAir.ts` |
 | Board / advisory / investment roles | `www.shahidshah.com` `src/content/founderMode.ts` (`boardRoles`) |
-| OQ-3, OQ-4 | `www.shahidshah.com` `src/content/founderMode.ts` (`boardRoles`) vs. `src/content/recognition.ts` (`advisorySeats`) |
+| OQ-3, OQ-4 (resolved) | Shahid N. Shah, direct statement, 2026-09-16; `www.shahidshah.com` `src/content/founderMode.ts` (`boardRoles`) vs. `src/content/recognition.ts` (`advisorySeats`) |
 | Personal principles | Shahid N. Shah, direct statement, 2026-09-15 |
 | Companies founded (six); historical/closed company outcomes | Shahid N. Shah, direct statement, 2026-09-16; `www.shahidshah.com` `src/content/founderMode.ts` (`founderRecord`, `site.ts` "05 Cos Founded" superseded) |
 | HealthcareGuy / HITSphere reclassified as publications | Shahid N. Shah, direct statement, 2026-09-16 |
