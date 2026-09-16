@@ -329,6 +329,28 @@ discrepancy this check surfaced.
   code evidence too. This added Java, C++, and PHP as Proven skills that
   weren't otherwise evidenced. The `alim-foundation` org, also found in
   this check, is handled separately — see below.
+- **Q: What is Alim Foundation, and what's Shahid's relationship to
+  it?** → **A: A non-profit he co-founded and now chairs.** Full
+  history, per Shahid's direct statement: he co-founded ISL Software
+  (closed, early 2000s), which created the original "The Alim" Islamic
+  software; that work was later brought online as the non-profit Alim
+  Foundation (co-founded by Shahid, active since 2006, at
+  [alim.org](https://alim.org)), which he currently chairs. Not
+  previously mentioned anywhere on `shahidshah.com`.
+- **Q: Any other organizations in the same category?** → **A: Minaret
+  of Freedom** (minaret.org), a think tank focused on Islam and liberty,
+  co-founded by Shahid, still active. He served on its board for a time
+  and is now its volunteer Treasurer. Also not previously mentioned on
+  `shahidshah.com`.
+- **Q: Do ISL Software, The Alim Foundation, and Minaret of Freedom
+  count toward the companies-founded figure?** → **A: Yes — and so does
+  Netspective Foundation, which wasn't counted before.** Per Shahid's
+  direct statement: non-profits count toward the figure the same as
+  for-profit companies. This raises the total from six to **ten**: 2
+  active companies, 3 exited via acquisition, 2 closed (Influential
+  Networks, ISL Software), and 3 active non-profits (Netspective
+  Foundation, Alim Foundation, Minaret of Freedom). Supersedes the
+  six-company resolution earlier in this session.
 
 ## Primary scenario
 
@@ -505,30 +527,45 @@ Technology Management, University of Maryland (1998); B.Sc. in Computer
 Science, Penn State Harrisburg (1990). Primary public site:
 `shahidshah.com`. Primary professional email: `shahid@shah.org`.
 
-**Companies founded: six** (per Shahid's direct statement 2026-09-16 —
-see Clarifications, resolving OQ-5): Netspective Communications and
-Intellectual Frontiers (active — see Personal active companies below);
-Physia, simplifyMD, and Citus Health (co-founded, venture-backed, each
-exited via acquisition, Shahid no longer affiliated with any of the
-three); and Influential Networks (closed, no longer operating). This
-supersedes the site's "05 Cos Founded" stat, which predates Intellectual
-Frontiers' founding. HITSphere (founded by Shahid, later acquired into
-Medigy) does not count as a seventh entry — resolved as a publication,
-not a company; see OQ-8.
+**Companies and organizations founded: ten** (per Shahid's direct
+statement 2026-09-16 — see Clarifications, resolving and then expanding
+OQ-5). Shahid's own count includes non-profits alongside for-profit
+companies:
+
+- **Active companies (2)**: Netspective Communications, Intellectual
+  Frontiers — see Personal active companies below.
+- **Exited via acquisition (3)**: Physia, simplifyMD, Citus Health —
+  co-founded, venture-backed, Shahid no longer affiliated with any.
+- **Closed (2)**: Influential Networks, ISL Software — no longer
+  operating.
+- **Active non-profits (3)**: Netspective Foundation, The Alim
+  Foundation, Minaret of Freedom — see Non-profit vehicles founded,
+  below.
+
+This supersedes the site's "05 Cos Founded" stat, which predates
+Intellectual Frontiers' founding and doesn't count non-profits at all.
+HITSphere (founded by Shahid, later acquired into Medigy) still does not
+count — resolved as a publication, not a company or organization; see
+OQ-8.
 
 **Personal active companies** (Shahid's own term, stated directly
-2026-09-15 — see Clarifications; 2 of the 6 companies founded, above):
+2026-09-15 — see Clarifications; 2 of the 10 companies and
+organizations founded, above):
 
 | Property | Role | Status | What it's for |
 | --- | --- | --- | --- |
 | [Intellectual Frontiers LLC](https://www.intellectualfrontiers.com) | Founder, owner, Managing Partner | Current — see spec 0002 | "Thinking": research, publishing, capital and venture decisions |
 | [Netspective Communications LLC](https://www.netspective.com) | Founder and CEO | Founded 2001, still operating | "Doing": builds the software and solutions IF's thinking calls for |
 
-**Principal non-profit vehicle:**
+**Non-profit vehicles founded** (3 of the 10 companies and organizations
+founded, above; per Shahid's direct statement 2026-09-16, non-profits
+count toward that figure the same as for-profit companies):
 
 | Property | Role | Status |
 | --- | --- | --- |
-| [Netspective Foundation](https://www.netspective.foundation/) | Co-founder | Shahid's principal non-profit vehicle |
+| [Netspective Foundation](https://www.netspective.foundation/) | Co-founder | Active |
+| [The Alim Foundation](https://alim.org) | Co-founder; current Chair | Active since 2006. Grew out of "The Alim" Islamic software, originally created by ISL Software (see Closed companies, below), later brought online as this non-profit. |
+| [Minaret of Freedom](https://minaret.org) | Co-founder; former board member, now volunteer Treasurer | Active. A think tank focused on Islam and liberty. |
 
 **Brand and personal partnership:**
 
@@ -557,9 +594,10 @@ Netspective builds it):
   — see Clarifications.)
 - And other projects fitting the same pattern, per FR-009.
 
-**Historical / exited companies** (three of the six companies founded —
-see above; per Shahid's direct statement 2026-09-16, each was
-venture-backed and Shahid is no longer affiliated with any of them):
+**Historical / exited companies** (3 of the 10 companies and
+organizations founded — see above; per Shahid's direct statement
+2026-09-16, each was venture-backed and Shahid is no longer affiliated
+with any of them):
 
 | Property | Role | Outcome |
 | --- | --- | --- |
@@ -567,11 +605,12 @@ venture-backed and Shahid is no longer affiliated with any of them):
 | simplifyMD | Co-founder and CTO | Venture-backed; merged with Azalea Health, 2014; no longer affiliated |
 | Citus Health | Co-founder, CTO, early Chairman | Venture-backed; acquired by ResMed, 2021; no longer affiliated |
 
-**Closed company** (the sixth of the six companies founded):
+**Closed companies** (2 of the 10 companies and organizations founded):
 
 | Property | Role | Outcome |
 | --- | --- | --- |
 | Influential Networks | Co-founder | Closed — no longer operating |
+| ISL Software | Co-founder | Closed, early 2000s. Created the original "The Alim" Islamic software, later brought online as the non-profit Alim Foundation — see Non-profit vehicles founded, above. |
 
 Note: HealthcareGuy and HITSphere were previously listed here together as
 "founder-led media properties" and excluded from the companies-founded
@@ -681,11 +720,16 @@ and Twazer.
   "Current" label was correct; `founderMode.ts`'s "Previously served as"
   label is superseded.
 - ~~**OQ-5**: Which companies count toward "5 Cos Founded."~~ **Resolved
-  2026-09-16** — see Clarifications: six companies, not five —
-  Netspective Communications and Intellectual Frontiers (active); Physia,
-  simplifyMD, and Citus Health (exited via acquisition); Influential
-  Networks (closed). The site's "05" figure predates Intellectual
-  Frontiers and is superseded.
+  2026-09-16, then revised same day** — first resolved to six (Netspective
+  Communications and Intellectual Frontiers, active; Physia, simplifyMD,
+  and Citus Health, exited via acquisition; Influential Networks,
+  closed), then expanded to **ten** once Shahid clarified non-profits
+  count too and disclosed two more organizations: ISL Software (closed,
+  a company) and The Alim Foundation and Minaret of Freedom (active
+  non-profits), alongside the already-known Netspective Foundation
+  (also active, also now counted). See Clarifications and Companies and
+  Organizations Founded, above. The site's "05" figure predates
+  Intellectual Frontiers and doesn't count non-profits at all.
 - ~~**OQ-6**: Whether Netspective Communications or HealthIMPACT should
   get their own numbered spec.~~ **Resolved 2026-09-16** — see
   Clarifications: neither, for now. Both stay as entries inside this
@@ -746,7 +790,8 @@ and Twazer.
 | Board / advisory / investment roles | `www.shahidshah.com` `src/content/founderMode.ts` (`boardRoles`) |
 | OQ-3, OQ-4 (resolved) | Shahid N. Shah, direct statement, 2026-09-16; `www.shahidshah.com` `src/content/founderMode.ts` (`boardRoles`) vs. `src/content/recognition.ts` (`advisorySeats`) |
 | Personal principles | Shahid N. Shah, direct statement, 2026-09-15 |
-| Companies founded (six); historical/closed company outcomes | Shahid N. Shah, direct statement, 2026-09-16; `www.shahidshah.com` `src/content/founderMode.ts` (`founderRecord`, `site.ts` "05 Cos Founded" superseded) |
+| Companies and organizations founded (ten, revised from six); historical/closed company outcomes | Shahid N. Shah, direct statement, 2026-09-16; `www.shahidshah.com` `src/content/founderMode.ts` (`founderRecord`, `site.ts` "05 Cos Founded" superseded) |
+| ISL Software, The Alim Foundation, Minaret of Freedom | Shahid N. Shah, direct statement, 2026-09-16 (not previously documented on `shahidshah.com`) |
 | HealthcareGuy / Healthcare Guys / HITSphere relationship (OQ-7); HITSphere not a company (OQ-8) | Shahid N. Shah, direct statement, 2026-09-16; `www.shahidshah.com` `src/content/network.ts`, `src/content/posts/archive.ts` (2005 HITSphere reference) |
 | No dedicated spec for Netspective Communications or HealthIMPACT (OQ-6) | Shahid N. Shah, direct statement, 2026-09-16 |
 | FR-013; Technical skills (Proven skill / Skill tables) | `www.shahidshah.com` `src/content/skills.ts` (LinkedIn-sourced); github.com/shah and github.com/netspective repository listings, fetched 2026-09-16; Shahid N. Shah, direct correction, 2026-09-16 (code evidence alone is sufficient for "Proven skill"; netspective org counts as his own evidence) |
