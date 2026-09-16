@@ -1,7 +1,7 @@
 # Feature Specification: Shahid N. Shah
 
 **Spec ID:** 0001-shahid-shah
-**Status:** Draft — clarified 2026-09-15
+**Status:** Draft — clarified 2026-09-16
 **Created:** 2026-09-15
 **Decision authority:** Shahid N. Shah
 **Input:** Build a public GitHub profile repository (`shah/shah`) for
@@ -146,6 +146,23 @@ specific to him.
   future, for him and for others building the same pattern, but doesn't
   exist yet and isn't promised on a timeline. See the new "Digital twin"
   section above, and FR-011 / FR-012.
+
+### Session 2026-09-16
+
+- **Q: Which companies actually count toward a "companies founded"
+  figure, and how many is it?** → **A: Six**, per Shahid's direct
+  statement: Netspective Communications and Intellectual Frontiers
+  (active); Physia, simplifyMD, and Citus Health (each co-founded,
+  venture-backed, and exited via acquisition — Shahid is no longer
+  affiliated with any of the three); and Influential Networks (closed,
+  no longer operating). This resolves OQ-5. The site's "05 Cos Founded"
+  stat predates Intellectual Frontiers' founding and is superseded here.
+- **Q: Do HealthcareGuy and HITSphere count as founded companies?** →
+  **A: No — they're past publications, not companies.** Removed from the
+  historical-ventures list below; see Media and Publishing Properties
+  instead. This doesn't fully resolve OQ-7 (how the three related
+  publications relate to each other), but confirms neither counts toward
+  the companies-founded figure.
 
 ## Primary scenario
 
@@ -302,8 +319,17 @@ Technology Management, University of Maryland (1998); B.Sc. in Computer
 Science, Penn State Harrisburg (1990). Primary public site:
 `shahidshah.com`. Primary professional email: `shahid@shah.org`.
 
+**Companies founded: six** (per Shahid's direct statement 2026-09-16 —
+see Clarifications, resolving OQ-5): Netspective Communications and
+Intellectual Frontiers (active — see Personal active companies below);
+Physia, simplifyMD, and Citus Health (co-founded, venture-backed, each
+exited via acquisition, Shahid no longer affiliated with any of the
+three); and Influential Networks (closed, no longer operating). This
+supersedes the site's "05 Cos Founded" stat, which predates Intellectual
+Frontiers' founding.
+
 **Personal active companies** (Shahid's own term, stated directly
-2026-09-15 — see Clarifications):
+2026-09-15 — see Clarifications; 2 of the 6 companies founded, above):
 
 | Property | Role | Status | What it's for |
 | --- | --- | --- | --- |
@@ -343,15 +369,27 @@ Netspective builds it):
   — see Clarifications.)
 - And other projects fitting the same pattern, per FR-009.
 
-**Historical / exited ventures:**
+**Historical / exited companies** (three of the six companies founded —
+see above; per Shahid's direct statement 2026-09-16, each was
+venture-backed and Shahid is no longer affiliated with any of them):
 
 | Property | Role | Outcome |
 | --- | --- | --- |
-| Physia | Co-founder and CTO | IP assets acquired by COMSYS |
-| simplifyMD | Co-founder and CTO | Merged with Azalea Health, 2014 |
-| Citus Health | Co-founder, CTO, early Chairman | Acquired by ResMed, 2021 |
-| Influential Networks | Co-founder | Historical venture |
-| HealthcareGuy / HITSphere | Founder or co-founder, publisher | Founder-led media properties |
+| Physia | Co-founder and CTO | Venture-backed; IP assets acquired by COMSYS; no longer affiliated |
+| simplifyMD | Co-founder and CTO | Venture-backed; merged with Azalea Health, 2014; no longer affiliated |
+| Citus Health | Co-founder, CTO, early Chairman | Venture-backed; acquired by ResMed, 2021; no longer affiliated |
+
+**Closed company** (the sixth of the six companies founded):
+
+| Property | Role | Outcome |
+| --- | --- | --- |
+| Influential Networks | Co-founder | Closed — no longer operating |
+
+Note: HealthcareGuy and HITSphere were previously listed here as
+"founder-led media properties." Per Shahid's direct statement 2026-09-16,
+they're past publications, not companies, and don't count toward the
+companies-founded figure — see Media and Publishing Properties below, and
+OQ-7.
 
 **Media and publishing properties** (per `network.ts`'s `publications`;
 current-vs-historical status not stated for most of these — see Open
@@ -364,6 +402,10 @@ Questions):
 - [Compliant Insecurity](https://compliantinsecurity.com/)
 - [Healthcare Guys](https://www.healthcareguys.com)
 - [The Healthcare IT Guy](https://www.healthcareguy.com)
+- HealthcareGuy / HITSphere — past publications, per Shahid's direct
+  statement 2026-09-16 (moved here from the companies list; see
+  Clarifications). How these relate to Healthcare Guys and The
+  Healthcare IT Guy above isn't settled — see OQ-7.
 - [Operational Truth](https://operationaltruth.org)
 - Unsafely Compliant (no public URL given in the source)
 
@@ -439,13 +481,12 @@ Poliwogg, Buddie/Teleport, and Twazer.
 - **OQ-4**: The same conflict as OQ-3 recurs for the Manos Health seat:
   `boardRoles` labels it "Previously served as," `advisorySeats` labels
   it "Current." **Left open at Shahid's request.** `[NEEDS CLARIFICATION]`
-- **OQ-5**: `site.ts`'s top-level stats state "05 Cos Founded," while
-  `founderMode.ts`'s `founderRecord` lists nine named ventures plus
-  Intellectual Frontiers (ten), of which several are explicitly
-  co-founded rather than founded outright. It isn't stated which five
-  count toward the "05" figure, or whether that figure predates some of
-  the later entries. **Left open at Shahid's request.**
-  `[NEEDS CLARIFICATION]`
+- ~~**OQ-5**: Which companies count toward "5 Cos Founded."~~ **Resolved
+  2026-09-16** — see Clarifications: six companies, not five —
+  Netspective Communications and Intellectual Frontiers (active); Physia,
+  simplifyMD, and Citus Health (exited via acquisition); Influential
+  Networks (closed). The site's "05" figure predates Intellectual
+  Frontiers and is superseded.
 - **OQ-6**: Whether any property beyond Intellectual Frontiers should get
   its own numbered spec (`0003-...` onward) in a future pass — and if so,
   which ones warrant it (Netspective Communications and HealthIMPACT seem
@@ -457,7 +498,10 @@ Poliwogg, Buddie/Teleport, and Twazer.
   but distinct media properties, but the source material doesn't state
   how they relate to each other (imprint vs. syndication vs. rebrand) or
   whether HITSphere is still active — it has no URL in either source
-  file. `[NEEDS CLARIFICATION]`
+  file. Partially informed 2026-09-16: Shahid confirmed HealthcareGuy and
+  HITSphere are "past publications" (not companies), which suggests
+  neither is currently active, but the relationship between all three
+  properties is still unresolved. `[NEEDS CLARIFICATION]`
 
 ## Review & acceptance checklist
 
@@ -495,3 +539,5 @@ Poliwogg, Buddie/Teleport, and Twazer.
 | Board / advisory / investment roles | `www.shahidshah.com` `src/content/founderMode.ts` (`boardRoles`) |
 | OQ-3, OQ-4 | `www.shahidshah.com` `src/content/founderMode.ts` (`boardRoles`) vs. `src/content/recognition.ts` (`advisorySeats`) |
 | Personal principles | Shahid N. Shah, direct statement, 2026-09-15 |
+| Companies founded (six); historical/closed company outcomes | Shahid N. Shah, direct statement, 2026-09-16; `www.shahidshah.com` `src/content/founderMode.ts` (`founderRecord`, `site.ts` "05 Cos Founded" superseded) |
+| HealthcareGuy / HITSphere reclassified as publications | Shahid N. Shah, direct statement, 2026-09-16 |
