@@ -169,6 +169,21 @@ specific to him.
 - **Q: Is the Manos Health advisory seat current or former?** → **A:
   Current.** Resolves OQ-4 in favor of `recognition.ts`'s "Current" label
   over `founderMode.ts`'s "Previously served as" label.
+- **Q: How do Healthcare Guys, The Healthcare IT Guy, and HITSphere
+  relate to each other?** → **A: Three distinct things.** The Healthcare
+  IT Guy (`healthcareguy.com`) is Shahid's personal-opinion blog —
+  mostly historical but still live; his current personal writing has
+  moved to `shahidshah.com/writing`. Healthcare Guys (`healthcareguys.com`,
+  plural) is a separate, active, multi-contributor blog with posts
+  written by others, on similar topics but not the same property.
+  HITSphere is neither — Shahid founded it, and it was later acquired
+  and rolled into Medigy. Resolves OQ-7.
+- **Note:** HITSphere's founded-and-acquired history matches the pattern
+  already used for Physia, simplifyMD, and Citus Health in the
+  companies-founded count (OQ-5), which raises a new question this
+  session doesn't resolve: should HITSphere be a seventh entry in that
+  count, rather than excluded alongside HealthcareGuy as "not a
+  company"? See OQ-8.
 
 ## Primary scenario
 
@@ -332,7 +347,10 @@ Physia, simplifyMD, and Citus Health (co-founded, venture-backed, each
 exited via acquisition, Shahid no longer affiliated with any of the
 three); and Influential Networks (closed, no longer operating). This
 supersedes the site's "05 Cos Founded" stat, which predates Intellectual
-Frontiers' founding.
+Frontiers' founding. **Provisional**: OQ-8 asks whether HITSphere
+(founded by Shahid, later acquired into Medigy) should be a seventh
+entry in this count — not yet resolved, so this section still states six
+pending that answer.
 
 **Personal active companies** (Shahid's own term, stated directly
 2026-09-15 — see Clarifications; 2 of the 6 companies founded, above):
@@ -391,11 +409,14 @@ venture-backed and Shahid is no longer affiliated with any of them):
 | --- | --- | --- |
 | Influential Networks | Co-founder | Closed — no longer operating |
 
-Note: HealthcareGuy and HITSphere were previously listed here as
-"founder-led media properties." Per Shahid's direct statement 2026-09-16,
-they're past publications, not companies, and don't count toward the
-companies-founded figure — see Media and Publishing Properties below, and
-OQ-7.
+Note: HealthcareGuy and HITSphere were previously listed here together as
+"founder-led media properties" and excluded from the companies-founded
+figure as a pair. A closer look (OQ-7) found the two are not alike:
+HealthcareGuy is Shahid's personal-opinion blog, correctly excluded as a
+publication. HITSphere was founded and later acquired into Medigy — the
+same founded-and-acquired pattern as Physia, simplifyMD, and Citus Health
+above, which raises a real question about whether it belongs in this
+table rather than the publications list. Not resolved here — see OQ-8.
 
 **Media and publishing properties** (per `network.ts`'s `publications`;
 current-vs-historical status not stated for most of these — see Open
@@ -406,12 +427,19 @@ Questions):
   this spec doesn't resolve further than noting the overlap.
 - [GovCon Intelligence](https://govconic.com)
 - [Compliant Insecurity](https://compliantinsecurity.com/)
-- [Healthcare Guys](https://www.healthcareguys.com)
-- [The Healthcare IT Guy](https://www.healthcareguy.com)
-- HealthcareGuy / HITSphere — past publications, per Shahid's direct
-  statement 2026-09-16 (moved here from the companies list; see
-  Clarifications). How these relate to Healthcare Guys and The
-  Healthcare IT Guy above isn't settled — see OQ-7.
+- [Healthcare Guys](https://www.healthcareguys.com) — a separate,
+  active, multi-contributor blog (posts written by others), similar
+  topics to The Healthcare IT Guy below but a distinct property, not the
+  same thing under a pluralized domain. Resolves OQ-7.
+- [The Healthcare IT Guy](https://www.healthcareguy.com) — Shahid's
+  personal-opinion blog. Mostly historical but still live; his current
+  personal writing has moved to
+  [shahidshah.com/writing](https://www.shahidshah.com/writing). Resolves
+  OQ-7.
+- HITSphere — founded by Shahid; later acquired and rolled into
+  [Medigy](https://www.medigy.com) (see Studios projects above). Not a
+  publication still standing on its own. Resolves the relationship half
+  of OQ-7, but reopens a categorization question — see OQ-8.
 - [Operational Truth](https://operationaltruth.org)
 - Unsafely Compliant (no public URL given in the source)
 
@@ -499,15 +527,18 @@ and Twazer.
   like the strongest candidates, given they're both long-running and
   already have public sites of their own) — is an open decision for
   Shahid, not resolved here. See Out of Scope.
-- **OQ-7**: "Healthcare Guys" (`healthcareguys.com`), "The Healthcare IT
-  Guy" (`healthcareguy.com`), and "HITSphere" appear to be three related
-  but distinct media properties, but the source material doesn't state
-  how they relate to each other (imprint vs. syndication vs. rebrand) or
-  whether HITSphere is still active — it has no URL in either source
-  file. Partially informed 2026-09-16: Shahid confirmed HealthcareGuy and
-  HITSphere are "past publications" (not companies), which suggests
-  neither is currently active, but the relationship between all three
-  properties is still unresolved. `[NEEDS CLARIFICATION]`
+- ~~**OQ-7**: How Healthcare Guys, The Healthcare IT Guy, and HITSphere
+  relate to each other.~~ **Resolved 2026-09-16** — see Clarifications:
+  three distinct things. The Healthcare IT Guy is Shahid's own blog
+  (mostly historical, still live); Healthcare Guys is a separate active
+  multi-contributor blog; HITSphere was founded by Shahid and later
+  acquired into Medigy.
+- **OQ-8**: HITSphere's history (founded by Shahid, later acquired into
+  Medigy) matches the founded-and-acquired pattern used for Physia,
+  simplifyMD, and Citus Health in the six-companies-founded count
+  (OQ-5), but OQ-5's resolution excluded HITSphere alongside HealthcareGuy
+  as "not a company." Should HITSphere count as a seventh entry in that
+  figure? `[NEEDS CLARIFICATION]`
 
 ## Review & acceptance checklist
 
@@ -546,4 +577,4 @@ and Twazer.
 | OQ-3, OQ-4 (resolved) | Shahid N. Shah, direct statement, 2026-09-16; `www.shahidshah.com` `src/content/founderMode.ts` (`boardRoles`) vs. `src/content/recognition.ts` (`advisorySeats`) |
 | Personal principles | Shahid N. Shah, direct statement, 2026-09-15 |
 | Companies founded (six); historical/closed company outcomes | Shahid N. Shah, direct statement, 2026-09-16; `www.shahidshah.com` `src/content/founderMode.ts` (`founderRecord`, `site.ts` "05 Cos Founded" superseded) |
-| HealthcareGuy / HITSphere reclassified as publications | Shahid N. Shah, direct statement, 2026-09-16 |
+| HealthcareGuy / Healthcare Guys / HITSphere relationship (OQ-7) | Shahid N. Shah, direct statement, 2026-09-16; `www.shahidshah.com` `src/content/network.ts`, `src/content/posts/archive.ts` (2005 HITSphere reference) |
