@@ -61,6 +61,16 @@ This is not an implementation plan.
   See [`spec-kit/specs/0001-shahid-shah/spec.md`](../0001-shahid-shah/spec.md#eidolon)
   for how this repository (Shahid's own Eidolon) uses the same
   terminology.
+- **Q: Has that framing actually been added to
+  `intellectual-frontiers/.github` yet?** → **A: Yes, confirmed
+  2026-09-17.** Shahid added it directly: a "This repository is
+  Intellectual Frontiers' own Eidolon" section in
+  [`spec-kit/AGENTS.md`](https://github.com/intellectual-frontiers/.github/blob/main/spec-kit/AGENTS.md)
+  and a shorter version in the root
+  [`README.md`](https://github.com/intellectual-frontiers/.github#this-repository-is-an-eidolon),
+  plus a dated Clarification in
+  [`spec-kit/specs/0001-intellectual-frontiers/spec.md`](https://github.com/intellectual-frontiers/.github/blob/main/spec-kit/specs/0001-intellectual-frontiers/spec.md).
+  The bullet above is no longer conditional.
 
 ## Primary scenario
 
@@ -134,4 +144,4 @@ None at this time.
 | FR-001 | `intellectual-frontiers/.github` README, "Canonical source, going forward" |
 | FR-002 | `www.shahidshah.com` `src/content/founderMode.ts` (`founderRecord`) |
 | FR-003 | `spec-kit/specs/0001-shahid-shah/spec.md` FR-006 |
-| IF's own Eidolon (2026-09-17 Clarification) | [Eidolon: Working Digital Reflections for AI Workforce and Labor as Code](https://www.intellectualfrontiers.com/research/eidolons) |
+| IF's own Eidolon (2026-09-17 Clarification, confirmed live same day) | [Eidolon: Working Digital Reflections for AI Workforce and Labor as Code](https://www.intellectualfrontiers.com/research/eidolons); `intellectual-frontiers/.github` commits `389136e` and `1d0b2b6` |
