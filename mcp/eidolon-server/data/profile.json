@@ -1,0 +1,140 @@
+{
+  "_provenance": "Hand-generated snapshot of spec-kit/specs/0001-shahid-shah/spec.md. That spec is the source of truth, not this file — regenerate this file whenever the spec changes, and never edit facts here without updating the spec first.",
+  "_asOf": "2026-09-17",
+  "_tier": "public",
+  "eidolon": {
+    "name": "Shahid N. Shah's Eidolon",
+    "definition": "A working digital reflection of Shahid Shah, expressed as a readable specification rather than a live agent or a vendor's proprietary memory.",
+    "tiers": ["public", "internal", "confidential", "highly restricted"],
+    "thisTier": "public",
+    "researchPage": "https://www.intellectualfrontiers.com/research/eidolons",
+    "specRepo": "https://github.com/shah/shah",
+    "specPath": "spec-kit/specs/0001-shahid-shah/spec.md"
+  },
+  "identity": {
+    "primaryName": "Shahid N. Shah",
+    "alternateName": "Shahid Shah",
+    "roles": [
+      "Fractional Chief Technology Officer (CTO)",
+      "Fractional Chief Information Security Officer (CISO)",
+      "Chief Technology & Venture Officer (CTVO)",
+      "Inventor",
+      "Author",
+      "Keynote Speaker"
+    ],
+    "yearsEngineering": 35,
+    "patentsAwarded": 34,
+    "email": "shahid@shah.org",
+    "website": "https://www.shahidshah.com",
+    "location": "Washington, D.C.",
+    "education": [
+      { "degree": "M.Sc. in Technology Management", "school": "University of Maryland", "year": "1998" },
+      { "degree": "B.Sc. in Computer Science", "school": "Penn State Harrisburg", "year": "1990" }
+    ]
+  },
+  "personalPrinciples": "I'm a person, I don't have a doctrine for myself, but I do have professional ethics that starts with be kind, generous, empathetic, intellectually honest and intellectually consistent, and useful to my fellow man across the globe.",
+  "companiesAndOrganizationsFounded": {
+    "total": 10,
+    "active": [
+      { "name": "Intellectual Frontiers LLC", "role": "Founder, owner, Managing Partner", "url": "https://www.intellectualfrontiers.com", "for": "Thinking: research, publishing, capital and venture decisions" },
+      { "name": "Netspective Communications LLC", "role": "Founder and CEO", "url": "https://www.netspective.com", "for": "Doing: builds the software and solutions IF's thinking calls for" }
+    ],
+    "exitedViaAcquisition": [
+      { "name": "Physia", "role": "Co-founder and CTO", "outcome": "Venture-backed; IP assets acquired by COMSYS; no longer affiliated" },
+      { "name": "simplifyMD", "role": "Co-founder and CTO", "outcome": "Venture-backed; merged with Azalea Health, 2014; no longer affiliated" },
+      { "name": "Citus Health", "role": "Co-founder, CTO, early Chairman", "outcome": "Venture-backed; acquired by ResMed, 2021; no longer affiliated" }
+    ],
+    "closed": [
+      { "name": "Influential Networks", "role": "Co-founder", "outcome": "Closed — no longer operating" },
+      { "name": "ISL Software", "role": "Co-founder", "outcome": "Closed, early 2000s. Created the original \"The Alim\" Islamic software, later brought online as the non-profit Alim Foundation." }
+    ],
+    "activeNonProfits": [
+      { "name": "Netspective Foundation", "role": "Co-founder", "url": "https://www.netspective.foundation/" },
+      { "name": "The Alim Foundation", "role": "Co-founder; current Chair", "url": "https://alim.org", "since": "2006" },
+      { "name": "Minaret of Freedom", "role": "Co-founder; former board member, now volunteer Treasurer", "url": "https://minaret.org", "focus": "Think tank focused on Islam and liberty" }
+    ]
+  },
+  "brandAndPartnership": [
+    { "name": "HealthIMPACT", "role": "Co-founder and Chair", "since": "2013", "url": "https://www.healthimpactlive.com", "note": "A brand built on a personal partnership with Purpose Events, not a company he owns outright." }
+  ],
+  "studiosProjectsDeliveredByNetspective": [
+    { "name": "Medigy", "url": "https://www.medigy.com" },
+    { "name": "Opsfolio", "url": "https://www.opsfolio.com" },
+    { "name": "Resource Surveillance / surveilr", "url": "https://www.surveilr.com" },
+    { "name": "Qualityfolio", "url": "https://qualityfolio.dev" },
+    { "name": "Fleetfolio", "url": "https://fleetfolio.dev" },
+    { "name": "Unblock Health", "url": "https://www.unblock.health", "note": "Began as an IF Studios research project implemented by Netspective; later pursued as a venture with Grace Cordovano on release-of-information and medical-records-transfer improvements for cancer and specialty care. Currently an active research project, not a company." }
+  ],
+  "mediaAndPublishing": [
+    { "name": "Healthcare Guys", "url": "https://www.healthcareguys.com", "note": "Active, multi-contributor blog." },
+    { "name": "The Healthcare IT Guy", "url": "https://www.healthcareguy.com", "note": "Shahid's personal-opinion blog, mostly historical but still live. Current writing is at shahidshah.com/writing." },
+    { "name": "HITSphere", "note": "Founded by Shahid; a publication with a domain, not a company; later acquired and rolled into Medigy." },
+    { "name": "GovCon Intelligence", "url": "https://govconic.com" },
+    { "name": "Compliant Insecurity", "url": "https://compliantinsecurity.com/" },
+    { "name": "Operational Truth", "url": "https://operationaltruth.org" },
+    { "name": "Unsafely Compliant", "note": "No public URL in the source material." }
+  ],
+  "mediaChannels": [
+    "The Shahid Shah Show (weekday radio, HealthcareNOW Radio)",
+    "YouTube (130+ videos)",
+    "SpeakerDeck (76 decks) and an older SlideShare archive (40 decks)",
+    "The #HCBiz Show! (200+ episodes, co-hosted with Don Lee, 2017-2023, concluded)",
+    "Trending NOW (HealthcareNOW Radio, concluded, superseded by The Shahid Shah Show)"
+  ],
+  "boardAdvisoryInvestmentRoles": [
+    { "org": "Citus Health", "role": "Chairman", "status": "Former" },
+    { "org": "Hybrent", "role": "Board member", "status": "Former" },
+    { "org": "Caristix", "role": "Board member", "status": "Previously" },
+    { "org": "OSEHRA", "role": "Chairman, Strategic Board of Advisors", "status": "Previously" },
+    { "org": "Hoy Health", "role": "Strategic Board of Advisors", "status": "Former" },
+    { "org": "Larta Institute", "role": "Advisor", "status": "Previously" },
+    { "org": "AHIP Innovation Lab", "role": "Adviser and EiR", "status": "Previously" },
+    { "org": "Manos Health", "role": "Regulatory and Technology Advisor", "status": "Current" },
+    { "org": "Goomzee", "role": "Investor", "status": "n/a" },
+    { "org": "Poliwogg", "role": "Investor", "status": "n/a" },
+    { "org": "Buddie / Teleport", "role": "Investor", "status": "n/a" },
+    { "org": "Twazer", "role": "Investor", "status": "n/a" }
+  ],
+  "technicalSkills": {
+    "methodology": "Proven skill = direct code evidence exists (a non-fork GitHub repository's detected primary language, across github.com/shah, github.com/netspective, and github.com/alim-foundation). Skill = LinkedIn-endorsed only, no code evidence found. LinkedIn source: www.shahidshah.com src/content/skills.ts.",
+    "provenDirectCodeEvidence": [
+      { "skill": "TypeScript", "repositories": 32 },
+      { "skill": "JavaScript", "repositories": 12, "linkedInEndorsements": 13 },
+      { "skill": "Shell", "repositories": 9 },
+      { "skill": "C++", "repositories": 6, "linkedInEndorsements": 14 },
+      { "skill": "Go", "repositories": 6 },
+      { "skill": "Java", "repositories": 5, "linkedInEndorsements": 24 },
+      { "skill": "HTML", "repositories": 4 },
+      { "skill": "Makefile", "repositories": 4 },
+      { "skill": "PHP", "repositories": 2, "linkedInEndorsements": 11 },
+      { "skill": "CSS", "repositories": 2 },
+      { "skill": "Python", "repositories": 1 },
+      { "skill": "Perl", "repositories": 1 },
+      { "skill": "Pascal", "repositories": 1 },
+      { "skill": "Smarty", "repositories": 1 },
+      { "skill": "Astro", "repositories": 1 },
+      { "skill": "Handlebars", "repositories": 1 },
+      { "skill": "ActionScript", "repositories": 1 },
+      { "skill": "Ruby", "repositories": 1 },
+      { "skill": "Jsonnet", "repositories": 1 },
+      { "skill": "Dockerfile", "repositories": 1 }
+    ],
+    "provenGeneralCompetency": [
+      { "skill": "Software Development", "linkedInEndorsements": 209 },
+      { "skill": "Software Engineering", "linkedInEndorsements": 86 },
+      { "skill": "Software Design", "linkedInEndorsements": 54 },
+      { "skill": "SDLC", "linkedInEndorsements": 47 },
+      { "skill": "Programming", "linkedInEndorsements": 25 }
+    ],
+    "skillOnlyTopByEndorsements": [
+      { "skill": "Enterprise Architecture", "linkedInEndorsements": 283 },
+      { "skill": "Agile Methodologies", "linkedInEndorsements": 238 },
+      { "skill": "Software Project Management", "linkedInEndorsements": 155 },
+      { "skill": "IT Strategy", "linkedInEndorsements": 146 },
+      { "skill": "Product Management", "linkedInEndorsements": 111 },
+      { "skill": "Integration", "linkedInEndorsements": 96 },
+      { "skill": "Healthcare Information Technology", "linkedInEndorsements": 76 },
+      { "skill": "Cloud Computing", "linkedInEndorsements": 70 }
+    ]
+  }
+}

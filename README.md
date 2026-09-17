@@ -125,7 +125,27 @@ spec-kit/
     0002-intellectual-frontiers/
       spec.md                  thin — cites intellectual-frontiers/.github
                                 for everything, restates nothing
+skills/                        portable Agent Skills — Labor as Code
+                                for voice and judgment; see skills/README.md
+mcp/
+  eidolon-server/              MCP server exposing this Eidolon's public
+                                tier as tools; see its own README.md
 ```
+
+## Skills and an MCP server
+
+Two artifact types, one job each, per the Eidolon research's Labor as
+Code argument: a skill is the reusable *how* (voice, judgment, a
+checklist), an MCP server is the reusable *who for* (live access to this
+Eidolon's own data instead of an agent guessing). [`skills/`](skills/)
+packages three of Shahid's own writing/editing prompts as portable
+`SKILL.md` files, sourced verbatim from
+[shahidshah.com/write-like-shahid](https://www.shahidshah.com/write-like-shahid).
+[`mcp/eidolon-server/`](mcp/eidolon-server/) is a working MCP server
+(built, tested, not just described) that serves this repository's
+public-tier facts — profile, companies founded, technical skills — as
+callable tools, generated from `spec.md` rather than duplicating it as a
+second source of truth.
 
 ## Build your own Eidolon
 

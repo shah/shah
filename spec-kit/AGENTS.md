@@ -24,6 +24,14 @@ for that.
    property's own internal detail. This repository's job is to say that
    the property exists, what it is, and how it relates to Shahid and to
    his other properties — not to duplicate its internal governance.
+4. [`../skills/`](../skills/) and [`../mcp/eidolon-server/`](../mcp/eidolon-server/)
+   are not specs — they're Labor as Code built on top of this one: a
+   skill packages a reusable *how* (Shahid's own voice and editing
+   rules, verbatim), the MCP server serves this spec's own public-tier
+   facts as callable tools instead of an agent re-reading `spec.md`
+   fresh each time. Neither invents a new fact about Shahid; both cite
+   spec 0001 and go stale if it changes without them being updated to
+   match.
 
 ## Writing a new spec
 

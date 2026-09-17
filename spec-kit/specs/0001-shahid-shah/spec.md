@@ -112,6 +112,16 @@ the root [`README.md`](../../../README.md) and
 [`spec-kit/AGENTS.md`](../../AGENTS.md) for what generalizes and what's
 specific to him.
 
+The research page's Labor as Code argument — a spec for the work, and a
+separate Eidolon for who the work is for — has a concrete implementation
+here, not just a description: [`skills/`](../../../skills/) packages
+Shahid's own writing and editing rules as portable Agent Skills, and
+[`mcp/eidolon-server/`](../../../mcp/eidolon-server/) is a working MCP
+server that serves this spec's public-tier facts as callable tools. Both
+cite this spec rather than restating it, and both go stale if this spec
+changes without them being updated to match — see
+[`spec-kit/AGENTS.md`](../../AGENTS.md) for that maintenance rule.
+
 ## Technical skills
 
 Two independent sources, cross-referenced rather than merged into one
@@ -444,6 +454,18 @@ check surfaced, and later corrected.
   argument. Earlier Clarification entries above that used "digital
   twin" are left as an accurate record of what was decided at the time,
   not rewritten.
+- **Q: Should this Eidolon's material be packaged as reusable Agent
+  Skills and an MCP server, not just prose?** → **A: Yes.** Added
+  [`skills/`](../../../skills/) (three skills — `write-like-shahid`,
+  `shahid-quick-audit`, `shahid-editorial-audit` — sourced verbatim from
+  Shahid's own prompts at
+  [shahidshah.com/write-like-shahid](https://www.shahidshah.com/write-like-shahid))
+  and [`mcp/eidolon-server/`](../../../mcp/eidolon-server/) (a built and
+  tested MCP server serving this spec's public-tier facts as callable
+  tools: `get_profile`, `get_companies_founded`, `get_property`,
+  `check_status`, `get_technical_skills`). New FR-014 requires both to
+  cite this spec and stay in sync with it rather than becoming a second
+  source of truth.
 
 ## Primary scenario
 
@@ -617,6 +639,16 @@ an AI, rather than answered by one living inside it. See Eidolon above.
   LinkedIn skill versus "Shell" as a detected GitHub language) MUST NOT
   be treated as a code-evidence match — the check is mechanical, not
   interpretive.
+
+**Skills and MCP**
+
+- **FR-014**: Any Agent Skill or MCP tool in this repository that
+  packages a fact, rule, or dataset about Shahid MUST cite the spec
+  section it came from rather than inventing content, and MUST be
+  treated as stale — and updated — whenever the cited spec section
+  changes. `data/profile.json` in
+  [`mcp/eidolon-server/`](../../../mcp/eidolon-server/) is the current
+  example: hand-generated from this spec, not a second source of truth.
 
 ## Key entities
 
@@ -882,6 +914,7 @@ and Twazer.
 | FR-009 | Shahid N. Shah, direct statement, 2026-09-15 |
 | FR-010 | Shahid N. Shah, direct statement, 2026-09-15 |
 | FR-011, FR-012; Eidolon section | Shahid N. Shah, direct statement, 2026-09-15; [Eidolon: Working Digital Reflections for AI Workforce and Labor as Code](https://www.intellectualfrontiers.com/research/eidolons), 2026-09-17 (terminology superseding "digital twin") |
+| FR-014; `skills/`, `mcp/eidolon-server/` | Shahid N. Shah, direct statement, 2026-09-17; sourced from `www.shahidshah.com`'s `src/content/writePrompts.ts` (skills) and this spec's own Key Entities (MCP server data) |
 | Education | `www.shahidshah.com` `src/content/site.ts` (`education`) |
 | Personal active companies | Shahid N. Shah, direct statement, 2026-09-15; `www.shahidshah.com` `src/content/founderMode.ts` |
 | Netspective Foundation | Shahid N. Shah, direct statement, 2026-09-15; `www.shahidshah.com` `src/content/network.ts` |
