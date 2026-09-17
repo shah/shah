@@ -1,7 +1,7 @@
 # Feature Specification: Intellectual Frontiers
 
 **Spec ID:** 0002-intellectual-frontiers
-**Status:** Draft — first pass
+**Status:** Draft — clarified 2026-09-17
 **Created:** 2026-09-15
 **Decision authority:** Shahid N. Shah
 **Input:** Specify Intellectual Frontiers as one of Shahid Shah's
@@ -46,6 +46,21 @@ This is not an implementation plan.
   [`spec-kit/specs/0001-shahid-shah/spec.md`](../0001-shahid-shah/spec.md)
   FR-010, since it's a fact about how two properties relate, not IF's own
   governance.
+
+### Session 2026-09-17
+
+- **Q: Is `intellectual-frontiers/.github` itself an Eidolon?** → **A:
+  Yes, per Shahid's own published research.** [Eidolon: Working Digital
+  Reflections for AI Workforce and Labor as Code](https://www.intellectualfrontiers.com/research/eidolons)
+  names that repository directly as "Intellectual Frontiers['s] own
+  Eidolon." This is a fact about that repository's own nature, not about
+  the relationship between it and Shahid, so per this spec's FR-001 it's
+  noted here only as a pointer — the actual "Eidolon" framing, if and
+  when it's added, belongs in `intellectual-frontiers/.github` itself
+  (its own `spec-kit/AGENTS.md` and company spec), not restated here.
+  See [`spec-kit/specs/0001-shahid-shah/spec.md`](../0001-shahid-shah/spec.md#eidolon)
+  for how this repository (Shahid's own Eidolon) uses the same
+  terminology.
 
 ## Primary scenario
 
@@ -119,3 +134,4 @@ None at this time.
 | FR-001 | `intellectual-frontiers/.github` README, "Canonical source, going forward" |
 | FR-002 | `www.shahidshah.com` `src/content/founderMode.ts` (`founderRecord`) |
 | FR-003 | `spec-kit/specs/0001-shahid-shah/spec.md` FR-006 |
+| IF's own Eidolon (2026-09-17 Clarification) | [Eidolon: Working Digital Reflections for AI Workforce and Labor as Code](https://www.intellectualfrontiers.com/research/eidolons) |

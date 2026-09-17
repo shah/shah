@@ -73,15 +73,20 @@ own `AGENTS.md`; nothing about that layering changes here. The one added
 layer is at the top: a company's own constitution governs that company,
 but no equivalent document governs Shahid himself — see spec 0001.
 
-## Using this pattern for your own digital twin
+## Using this pattern for your own Eidolon
 
-This repository is the public tier of Shahid's professional digital
-twin — see [`specs/0001-shahid-shah/spec.md`](specs/0001-shahid-shah/spec.md#digital-twin)
-for what that means (a structured, checkable, read reference; not a live
-agent; public-tier-only for now, with a more detailed private tier
-intended but not yet built). If you're an agent helping someone build the
-same kind of profile for themselves rather than editing this one, here's
-what to carry over and what not to:
+This repository is Shahid's own Eidolon, public tier only — a term from
+his own published research,
+[Eidolon: Working Digital Reflections for AI Workforce and Labor as
+Code](https://www.intellectualfrontiers.com/research/eidolons), which
+deliberately retired the more familiar "digital twin" as overpromising
+for this purpose. See
+[`specs/0001-shahid-shah/spec.md`](specs/0001-shahid-shah/spec.md#eidolon)
+for what that means here (a structured, checkable, read reference; not a
+live agent; public-tier-only for now, with internal, confidential, and
+highly restricted tiers intended but not yet built). If you're an agent
+helping someone build the same kind of profile for themselves rather
+than editing this one, here's what to carry over and what not to:
 
 **Carry over:**
 - The three-layer structure: a root `README.md` that doubles as the

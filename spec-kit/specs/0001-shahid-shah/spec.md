@@ -1,7 +1,7 @@
 # Feature Specification: Shahid N. Shah
 
 **Spec ID:** 0001-shahid-shah
-**Status:** Draft — clarified 2026-09-16
+**Status:** Draft — clarified 2026-09-17
 **Created:** 2026-09-15
 **Decision authority:** Shahid N. Shah
 **Input:** Build a public GitHub profile repository (`shah/shah`) for
@@ -27,8 +27,10 @@ and `public/llms.txt`), from the live repository listings at
 [github.com/shah](https://github.com/shah) and the
 [netspective](https://github.com/netspective) and
 [alim-foundation](https://github.com/alim-foundation) GitHub
-organizations, and from Shahid's own direct statements where those
-sources needed correcting or didn't yet say enough.
+organizations, from Shahid's published research on
+[Eidolons](https://www.intellectualfrontiers.com/research/eidolons),
+and from Shahid's own direct statements where those sources needed
+correcting or didn't yet say enough.
 
 This is not an implementation plan. It says what's true and how to check
 it, not how any work gets done.
@@ -54,33 +56,59 @@ isn't that: nobody downstream cites this sentence the way a Studios plan
 cites the constitution's Native Alpha test. It's context for how to read
 everything else in this spec, not a gate anything has to pass.
 
-## Digital twin
+## Eidolon
 
-This repository is the public tier of Shahid's professional digital
-twin: a structured, checkable account of who he is, what he's built, how
-his properties relate to each other, and how to reach him — written so a
-person, or an AI agent acting on a person's behalf, can use it to decide
-whether he's a fit for a project, get his stated positions on something,
-or figure out which property to approach. That's the same job a bio or a
-LinkedIn profile tries to do, done to spec-kit's standard of evidence
-instead of marketing copy.
+This repository is Shahid's own Eidolon — a term he's since defined
+properly in his own published research:
+[Eidolon: Working Digital Reflections for AI Workforce and Labor as
+Code](https://www.intellectualfrontiers.com/research/eidolons), an
+Intellectual Frontiers research pillar. Earlier in this repository's
+history this same idea was called a "digital twin"; that term is
+retired here on purpose — see "Why not a digital twin?" below. For the
+full argument, read the research page directly; what follows is only
+enough to orient a reader of this spec.
 
-Two things this is not. First, it is not a live, conversational agent —
-nothing in this repository answers a question on Shahid's behalf in real
-time. It's the structured source material a human or an AI reads, the
-same way any other part of this repository is read, not a running
-service. Second, it is not the only tier that will ever exist. Shahid's
-stated intent is that digital twins — his and, per his direct
-encouragement, anyone else's built the same way — will eventually have a
-more detailed, private and sensitive tier behind them, for relationships
-and decisions that shouldn't be public. That tier doesn't exist yet.
-Until it does, this repository describes only the public tier, and
-doesn't promise a timeline or a specific shape for what comes after it —
-see FR-011 and FR-012.
+Per that page, an Eidolon is "a working digital reflection of a person,
+company, customer, product or system. It is not a replica. It contains
+enough grounded reality for AI to reason about the original accurately
+and flexibly." The word is the ancient Greek εἴδωλον — an image or
+likeness the classical sources are careful never to confuse with the
+thing it reflects. That's the distinction that matters here too: an
+Eidolon of Shahid is not Shahid.
+
+**What that means for this repository specifically:**
+
+- It's a **read reference, not a live agent**. The research page's own
+  account of this repository already makes the point directly: it's
+  "structured source material for people and AI agents, not a live
+  agent pretending to be me." Nothing here holds a conversation or gives
+  advice on Shahid's behalf in real time — see FR-011.
+- It's expressed as **readable specifications** — this spec-kit, not a
+  proprietary vendor memory system — so any AI (Claude, Codex, Gemini,
+  whatever comes after) can read it the same way a person does. Per the
+  research page: "The Eidolon belongs to the person or organization, not
+  to the AI engine."
+- It has **tiers** — public, internal, confidential, and highly
+  restricted, per the research page's model. This repository is the
+  **public tier only**. The others don't exist here, and this repository
+  doesn't promise a timeline or shape for them — see FR-012.
+- It's **working, not exhaustive**. An Eidolon doesn't need every fact
+  about Shahid, only enough for a reader — human or AI — to reason about
+  him accurately for whatever they're actually trying to do. That's the
+  same reason this spec marks real gaps `[NEEDS CLARIFICATION]` instead
+  of padding itself out to look complete.
+
+**Why not a digital twin?** Briefly, because the engineering standards
+that have accumulated around "digital twin" — NIST, the Digital Twin
+Consortium, the National Academies: real-time bidirectional
+synchronization, predictive capability, continuous lifecycle
+connection — fit a jet engine or a factory floor, not a person's public
+profile. The research page makes the full argument; this repository
+just uses the word Shahid settled on instead.
 
 If you're reading this to build a similar profile for yourself rather
-than to learn about Shahid specifically: see "Build your own digital
-twin" in the root [`README.md`](../../../README.md) and
+than to learn about Shahid specifically: see "Build your own Eidolon" in
+the root [`README.md`](../../../README.md) and
 [`spec-kit/AGENTS.md`](../../AGENTS.md) for what generalizes and what's
 specific to him.
 
@@ -396,6 +424,27 @@ check surfaced, and later corrected.
   `alim-foundation` (12): 105 repositories total. Resolves OQ-9. See the
   revised Technical Skills section above.
 
+### Session 2026-09-17
+
+- **Q: Should this repository keep using "digital twin," or adopt
+  different terminology?** → **A: "Eidolon."** Shahid has since
+  published a formal research pillar defining the concept —
+  [Eidolon: Working Digital Reflections for AI Workforce and Labor as
+  Code](https://www.intellectualfrontiers.com/research/eidolons) — and
+  deliberately retiring "digital twin," arguing that the engineering
+  standards attached to that term (NIST, the Digital Twin Consortium,
+  the National Academies: real-time bidirectional synchronization,
+  predictive capability, continuous lifecycle connection) overpromise
+  for what a personal profile actually needs. This repository adopts
+  his terminology throughout: the "Digital twin" section is renamed
+  "Eidolon," FR-011 and FR-012 are reworded accordingly, and every other
+  reference to "digital twin" in this repository (and in
+  `spec-kit/AGENTS.md` and the root `README.md`) is updated to
+  "Eidolon" with a link to the research page rather than restating its
+  argument. Earlier Clarification entries above that used "digital
+  twin" are left as an accurate record of what was decided at the time,
+  not rewritten.
+
 ## Primary scenario
 
 Someone — a journalist, a founder considering a co-founder CTO
@@ -406,8 +455,8 @@ Shah — encounters one of his properties (a company, a publication, a
 podcast, a patent) and needs to know what it actually is, how it relates
 to Shahid and to his other properties, and whether a claim about it is
 current, historical, or unconfirmed. This repository is written to be
-that reference: the public tier of a digital twin, read by a person or an
-AI, rather than answered by one living inside it. See Digital Twin above.
+that reference: the public tier of Shahid's Eidolon, read by a person or
+an AI, rather than answered by one living inside it. See Eidolon above.
 
 ### Acceptance scenarios
 
@@ -445,9 +494,13 @@ AI, rather than answered by one living inside it. See Digital Twin above.
    it must use Shahid's own thinking/doing framing (FR-010) rather than
    describing it as an ad hoc delegation.
 7. **Given** someone describes this repository to a third party, **when**
-   they call it a "digital twin," **then** the description must make
-   clear it's a read reference (public tier, structured content), not a
-   live agent that itself converses or gives advice — per FR-011.
+   they call it an "Eidolon," **then** the description must make clear
+   it's a read reference (public tier, structured content), not a live
+   agent that itself converses or gives advice — per FR-011. **Given**
+   someone uses the older "digital twin" language instead, **then** the
+   description should note that Shahid retired that term in favor of
+   Eidolon (see Eidolon, above) rather than treat the two as
+   interchangeable without comment.
 8. **Given** a skill appears on the LinkedIn list with no matching code
    evidence anywhere, **when** this spec labels that skill, **then** it
    must say plain "Skill," never "Proven skill" — per FR-013. **Given** a
@@ -535,18 +588,21 @@ AI, rather than answered by one living inside it. See Digital Twin above.
   `shahidshah.com`, and MAY use "Shahid Shah" as the alternate name that
   same source declares.
 
-**Digital twin**
+**Eidolon**
 
-- **FR-011**: This repository MUST describe itself as the public tier of
-  a professional digital twin — structured content a person or an AI
-  agent can read and reason from — and MUST NOT represent itself as a
-  live, autonomous, or conversational agent that answers on Shahid's
-  behalf. Nothing in this repository executes; it's read.
-- **FR-012**: A future, more detailed, private or sensitive tier of the
-  digital twin concept MAY be described as Shahid's stated intent, for
-  himself and for others who build the same pattern, but MUST NOT be
-  described as already built, scheduled, or committed to a timeline
-  unless and until it actually exists.
+- **FR-011**: This repository MUST describe itself as Shahid's Eidolon
+  (per [Eidolon: Working Digital Reflections for AI Workforce and Labor
+  as Code](https://www.intellectualfrontiers.com/research/eidolons)),
+  public tier only — structured content a person or an AI agent can
+  read and reason from — and MUST NOT represent itself as a live,
+  autonomous, or conversational agent that answers on Shahid's behalf.
+  Nothing in this repository executes; it's read.
+- **FR-012**: The Eidolon's internal, confidential, and highly
+  restricted tiers, per the research page's own tier model, MAY be
+  described as Shahid's stated intent, for himself and for others who
+  build the same pattern, but MUST NOT be described as already built,
+  scheduled, or committed to a timeline unless and until they actually
+  exist.
 
 **Technical skills**
 
@@ -825,7 +881,7 @@ and Twazer.
 | FR-008 | Shahid N. Shah, direct statement, 2026-09-15 |
 | FR-009 | Shahid N. Shah, direct statement, 2026-09-15 |
 | FR-010 | Shahid N. Shah, direct statement, 2026-09-15 |
-| FR-011, FR-012 | Shahid N. Shah, direct statement, 2026-09-15 |
+| FR-011, FR-012; Eidolon section | Shahid N. Shah, direct statement, 2026-09-15; [Eidolon: Working Digital Reflections for AI Workforce and Labor as Code](https://www.intellectualfrontiers.com/research/eidolons), 2026-09-17 (terminology superseding "digital twin") |
 | Education | `www.shahidshah.com` `src/content/site.ts` (`education`) |
 | Personal active companies | Shahid N. Shah, direct statement, 2026-09-15; `www.shahidshah.com` `src/content/founderMode.ts` |
 | Netspective Foundation | Shahid N. Shah, direct statement, 2026-09-15; `www.shahidshah.com` `src/content/network.ts` |

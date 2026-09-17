@@ -17,15 +17,14 @@ entrepreneurship, speaking, and writing experience. 34 awarded U.S. patents,
 founded (2 active, 3 exited via acquisition, 2 closed, 3 active
 non-profits), 35+ clients served.
 
-This repository is the public tier of **Shahid Shah's professional
-digital twin**: a structured, checkable account of who he is, what he's
-built, and how his properties relate — written so a person, or an AI
-agent acting for one, can get his stated positions, judge project fit, or
-find the right property to approach, without guessing from an ordinary
-bio. It's read reference, not a live agent — nothing here answers on his
-behalf in real time. See "A professional digital twin" below for what
-that means and doesn't mean, and "Build your own digital twin" if you
-want to do the same for yourself.
+This repository is **Shahid Shah's Eidolon** — public tier only: a
+structured, checkable account of who he is, what he's built, and how his
+properties relate — written so a person, or an AI agent acting for one,
+can get his stated positions, judge project fit, or find the right
+property to approach, without guessing from an ordinary bio. It's a
+read reference, not a live agent — nothing here answers on his behalf in
+real time. See "My Eidolon" below for what that means and doesn't mean,
+and "Build your own Eidolon" if you want to do the same for yourself.
 
 It's also specified the way
 [`intellectual-frontiers/.github`](https://github.com/intellectual-frontiers/.github)
@@ -42,7 +41,7 @@ as open rather than quietly resolved. See "Specifying a person" below.
 | **CTVO** (Chief Technology & Venture Officer) | A role he defined: a CTO makes the technology organization better; a CTVO asks what new company, product, or business model the technology now makes possible. |
 | **Entrepreneur-in-residence** | Technology due diligence and venture-building for boards and founders. |
 
-## A professional digital twin
+## My Eidolon
 
 Most people's public presence is scattered across a LinkedIn profile, a
 personal site's About page, and whatever a search engine happens to
@@ -54,15 +53,27 @@ structured, checkable profile — roles, active companies, brands,
 projects, historical ventures, and the boundaries between them — that
 works whether the reader is human or an AI representing one.
 
-Two things worth being precise about. First, this is a **read** reference,
-not a live agent: nothing in this repository holds a conversation or gives
-advice on its own. Second, this is the **public tier only**. Shahid's
-stated intent is that digital twins — his, and anyone else's built this
-way — eventually get a more detailed, private and sensitive tier behind
-them, for the relationships and decisions that shouldn't be public. That
-tier doesn't exist yet here, and this repository doesn't promise a
-timeline for it. See
-[`spec-kit/specs/0001-shahid-shah/spec.md`](spec-kit/specs/0001-shahid-shah/spec.md#digital-twin)
+Shahid calls this kind of profile an **Eidolon** — "a working digital
+reflection of a person, company, customer, product or system," not a
+replica, containing "enough grounded reality for AI to reason about the
+original accurately and flexibly." He's written the full argument up,
+including why he deliberately retired the more familiar term "digital
+twin" in favor of this one (the engineering standards that word has
+accumulated — real-time bidirectional sync, predictive capability —
+overpromise for what a personal profile needs): see [Eidolon: Working
+Digital Reflections for AI Workforce and Labor as
+Code](https://www.intellectualfrontiers.com/research/eidolons). This
+README only summarizes; read that page for the real thing.
+
+Two things worth being precise about, echoing that page directly. First,
+this is a **read** reference, not a live agent: nothing in this
+repository holds a conversation or gives advice on its own — it's
+"structured source material for people and AI agents, not a live agent
+pretending to be [Shahid]." Second, an Eidolon has tiers — public,
+internal, confidential, and highly restricted — and this repository is
+the **public tier only**. The others don't exist here, and this
+repository doesn't promise a timeline for them. See
+[`spec-kit/specs/0001-shahid-shah/spec.md`](spec-kit/specs/0001-shahid-shah/spec.md#eidolon)
 for the full statement.
 
 ## Specifying a person
@@ -108,19 +119,23 @@ spec-kit/
   specs/
     0001-shahid-shah/
       spec.md                  the person, specified: roles, properties,
-                                boundaries, personal principles, technical
-                                skills (Proven/Valid), open questions —
-                                not a plan
+                                boundaries, personal principles, Eidolon,
+                                technical skills (Proven/Valid), open
+                                questions — not a plan
     0002-intellectual-frontiers/
       spec.md                  thin — cites intellectual-frontiers/.github
                                 for everything, restates nothing
 ```
 
-## Build your own digital twin
+## Build your own Eidolon
 
 This pattern isn't specific to Shahid. Anyone can build the same kind of
-structured, checkable public profile, and Shahid's encouraged it — if
-this is useful to you, here's what actually generalizes:
+structured, checkable public profile — the concept is explicitly
+designed to generalize; see the "Research questions" section of [Eidolon:
+Working Digital Reflections for AI Workforce and Labor as
+Code](https://www.intellectualfrontiers.com/research/eidolons) — and
+Shahid's encouraged it. If this is useful to you, here's what actually
+generalizes from this specific repository:
 
 - **The structure**: a `spec-kit/` holding a person-spec (your own version
   of [`0001-shahid-shah`](spec-kit/specs/0001-shahid-shah/spec.md)), plus
