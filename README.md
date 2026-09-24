@@ -13,9 +13,9 @@
 Award-winning Government 2.0, Health IT, and Medical Device Integration
 software expert with 35 years of technology strategy, software engineering,
 entrepreneurship, speaking, and writing experience. 34 awarded U.S. patents,
-105 open source repositories across GitHub, 10 companies and organizations
-founded (2 active, 3 exited via acquisition, 2 closed, 3 active
-non-profits), 35+ clients served.
+105 open source repositories across GitHub, 11 confirmed companies and
+organizations founded or co-founded, one additional probable historical
+co-founder record, 3 strategic exits, and 35+ clients served.
 
 This repository is **Shahid Shah's Eidolon** — public tier only: a
 structured, checkable account of who he is, what he's built, and how his
@@ -40,6 +40,39 @@ as open rather than quietly resolved. See "Specifying a person" below.
 | **Fractional CISO** | Security programs for regulated and safety-critical software: HIPAA, HITRUST, SOC 2, FedRAMP, FDA premarket cybersecurity. |
 | **CTVO** (Chief Technology & Venture Officer) | A role he defined: a CTO makes the technology organization better; a CTVO asks what new company, product, or business model the technology now makes possible. |
 | **Entrepreneur-in-residence** | Technology due diligence and venture-building for boards and founders. |
+
+## Founder mode
+
+I have spent more than three decades in founder mode, before the term had
+a name. I have co-founded and operated companies, served on fiduciary and
+advisory boards, written angel checks, led technology inside startups and
+a billion-dollar clinical-technology business, and stayed close enough to
+execution to know the difference between a compelling thesis and a
+company that can actually work.
+
+The confirmed founder record now covers eleven companies and
+organizations, from Netspective Communications and Intellectual
+Frontiers to Physia, simplifyMD, Citus Health, PrescribeWell, and three
+non-profits. Physia's IP assets were acquired by COMSYS, simplifyMD
+merged with Azalea Health, and Citus Health was acquired by ResMed.
+Those outcomes matter, but so do the closed companies, paused projects,
+and investments that did not produce an exit. Founder judgment comes
+from living through all of them.
+
+The broader record includes board, advisory, investment, fractional
+executive, operating, and venture-building work. The full
+[venture-role ledger](spec-kit/specs/0001-shahid-shah/spec.md#venture-role-ledger)
+keeps relationship class, evidence confidence, and current status
+separate. That means an LP interest does not become an operating role, a
+proposed board seat does not become an appointment, and an old database
+entry does not remain current merely because nobody removed it.
+
+That operating history is now being formalized through Intellectual
+Frontiers. A prospective founder can evaluate Shahid as a co-founder CTO
+or board member. A VC or private-equity firm can evaluate him as an
+Entrepreneur in Residence, Operating Partner, or Venture Partner. A
+prospective LP can evaluate a GP whose investment judgment was developed
+inside the companies, not only from the observation deck.
 
 ## My Eidolon
 
@@ -143,9 +176,9 @@ packages three of Shahid's own writing/editing prompts as portable
 [shahidshah.com/write-like-shahid](https://www.shahidshah.com/write-like-shahid).
 [`mcp/eidolon-server/`](mcp/eidolon-server/) is a working MCP server
 (built, tested, not just described) that serves this repository's
-public-tier facts — profile, companies founded, technical skills — as
-callable tools, generated from `spec.md` rather than duplicating it as a
-second source of truth.
+public-tier facts — profile, companies founded, the confidence-aware
+venture-role ledger, and technical skills — as callable tools, generated
+from `spec.md` rather than duplicating it as a second source of truth.
 
 ## Build your own Eidolon
 

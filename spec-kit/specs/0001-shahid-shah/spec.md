@@ -1,7 +1,7 @@
 # Feature Specification: Shahid N. Shah
 
 **Spec ID:** 0001-shahid-shah
-**Status:** Draft — clarified 2026-09-17
+**Status:** Draft — clarified 2026-09-24
 **Created:** 2026-09-15
 **Decision authority:** Shahid N. Shah
 **Input:** Build a public GitHub profile repository (`shah/shah`) for
@@ -467,6 +467,66 @@ check surfaced, and later corrected.
   cite this spec and stay in sync with it rather than becoming a second
   source of truth.
 
+### Session 2026-09-24
+
+- **Q: Does the existing "ten companies and organizations founded"
+  figure still represent the best evidence?** → **A: No. It is now
+  eleven confirmed, plus one probable historical co-founder record.**
+  PrescribeWell is now confirmed as a company Shahid co-founded and
+  served as CTO from 2013 through 2016. That raises the confirmed count
+  from ten to eleven. Multiple secondary records identify Shahid as a
+  MedQB co-founder and identify MedQB as closed, but a sufficiently
+  strong first-party record has not yet been located, so MedQB is listed
+  as probable and is not included in the confirmed count. This
+  supersedes the 2026-09-16 count without rewriting that dated
+  clarification.
+- **Q: Should every organization Shahid has touched be presented as the
+  same kind of venture role?** → **A: No.** The record now separates
+  confirmed founder/operator roles, board and advisory appointments,
+  direct investments, operating and fractional engagements, working
+  relationships, and proposed or exploratory roles. A client,
+  implementation partner, prospective investment, or corporate
+  successor is not silently converted into a founder, officer, director,
+  or investor role. See FR-015 and the Venture-role ledger.
+- **Q: How should evidence strength and present status be represented?**
+  → **A: Separately.** Confidence says how well the relationship and
+  title are supported (`Confirmed`, `Probable`, or `Uncertain`). Status
+  says whether it is current, former/historical, exited, closed, proposed,
+  exploratory, or unresolved. Public silence is not evidence that a role
+  ended, but it is also not enough to keep a stale role in the present
+  tense. See FR-003 and FR-015.
+- **Q: What additions or corrections materially change the historical
+  record?** → **A:** PrescribeWell is a confirmed co-founder/CTO role,
+  not merely a directorship; QTS Realty Trust was a confirmed Federal
+  Advisory Board appointment beginning in 2017; Global Genomics Group
+  (now G3 Therapeutics) was a confirmed historical CTO role; SD858 and
+  Twazer are one relationship, because Twazer was SD858's operating
+  brand; Caristix and Larta are former, not current; Manos Health remains
+  current; rareLife solutions is a probable historical CTO role whose
+  dates remain unconfirmed.
+- **Q: What is Unblock Health's present status?** → **A: In limbo, not
+  operating normally.** Shahid co-founded the work with Grace Cordovano
+  and supplied the technology and venture-building side. Grace later had
+  to step away for a personal matter; the development team is paused and
+  intellectual property remains. The earlier "active research project"
+  wording is superseded. Its legal-entity classification remains a
+  project/venture rather than one of Shahid's personal active companies.
+- **Q: Which 2026 relationships are active work but not necessarily
+  founder roles?** → **A:** ChronicCareIQ, Dealer Uplift, FOPC, Tech by
+  Design, NYeC, Digital Health Research, Diabetes Technology Society,
+  Manos Health, VIP Care Cardio, OurHakeem, Revenue Acceleration, and
+  Opsfolio all have documented working relationships. Exact title,
+  tenure, equity, or currentness remains expressly unresolved where the
+  ledger says so. OurHakeem has advanced into an active build, but no
+  legal co-founder title or equity position has been established.
+- **Q: Which names are proposals or explorations rather than accepted
+  appointments?** → **A:** NewHoldCo/VIP Care Health, Intelligent
+  Radiology Corp., CARBON/DEVCO, Neuvist, PatientTeam, Payshent,
+  Coordinate with Care, and Caldarium remain proposed, exploratory, or
+  in formation. They belong in the Eidolon because they explain current
+  venture-building work, but they MUST NOT be counted as completed
+  companies, accepted board seats, or current executive appointments.
+
 ## Primary scenario
 
 Someone — a journalist, a founder considering a co-founder CTO
@@ -529,6 +589,13 @@ an AI, rather than answered by one living inside it. See Eidolon above.
    skill has direct code evidence (a GitHub repository's primary
    language) whether or not it's separately LinkedIn-endorsed, **then**
    it must say "Proven skill."
+9. **Given** an organization appears in Shahid's venture history,
+   **when** a reader asks what the relationship was, **then** the answer
+   must distinguish the relationship class, evidence confidence, and
+   current status rather than treating all three as one field. A
+   proposed board seat cannot read as a directorship; an LP interest
+   cannot read as an operating role; and a corporate successor cannot
+   read as a separate appointment.
 
 ### Edge cases
 
@@ -650,6 +717,21 @@ an AI, rather than answered by one living inside it. See Eidolon above.
   [`mcp/eidolon-server/`](../../../mcp/eidolon-server/) is the current
   example: hand-generated from this spec, not a second source of truth.
 
+**Venture-role ledger**
+
+- **FR-015**: Every entry in the venture-role ledger MUST state both a
+  relationship class and an evidence confidence. Relationship classes
+  distinguish founder/operator, board/advisory, investment, fractional
+  or operating engagement, working relationship, corporate successor,
+  and proposed/exploratory work. Confidence MUST be one of `Confirmed`,
+  `Probable`, or `Uncertain`. Status MUST be recorded independently and
+  MUST NOT be inferred from confidence. A proposed appointment MUST NOT
+  be presented as accepted; a partner or client MUST NOT be presented as
+  a Shahid company; and an investment MUST NOT imply an operating role.
+  Where a record is supported only by an aggregator or other secondary
+  source, it MUST remain `Probable` until a first-party source or Shahid's
+  direct confirmation resolves it.
+
 ## Key entities
 
 **Shahid N. Shah** — Fractional CTO, CISO, and Chief Technology & Venture
@@ -659,29 +741,36 @@ Technology Management, University of Maryland (1998); B.Sc. in Computer
 Science, Penn State Harrisburg (1990). Primary public site:
 `shahidshah.com`. Primary professional email: `shahid@shah.org`.
 
-**Companies and organizations founded: ten** (per Shahid's direct
-statement 2026-09-16 — see Clarifications, resolving and then expanding
-OQ-5). Shahid's own count includes non-profits alongside for-profit
-companies:
+**Companies and organizations founded: eleven confirmed, plus one
+probable** (see the 2026-09-24 Clarifications). Shahid's count includes
+non-profits alongside for-profit companies:
 
 - **Active companies (2)**: Netspective Communications, Intellectual
   Frontiers — see Personal active companies below.
 - **Exited via acquisition (3)**: Physia, simplifyMD, Citus Health —
   co-founded, venture-backed, Shahid no longer affiliated with any.
+- **Active company, Shahid's role former (1)**: PrescribeWell —
+  co-founder and CTO, 2013–2016; the company remains active but Shahid's
+  operating role ended.
 - **Closed (2)**: Influential Networks, ISL Software — no longer
   operating.
 - **Active non-profits (3)**: Netspective Foundation, The Alim
   Foundation, Minaret of Freedom — see Non-profit vehicles founded,
   below.
+- **Probable, excluded from the confirmed count (1)**: MedQB — multiple
+  secondary records identify Shahid as a co-founder and the company as
+  closed; a first-party source is still needed.
 
-This supersedes the site's "05 Cos Founded" stat, which predates
-Intellectual Frontiers' founding and doesn't count non-profits at all.
+This supersedes both the site's stale "05 Cos Founded" stat and this
+spec's 2026-09-16 total of ten. The older site figure predates
+Intellectual Frontiers and does not count non-profits; the earlier spec
+count omitted PrescribeWell's now-confirmed co-founder record.
 HITSphere (founded by Shahid, later acquired into Medigy) still does not
 count — resolved as a publication, not a company or organization; see
 OQ-8.
 
 **Personal active companies** (Shahid's own term, stated directly
-2026-09-15 — see Clarifications; 2 of the 10 companies and
+2026-09-15 — see Clarifications; 2 of the 11 confirmed companies and
 organizations founded, above):
 
 | Property | Role | Status | What it's for |
@@ -689,7 +778,7 @@ organizations founded, above):
 | [Intellectual Frontiers LLC](https://www.intellectualfrontiers.com) | Founder, owner, Managing Partner | Current — see spec 0002 | "Thinking": research, publishing, capital and venture decisions |
 | [Netspective Communications LLC](https://www.netspective.com) | Founder and CEO | Founded 2001, still operating | "Doing": builds the software and solutions IF's thinking calls for |
 
-**Non-profit vehicles founded** (3 of the 10 companies and organizations
+**Non-profit vehicles founded** (3 of the 11 confirmed companies and organizations
 founded, above; per Shahid's direct statement 2026-09-16, non-profits
 count toward that figure the same as for-profit companies):
 
@@ -718,15 +807,17 @@ Netspective builds it):
 - [Fleetfolio](https://fleetfolio.dev)
 - **[Unblock Health](https://www.unblock.health)** — began as an IF
   Studios research project implemented by Netspective Communications;
-  later pursued as a venture in partnership with Grace Cordovano,
+  later pursued as a venture co-founded with Grace Cordovano,
   exploring how release-of-information and medical-records-transfer
-  processes for cancer and specialty care could be improved. Currently
-  remains an active research project, not a company. (`founderMode.ts`'s
-  "Operating" label described the project's activity, not incorporation
-  — see Clarifications.)
+  processes for cancer and specialty care could be improved. The work is
+  currently in limbo: Grace had to step away for a personal matter, the
+  development team is paused, and intellectual property remains. It is
+  not one of Shahid's personal active companies. (`founderMode.ts`'s
+  earlier "Operating" label described the project's activity at that
+  time, not incorporation — see Clarifications.)
 - And other projects fitting the same pattern, per FR-009.
 
-**Historical / exited companies** (3 of the 10 companies and
+**Historical / exited companies** (3 of the 11 confirmed companies and
 organizations founded — see above; per Shahid's direct statement
 2026-09-16, each was venture-backed and Shahid is no longer affiliated
 with any of them):
@@ -737,12 +828,26 @@ with any of them):
 | simplifyMD | Co-founder and CTO | Venture-backed; merged with Azalea Health, 2014; no longer affiliated |
 | Citus Health | Co-founder, CTO, early Chairman | Venture-backed; acquired by ResMed, 2021; no longer affiliated |
 
-**Closed companies** (2 of the 10 companies and organizations founded):
+**Active company, former founder role** (1 of the 11 confirmed companies
+and organizations founded):
+
+| Property | Role | Status |
+| --- | --- | --- |
+| [PrescribeWell](https://prescribewell.com/) | Co-founder and CTO, 2013–2016 | Company remains active; Shahid's role is former. Earlier summaries that described him only as a director were incomplete. |
+
+**Closed companies** (2 of the 11 confirmed companies and organizations founded):
 
 | Property | Role | Outcome |
 | --- | --- | --- |
 | Influential Networks | Co-founder | Closed — no longer operating |
 | ISL Software | Co-founder | Closed, early 2000s. Created the original "The Alim" Islamic software, later brought online as the non-profit Alim Foundation — see Non-profit vehicles founded, above. |
+
+**Probable historical co-founder record, excluded from the confirmed
+count:**
+
+| Property | Role | Status | Confidence |
+| --- | --- | --- | --- |
+| MedQB | Co-founder | Closed | Probable — supported by multiple secondary records; first-party confirmation still needed |
 
 Note: HealthcareGuy and HITSphere were previously listed here together as
 "founder-led media properties" and excluded from the companies-founded
@@ -792,16 +897,152 @@ SlideShare archive (40 decks); *The #HCBiz Show!* (200+ episodes,
 co-hosted with Don Lee, 2017–2023, concluded); *Trending NOW*
 (HealthcareNOW Radio, concluded, superseded by *The Shahid Shah Show*).
 
-**Board, advisory, and investment roles** (per `founderMode.ts`'s
-`boardRoles`, with Hoy Health and Manos Health's status confirmed
-directly by Shahid 2026-09-16 — see Clarifications): Citus Health
-(Chairman, former), Hybrent (board member, former), Caristix (board
-member, previously), OSEHRA (Chairman of Strategic Board of Advisors,
-previously), Hoy Health (Strategic Board of Advisors, **former**), Larta
-Institute (advisor, previously), AHIP Innovation Lab (adviser and EiR,
-previously), Manos Health (Regulatory and Technology Advisor,
-**current**), plus investor roles in Goomzee, Poliwogg, Buddie/Teleport,
-and Twazer.
+## Venture-role ledger
+
+This ledger records the broader founder-mode history without flattening
+different kinds of relationships into one inflated list. `Confirmed`
+means Shahid has stated the role directly or a first-party/public record
+supports it. `Probable` means credible evidence exists but the exact
+title, dates, or entity identity still needs first-party confirmation.
+`Uncertain` means the relationship or discussion is real but should not
+be presented publicly as a completed appointment. Status is separate
+from confidence: a confirmed role can be historical, and an uncertain
+role can concern an active company.
+
+Public verification anchors used for the most diligence-visible claims
+include Shahid's [current biography](https://www.shahidshah.com/bios),
+the [simplifyMD/Azalea Health merger](https://azaleahealth.com/press-release/azalea-health-announces-merger-simplifymd/),
+the [ResMed acquisition of Citus Health](https://newsroom.resmed.com/news-releases/news-details/2021/ResMeds-SaaS-Ecosystem-Strengthens-Patient-Engagement-Capabilities/default.aspx),
+the [Hybrent/Procurement Partners transaction](https://procurementpartners.com/hybrent-combines-with-serent-backed-procurement-partners/),
+the [PrescribeWell financing record identifying Shahid as CTO](https://www.sep.benfranklin.org/2015/04/22/ben-franklin-approves-2m-for-10-early-stage-companies/),
+the [QTS Federal Advisory Board appointment](https://www.shahidshah.com/recognition/qts-federal-advisory-board),
+and [Manos Health's current team page](https://www.manoshealth.com/team/shahid-shah).
+Secondary databases remain discovery aids, not authority for currentness.
+
+### Founder and operating-company record
+
+| Organization | Relationship | Status | Confidence |
+| --- | --- | --- | --- |
+| Intellectual Frontiers LLC | Founder, owner, Managing Partner; capital-allocation authority | Current | Confirmed |
+| Netspective Communications LLC | Founder and CEO; engineering and venture-building platform | Current, founded 2001 | Confirmed |
+| Netspective Media LLC | Founder and Publisher | Historical or maintained publishing identity; present operating structure unresolved | Confirmed role; currentness uncertain |
+| Netspective Foundation | Co-founder; principal sponsor and board chair | Current | Confirmed |
+| The Alim Foundation | Co-founder and Chair | Current | Confirmed |
+| Minaret of Freedom | Co-founder; former board member; volunteer Treasurer | Current organization and current Treasurer role | Confirmed |
+| HealthIMPACT | Co-founder and Chair | Current brand/partnership since 2013 | Confirmed |
+| Physia | Co-founder and CTO | IP assets acquired by COMSYS; former | Confirmed |
+| simplifyMD | Co-founder and CTO | Merged with Azalea Health in 2014; former | Confirmed |
+| Citus Health | Co-founder, CTO, early Chairman | Acquired by ResMed in 2021; former | Confirmed |
+| PrescribeWell | Co-founder and CTO, 2013–2016 | Company active; Shahid's role former | Confirmed |
+| Influential Networks | Co-founder | Closed | Confirmed |
+| ISL Software | Co-founder | Closed in the early 2000s | Confirmed |
+| MedQB | Co-founder | Closed | Probable; first-party confirmation still needed |
+| Unblock Health | Co-founder/technology and venture-building partner with Grace Cordovano; categorized here as a project/venture, not a personal active company | In limbo; development paused, IP remains | Confirmed relationship and status; legal entity category resolved as project/venture |
+
+HealthcareGuy, Healthcare Guys, HITSphere, Medigy and the Shahid Shah
+Show remain media, publishing, project, or channel properties rather than
+additional incorporated-company claims. Purpose Events is HealthIMPACT's
+operating partner, not a company where Shahid is known to be an officer,
+director, or owner.
+
+### Current and recent operating, fractional, and advisory work
+
+| Organization | Relationship | Status | Confidence |
+| --- | --- | --- | --- |
+| ChronicCareIQ (CCIQ) | Fractional strategic executive, CTO coach, product and company adviser; earlier work resembled fractional CTO/CSO | Active through September 2026; exact current title has evolved and should not be reduced to one permanent title | Confirmed |
+| Dealer Uplift (ADU) | Investor/affiliated principal; fractional Chief Strategy Officer; technology and AI adviser | Current in 2026 | Confirmed; exact legal title should be verified before formal use |
+| FOPC | Strategic and technical adviser through ADU's acquisition/integration work | Current or recently active; no independent FOPC office established | Confirmed relationship; title uncertain |
+| Alvarez Dubey Trading Company (ADTC) | Investor and board member | Current as last reported in 2026 | Confirmed by Shahid; not independently public-verified |
+| Tech by Design | Fractional or strategic technology adviser | Active from 2024; present continuation not reconfirmed | Confirmed historical relationship; currentness unresolved |
+| New York eHealth Collaborative (NYeC) | Fractional/consulting CTO for a technology-consulting group; technology strategy adviser | Began December 2023; current scope unresolved | Confirmed relationship; currentness uncertain |
+| Digital Health Research (DRH) | Adviser and technical/strategic collaborator | Active work in 2026; formal title unresolved | Confirmed relationship |
+| Diabetes Technology Society (DTS) | Technology and program collaborator on CGM and related work | Active collaboration in 2026; not a corporate executive role | Confirmed |
+| Manos Health | Regulatory and Technology Advisor | Current | Confirmed |
+| VIP Care Cardio | Board member; technology, operating-model, and venture-development adviser | Current or recently active in 2026; term and compensation not stated | Confirmed by internal operating record |
+| OurHakeem | Co-builder and operating architect | Active build in 2026; no legal co-founder title, equity, or separate entity established | Confirmed activity; formal role uncertain |
+| Revenue Acceleration LLC | Venture sponsor, strategic partner, owner, or principal relationship | Company and working relationship are current; exact ownership and title unresolved | Confirmed relationship; precise role uncertain |
+| Opsfolio | Venture leader, product strategist, and principal directing positioning, roadmap, GTM, and affiliate strategy | Current IF Studios project; not an independent Shahid company | Confirmed working role; title uncertain |
+| Codvo.ai | Strategic adviser and project-level fractional CTO; formal fractional CTO/CISO engagement proposed | Work documented in 2025; execution and currentness of the formal appointment unresolved | Confirmed work; formal/current role uncertain |
+| Solve Ventures LLC | Adviser | Historical or possibly continuing; no recent first-party confirmation | Probable |
+
+### Historical executive, board, and institutional roles
+
+| Organization | Relationship | Status | Confidence |
+| --- | --- | --- | --- |
+| COMSYS | Senior Vice President of Healthcare Technology after COMSYS acquired Physia's IP assets | Historical; COMSYS later became part of ManpowerGroup | Confirmed |
+| Cardinal Health Clinical Technologies and Services | CTO of a billion-dollar clinical-technology division | Historical | Confirmed |
+| American Red Cross | Chief Systems Architect; helped lead enterprise clinical-system deployment | Historical | Confirmed |
+| Northrop Grumman / TRW | Technical and program leadership on a large FDA-regulated program | Historical; exact title and dates unresolved | Confirmed work; precise role uncertain |
+| Global Genomics Group, now G3 Therapeutics | CTO | Historical, publicly documented in 2015 | Confirmed |
+| rareLife solutions | CTO | Historical; dates unresolved | Probable; current directory is explicitly unverified and another record calls the role former |
+| ResMed | Post-acquisition operating relationship through Citus Health and its engineering team | Historical; exact ResMed title and end date unresolved | Confirmed relationship; title uncertain |
+| Hybrent | Board member | Former; acquired by Procurement Partners in 2021 | Confirmed |
+| Caristix | Board member | Former, approximately 2015–2017 | Confirmed |
+| OSEHRA | Chairman, Strategic Board of Advisors | Former, approximately 2012–2016 | Confirmed |
+| Hoy Health | Strategic Board of Advisors | Former | Confirmed by Shahid; older public pages conflict |
+| Larta Institute | Health Sciences and Technology Advisor | Former; older role databases may be stale | Confirmed historical role |
+| AHIP Innovation Lab | Strategic adviser and Entrepreneur in Residence | Former, approximately 2015–2018 | Confirmed |
+| QTS Realty Trust | Member, Federal Advisory Board | Former; appointed in 2017, QTS acquired by Blackstone in 2021 | Confirmed |
+| Cloak Labs | Adviser and board member | Historical/currentness unresolved; exact entity identity needs confirmation | Probable |
+| NIH and TATRC SBIR/STTR programs | Senior technology strategy and commercialization adviser | Historical government-program work, not a company appointment | Confirmed |
+| OMB Budget System Branch and BFELoB | Chief Architect and senior technology adviser | Historical federal role, not a company appointment | Confirmed |
+| U.S. Department of Veterans Affairs and Millennium Challenge Corporation | Senior technology adviser or consulting architect | Historical government engagements; dates and exact titles incomplete | Confirmed work; precise titles uncertain |
+
+CareFusion and Becton Dickinson are corporate successors to the former
+Cardinal business, not separate Shahid appointments. Purpose Events,
+Sinbad Capital, and Care Cognitics are operating or platform partners,
+not Shahid officer, director, or ownership roles on the evidence now
+available.
+
+### Direct investments and investor roles
+
+| Organization | Relationship | Status | Confidence |
+| --- | --- | --- | --- |
+| Hybrent | Angel investor and board member | Historical; acquired by Procurement Partners | Confirmed role; investment terms not public |
+| SD858 / Twazer | Investor and director; Twazer was SD858's operating brand | Former, 2015–2019 | Confirmed |
+| Goomzee | Investor | Historical, approximately 2008–2018 | Probable public record; Shahid's investor role is acknowledged |
+| Poliwogg Holdings | Investor | Historical, approximately 2015–2019 | Probable public record; Shahid's investor role is acknowledged |
+| Buddie / Teleport | Investor | Historical or unresolved; entity naming varies across records | Probable |
+| Sen-Jam Pharmaceutical | Investor or stakeholder | Active company and investor communications in 2026; exact holding not stated | Confirmed relationship |
+| Alvarez Dubey Trading Company (ADTC) | Investor and board member | Current as last reported | Confirmed by Shahid |
+| Dealer Uplift (ADU) | Investor or affiliated principal in addition to operating/advisory work | Current as last reported | Confirmed relationship; exact legal position unresolved |
+| Quiet Access I, LP / Quiet Capital | Limited partner | Current as last reported in 2026 | Confirmed |
+
+No ownership percentage, investment amount, valuation, return, or fund
+performance belongs in this public tier unless Shahid later supplies and
+explicitly approves a public figure.
+
+### Ventures in formation, relaunch, or exploration
+
+| Venture | Shahid's working relationship | Status | Confidence |
+| --- | --- | --- | --- |
+| NewHoldCo, previously called VIP Care Health | Proposed co-founder and Managing Partner with Sunny Tara | Non-binding founder framework; not confirmed as legally formed or funded | Confirmed proposal, not a completed appointment |
+| Neuvist | Venture sponsor, strategic architect, or portfolio-company partner | Active 2026 concept; entity, ownership, and title unresolved | Uncertain |
+| PatientTeam | Relaunch sponsor, product strategist, or venture architect | Relaunch under discussion in 2026 | Uncertain |
+| Payshent | Venture architect or co-builder of a patient financial-orchestration concept | Early concept | Exploratory |
+| Coordinate with Care | Venture-development collaborator focused initially on pediatric transition of care and Type 1 diabetes | Early-stage planning | Exploratory |
+| Caldarium | Venture sponsor/architect for an infusion-services AI Workforce | IF Studios exploration; no separate entity or formal title established | Confirmed project activity; entity and title unconfirmed |
+| Intelligent Radiology Corp. | Prospective advisory-board member | Invited to discuss the board; no evidence Shahid accepted | Opportunity only |
+| CARBON / DEVCO | Proposed DEVCO co-founder and proposed CARBON fractional CTO or board member | Term-sheet alternatives documented in 2024; no evidence the roles were finalized | Proposed only |
+
+### Explicit non-roles and exclusions
+
+- Medigy, Qualityfolio, Fleetfolio, Resource Surveillance/surveilr,
+  Opsfolio, and Unblock Health are IF Studios projects delivered by
+  Netspective, not automatically independent Shahid companies.
+- Purpose Events, Sinbad Capital, and Care Cognitics are partners or
+  dependencies; no Shahid officer, director, or ownership appointment is
+  established.
+- Informatica, Armatus, Xerox, HEALTHeLINK, Smile Digital Health, EEE
+  Development, and E Radio Network are client, collaborator, lender, or
+  creditor relationships on the available evidence, not founder,
+  executive, board, or investment roles.
+- Ryohee and LeadsByCell appear only in investor-data aggregations and
+  remain unverified. They MUST NOT be published as investments without
+  independent confirmation.
+- A diligence conversation, prospective angel investment, seed-readiness
+  intake, or design-partner discussion does not become a portfolio
+  company or formal role merely because Shahid evaluated it.
 
 ## Success criteria
 
@@ -816,6 +1057,9 @@ and Twazer.
   category it belongs to (personal active company, non-profit vehicle,
   brand/partnership, co-founded venture, historical venture, or
   Studios-delivered project).
+- **SC-004**: A human or MCP client can retrieve the venture-role ledger
+  and filter it by relationship class, confidence, or status without
+  promoting probable or proposed records into confirmed current roles.
 
 ## Out of scope
 
@@ -852,16 +1096,19 @@ and Twazer.
   "Current" label was correct; `founderMode.ts`'s "Previously served as"
   label is superseded.
 - ~~**OQ-5**: Which companies count toward "5 Cos Founded."~~ **Resolved
-  2026-09-16, then revised same day** — first resolved to six (Netspective
+  2026-09-16, then revised 2026-09-24** — first resolved to six (Netspective
   Communications and Intellectual Frontiers, active; Physia, simplifyMD,
   and Citus Health, exited via acquisition; Influential Networks,
   closed), then expanded to **ten** once Shahid clarified non-profits
   count too and disclosed two more organizations: ISL Software (closed,
   a company) and The Alim Foundation and Minaret of Freedom (active
   non-profits), alongside the already-known Netspective Foundation
-  (also active, also now counted). See Clarifications and Companies and
-  Organizations Founded, above. The site's "05" figure predates
-  Intellectual Frontiers and doesn't count non-profits at all.
+  (also active, also now counted). On 2026-09-24, PrescribeWell's
+  co-founder/CTO record was confirmed, raising the confirmed total to
+  **eleven**. MedQB remains probable and excluded from the count. See
+  Clarifications and Companies and Organizations Founded, above. The
+  site's "05" figure predates Intellectual Frontiers and doesn't count
+  non-profits at all.
 - ~~**OQ-6**: Whether Netspective Communications or HealthIMPACT should
   get their own numbered spec.~~ **Resolved 2026-09-16** — see
   Clarifications: neither, for now. Both stay as entries inside this
@@ -877,7 +1124,8 @@ and Twazer.
   companies-founded figure?~~ **Resolved 2026-09-16** — see
   Clarifications: no. HITSphere was a publication with a domain, not a
   company; the founded/acquired verbs matched Physia, simplifyMD, and
-  Citus Health, but the underlying entity didn't. Figure stays at six.
+  Citus Health, but the underlying entity didn't. It remains excluded
+  from the current eleven-company/organization confirmed count.
 - ~~**OQ-9**: `openSource.ts` states "70+" repos under github.com/shah;
   an earlier check here found only 64.~~ **Resolved 2026-09-16** — the
   site was right; this repository's own first check was wrong. That
@@ -889,6 +1137,20 @@ and Twazer.
   excluded rather than guessed at, and 4 are archived — still counted,
   since archiving doesn't erase that Shahid wrote the code. See the
   revised Technical Skills section above.
+- **OQ-10**: MedQB co-founder record. Multiple secondary sources agree,
+  but a first-party source or Shahid's direct confirmation is still
+  needed before it joins the confirmed companies-founded count.
+- **OQ-11**: Exact titles and currentness for Revenue Acceleration,
+  Tech by Design, NYeC, Solve Ventures, Codvo.ai, DRH, VIP Care Cardio,
+  and rareLife solutions. The relationship is documented in each case,
+  but at least one of title, dates, or present status remains unresolved.
+- **OQ-12**: Entity identity and status for Cloak Labs and Buddie /
+  Teleport. Secondary records are not sufficiently consistent to state
+  a current role or exact corporate identity without qualification.
+- **OQ-13**: Whether NewHoldCo, Neuvist, PatientTeam, Payshent,
+  Coordinate with Care, or Caldarium has become a formed legal entity or
+  accepted formal appointment. Until confirmed, each remains proposed,
+  exploratory, or in formation.
 
 ## Review & acceptance checklist
 
@@ -915,19 +1177,20 @@ and Twazer.
 | FR-010 | Shahid N. Shah, direct statement, 2026-09-15 |
 | FR-011, FR-012; Eidolon section | Shahid N. Shah, direct statement, 2026-09-15; [Eidolon: Working Digital Reflections for AI Workforce and Labor as Code](https://www.intellectualfrontiers.com/research/eidolons), 2026-09-17 (terminology superseding "digital twin") |
 | FR-014; `skills/`, `mcp/eidolon-server/` | Shahid N. Shah, direct statement, 2026-09-17; sourced from `www.shahidshah.com`'s `src/content/writePrompts.ts` (skills) and this spec's own Key Entities (MCP server data) |
+| FR-015; Venture-role ledger | Shahid N. Shah's project records and direct statements through 2026-09-24; public first-party company pages and transaction announcements named in the 2026-09-24 Clarifications; secondary role databases used only for `Probable` entries |
 | Education | `www.shahidshah.com` `src/content/site.ts` (`education`) |
 | Personal active companies | Shahid N. Shah, direct statement, 2026-09-15; `www.shahidshah.com` `src/content/founderMode.ts` |
 | Netspective Foundation | Shahid N. Shah, direct statement, 2026-09-15; `www.shahidshah.com` `src/content/network.ts` |
 | HealthIMPACT / Purpose Events | Shahid N. Shah, direct statement, 2026-09-15; `www.shahidshah.com` `src/content/site.ts` (`healthImpact`), `src/content/founderMode.ts` |
-| Unblock Health | Shahid N. Shah, direct statement, 2026-09-15; `www.shahidshah.com` `src/content/founderMode.ts` (`founderRecord`, prior "Operating" label) |
+| Unblock Health | Shahid N. Shah, direct statements, 2026-09-15 and 2026-09-23; `www.shahidshah.com` `src/content/founderMode.ts` (`founderRecord`, prior "Operating" label) |
 | Studios projects delivered by Netspective | Shahid N. Shah, direct statement, 2026-09-15 |
 | Historical ventures | `www.shahidshah.com` `src/content/founderMode.ts` (`founderRecord`) |
 | Media and publishing properties | `www.shahidshah.com` `src/content/network.ts` (`publications`) |
 | Media channels | `www.shahidshah.com` `src/content/onAir.ts` |
-| Board / advisory / investment roles | `www.shahidshah.com` `src/content/founderMode.ts` (`boardRoles`) |
+| Board / advisory / investment roles | `www.shahidshah.com` `src/content/founderMode.ts` (`boardRoles`); Shahid N. Shah project records through 2026-09-24; direct company/transaction sources where linked in the venture-role ledger |
 | OQ-3, OQ-4 (resolved) | Shahid N. Shah, direct statement, 2026-09-16; `www.shahidshah.com` `src/content/founderMode.ts` (`boardRoles`) vs. `src/content/recognition.ts` (`advisorySeats`) |
 | Personal principles | Shahid N. Shah, direct statement, 2026-09-15 |
-| Companies and organizations founded (ten, revised from six); historical/closed company outcomes | Shahid N. Shah, direct statement, 2026-09-16; `www.shahidshah.com` `src/content/founderMode.ts` (`founderRecord`, `site.ts` "05 Cos Founded" superseded) |
+| Companies and organizations founded (eleven confirmed, revised from ten; one probable); historical/closed company outcomes | Shahid N. Shah, direct statements, 2026-09-16 through 2026-09-24; `www.shahidshah.com` `src/content/founderMode.ts`; PrescribeWell company and public economic-development records; `site.ts` "05 Cos Founded" superseded |
 | ISL Software, The Alim Foundation, Minaret of Freedom | Shahid N. Shah, direct statement, 2026-09-16 (not previously documented on `shahidshah.com`) |
 | HealthcareGuy / Healthcare Guys / HITSphere relationship (OQ-7); HITSphere not a company (OQ-8) | Shahid N. Shah, direct statement, 2026-09-16; `www.shahidshah.com` `src/content/network.ts`, `src/content/posts/archive.ts` (2005 HITSphere reference) |
 | No dedicated spec for Netspective Communications or HealthIMPACT (OQ-6) | Shahid N. Shah, direct statement, 2026-09-16 |

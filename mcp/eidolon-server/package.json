@@ -1,6 +1,6 @@
 {
   "name": "@shah/eidolon-mcp-server",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "MCP server exposing the public tier of Shahid N. Shah's Eidolon (github.com/shah/shah) as tools an AI agent can call.",
   "type": "module",
   "main": "dist/index.js",

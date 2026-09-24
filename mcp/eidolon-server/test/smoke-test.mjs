@@ -26,7 +26,9 @@ console.log((await client.callTool({ name: "get_profile", arguments: {} })).cont
 
 console.log("\n=== get_companies_founded() ===");
 const cf = await client.callTool({ name: "get_companies_founded", arguments: {} });
-console.log(JSON.parse(cf.content[0].text).total, "total companies/orgs");
+const cfData = JSON.parse(cf.content[0].text);
+console.log(cfData.totalConfirmed, "confirmed companies/orgs");
+console.log(cfData.probableAdditional, "probable additional founder records");
 
 console.log("\n=== get_property({name: 'Netspective'}) ===");
 const p1 = await client.callTool({ name: "get_property", arguments: { name: "Netspective" } });
@@ -39,6 +41,21 @@ console.log(s1.content[0].text);
 console.log("\n=== check_status({name: 'Manos Health'}) ===");
 const s2 = await client.callTool({ name: "check_status", arguments: { name: "Manos Health" } });
 console.log(s2.content[0].text);
+
+console.log("\n=== get_venture_roles({relationshipClass: 'investment'}) ===");
+const vr = await client.callTool({
+  name: "get_venture_roles",
+  arguments: { relationshipClass: "investment" },
+});
+const vrData = JSON.parse(vr.content[0].text);
+console.log(vrData.count, "investment relationships");
+
+console.log("\n=== get_venture_roles({confidence: 'Uncertain'}) ===");
+const vu = await client.callTool({
+  name: "get_venture_roles",
+  arguments: { confidence: "Uncertain" },
+});
+console.log(JSON.parse(vu.content[0].text).count, "uncertain relationships");
 
 console.log("\n=== get_property({name: 'nonexistent-xyz'}) ===");
 const p2 = await client.callTool({ name: "get_property", arguments: { name: "nonexistent-xyz" } });

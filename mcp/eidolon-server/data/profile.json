@@ -1,6 +1,6 @@
 {
   "_provenance": "Hand-generated snapshot of spec-kit/specs/0001-shahid-shah/spec.md. That spec is the source of truth, not this file — regenerate this file whenever the spec changes, and never edit facts here without updating the spec first.",
-  "_asOf": "2026-09-17",
+  "_asOf": "2026-09-24",
   "_tier": "public",
   "eidolon": {
     "name": "Shahid N. Shah's Eidolon",
@@ -33,8 +33,16 @@
     ]
   },
   "personalPrinciples": "I'm a person, I don't have a doctrine for myself, but I do have professional ethics that starts with be kind, generous, empathetic, intellectually honest and intellectually consistent, and useful to my fellow man across the globe.",
+  "founderModeSummary": {
+    "confirmedCompaniesAndOrganizationsFounded": 11,
+    "probableAdditionalFounderRecords": 1,
+    "strategicExits": 3,
+    "thesis": "A long-time founder, operator, board member, adviser, and angel investor formalizing decades of practical judgment into Intellectual Frontiers' venture-building and investment system.",
+    "countingNote": "The confirmed count includes for-profit companies and non-profits, but excludes publications, brands, Studios projects, proposals, and the probable MedQB record."
+  },
   "companiesAndOrganizationsFounded": {
-    "total": 10,
+    "totalConfirmed": 11,
+    "probableAdditional": 1,
     "active": [
       { "name": "Intellectual Frontiers LLC", "role": "Founder, owner, Managing Partner", "url": "https://www.intellectualfrontiers.com", "for": "Thinking: research, publishing, capital and venture decisions" },
       { "name": "Netspective Communications LLC", "role": "Founder and CEO", "url": "https://www.netspective.com", "for": "Doing: builds the software and solutions IF's thinking calls for" }
@@ -44,14 +52,20 @@
       { "name": "simplifyMD", "role": "Co-founder and CTO", "outcome": "Venture-backed; merged with Azalea Health, 2014; no longer affiliated" },
       { "name": "Citus Health", "role": "Co-founder, CTO, early Chairman", "outcome": "Venture-backed; acquired by ResMed, 2021; no longer affiliated" }
     ],
+    "activeButFormerFounderRole": [
+      { "name": "PrescribeWell", "role": "Co-founder and CTO, 2013-2016", "status": "Company remains active; Shahid's role is former", "url": "https://prescribewell.com/" }
+    ],
     "closed": [
       { "name": "Influential Networks", "role": "Co-founder", "outcome": "Closed — no longer operating" },
       { "name": "ISL Software", "role": "Co-founder", "outcome": "Closed, early 2000s. Created the original \"The Alim\" Islamic software, later brought online as the non-profit Alim Foundation." }
     ],
     "activeNonProfits": [
-      { "name": "Netspective Foundation", "role": "Co-founder", "url": "https://www.netspective.foundation/" },
+      { "name": "Netspective Foundation", "role": "Co-founder; principal sponsor and board chair", "url": "https://www.netspective.foundation/" },
       { "name": "The Alim Foundation", "role": "Co-founder; current Chair", "url": "https://alim.org", "since": "2006" },
       { "name": "Minaret of Freedom", "role": "Co-founder; former board member, now volunteer Treasurer", "url": "https://minaret.org", "focus": "Think tank focused on Islam and liberty" }
+    ],
+    "probableNotCounted": [
+      { "name": "MedQB", "role": "Co-founder", "status": "Closed", "confidence": "Probable", "note": "Multiple secondary records support the relationship; first-party confirmation is still needed." }
     ]
   },
   "brandAndPartnership": [
@@ -63,7 +77,7 @@
     { "name": "Resource Surveillance / surveilr", "url": "https://www.surveilr.com" },
     { "name": "Qualityfolio", "url": "https://qualityfolio.dev" },
     { "name": "Fleetfolio", "url": "https://fleetfolio.dev" },
-    { "name": "Unblock Health", "url": "https://www.unblock.health", "note": "Began as an IF Studios research project implemented by Netspective; later pursued as a venture with Grace Cordovano on release-of-information and medical-records-transfer improvements for cancer and specialty care. Currently an active research project, not a company." }
+    { "name": "Unblock Health", "url": "https://www.unblock.health", "note": "Began as an IF Studios research project implemented by Netspective; later pursued as a venture co-founded with Grace Cordovano on release-of-information and medical-records-transfer improvements for cancer and specialty care. Currently in limbo: Grace stepped away for a personal matter, the development team is paused, and IP remains. Not one of Shahid's personal active companies." }
   ],
   "mediaAndPublishing": [
     { "name": "Healthcare Guys", "url": "https://www.healthcareguys.com", "note": "Active, multi-contributor blog." },
@@ -84,16 +98,96 @@
   "boardAdvisoryInvestmentRoles": [
     { "org": "Citus Health", "role": "Chairman", "status": "Former" },
     { "org": "Hybrent", "role": "Board member", "status": "Former" },
-    { "org": "Caristix", "role": "Board member", "status": "Previously" },
-    { "org": "OSEHRA", "role": "Chairman, Strategic Board of Advisors", "status": "Previously" },
+    { "org": "Caristix", "role": "Board member", "status": "Former, approximately 2015-2017" },
+    { "org": "OSEHRA", "role": "Chairman, Strategic Board of Advisors", "status": "Former" },
     { "org": "Hoy Health", "role": "Strategic Board of Advisors", "status": "Former" },
-    { "org": "Larta Institute", "role": "Advisor", "status": "Previously" },
-    { "org": "AHIP Innovation Lab", "role": "Adviser and EiR", "status": "Previously" },
+    { "org": "Larta Institute", "role": "Health Sciences and Technology Advisor", "status": "Former" },
+    { "org": "AHIP Innovation Lab", "role": "Strategic adviser and Entrepreneur in Residence", "status": "Former" },
     { "org": "Manos Health", "role": "Regulatory and Technology Advisor", "status": "Current" },
-    { "org": "Goomzee", "role": "Investor", "status": "n/a" },
-    { "org": "Poliwogg", "role": "Investor", "status": "n/a" },
-    { "org": "Buddie / Teleport", "role": "Investor", "status": "n/a" },
-    { "org": "Twazer", "role": "Investor", "status": "n/a" }
+    { "org": "QTS Realty Trust", "role": "Member, Federal Advisory Board", "status": "Former; appointed 2017" },
+    { "org": "Alvarez Dubey Trading Company", "role": "Investor and board member", "status": "Current as last reported" },
+    { "org": "VIP Care Cardio", "role": "Board member and venture-development adviser", "status": "Current or recently active in 2026" },
+    { "org": "SD858 / Twazer", "role": "Investor and director", "status": "Former, 2015-2019" },
+    { "org": "Goomzee", "role": "Investor", "status": "Historical" },
+    { "org": "Poliwogg", "role": "Investor", "status": "Historical" },
+    { "org": "Buddie / Teleport", "role": "Investor", "status": "Historical or unresolved" },
+    { "org": "Sen-Jam Pharmaceutical", "role": "Investor or stakeholder", "status": "Current as last reported" },
+    { "org": "Quiet Access I, LP / Quiet Capital", "role": "Limited partner", "status": "Current as last reported" }
+  ],
+  "ventureRoleTaxonomy": {
+    "relationshipClasses": [
+      "founder_operator",
+      "board_advisory",
+      "investment",
+      "fractional_operating",
+      "working_relationship",
+      "historical_executive",
+      "corporate_successor",
+      "proposed_exploratory"
+    ],
+    "confidenceLevels": ["Confirmed", "Probable", "Uncertain"],
+    "rule": "Relationship class, confidence, and status are independent. A proposal is not an appointment, a partner is not a Shahid company, and an investment does not imply an operating role."
+  },
+  "ventureRoleLedger": [
+    { "name": "Intellectual Frontiers LLC", "relationshipClass": "founder_operator", "role": "Founder, owner, Managing Partner; capital-allocation authority", "status": "Current", "confidence": "Confirmed" },
+    { "name": "Netspective Communications LLC", "relationshipClass": "founder_operator", "role": "Founder and CEO", "status": "Current; founded 2001", "confidence": "Confirmed" },
+    { "name": "Netspective Media LLC", "relationshipClass": "founder_operator", "role": "Founder and Publisher", "status": "Historical or maintained publishing identity; present operating structure unresolved", "confidence": "Confirmed" },
+    { "name": "Netspective Foundation", "relationshipClass": "founder_operator", "role": "Co-founder; principal sponsor and board chair", "status": "Current", "confidence": "Confirmed" },
+    { "name": "The Alim Foundation", "relationshipClass": "founder_operator", "role": "Co-founder and Chair", "status": "Current", "confidence": "Confirmed" },
+    { "name": "Minaret of Freedom", "relationshipClass": "founder_operator", "role": "Co-founder; former board member; volunteer Treasurer", "status": "Current organization and Treasurer role", "confidence": "Confirmed" },
+    { "name": "HealthIMPACT", "relationshipClass": "founder_operator", "role": "Co-founder and Chair", "status": "Current brand/partnership since 2013", "confidence": "Confirmed" },
+    { "name": "Physia", "relationshipClass": "founder_operator", "role": "Co-founder and CTO", "status": "Exited; IP assets acquired by COMSYS", "confidence": "Confirmed" },
+    { "name": "simplifyMD", "relationshipClass": "founder_operator", "role": "Co-founder and CTO", "status": "Exited; merged with Azalea Health in 2014", "confidence": "Confirmed" },
+    { "name": "Citus Health", "relationshipClass": "founder_operator", "role": "Co-founder, CTO, early Chairman", "status": "Exited; acquired by ResMed in 2021", "confidence": "Confirmed" },
+    { "name": "PrescribeWell", "relationshipClass": "founder_operator", "role": "Co-founder and CTO, 2013-2016", "status": "Company active; Shahid's role former", "confidence": "Confirmed" },
+    { "name": "Influential Networks", "relationshipClass": "founder_operator", "role": "Co-founder", "status": "Closed", "confidence": "Confirmed" },
+    { "name": "ISL Software", "relationshipClass": "founder_operator", "role": "Co-founder", "status": "Closed in the early 2000s", "confidence": "Confirmed" },
+    { "name": "MedQB", "relationshipClass": "founder_operator", "role": "Co-founder", "status": "Closed", "confidence": "Probable", "note": "Not included in the confirmed founder count." },
+    { "name": "Unblock Health", "relationshipClass": "founder_operator", "role": "Co-founder and technology/venture-building partner with Grace Cordovano; project/venture, not a personal active company", "status": "In limbo; development paused and IP remains", "confidence": "Confirmed" },
+    { "name": "ChronicCareIQ (CCIQ)", "relationshipClass": "fractional_operating", "role": "Fractional strategic executive, CTO coach, product and company adviser; earlier work resembled fractional CTO/CSO", "status": "Active through September 2026; exact current title evolved", "confidence": "Confirmed" },
+    { "name": "Dealer Uplift (ADU)", "relationshipClass": "fractional_operating", "role": "Investor or affiliated principal; fractional Chief Strategy Officer; technology and AI adviser", "status": "Current in 2026", "confidence": "Confirmed" },
+    { "name": "FOPC", "relationshipClass": "working_relationship", "role": "Strategic and technical adviser through ADU acquisition/integration work", "status": "Current or recently active; no independent office established", "confidence": "Confirmed" },
+    { "name": "Alvarez Dubey Trading Company (ADTC)", "relationshipClass": "board_advisory", "role": "Investor and board member", "status": "Current as last reported in 2026", "confidence": "Confirmed" },
+    { "name": "Tech by Design", "relationshipClass": "fractional_operating", "role": "Fractional or strategic technology adviser", "status": "Active from 2024; present continuation unresolved", "confidence": "Confirmed" },
+    { "name": "New York eHealth Collaborative (NYeC)", "relationshipClass": "fractional_operating", "role": "Fractional or consulting CTO for a technology-consulting group; technology strategy adviser", "status": "Began December 2023; current scope unresolved", "confidence": "Confirmed" },
+    { "name": "Digital Health Research (DRH)", "relationshipClass": "board_advisory", "role": "Adviser and technical/strategic collaborator", "status": "Active work in 2026; formal title unresolved", "confidence": "Confirmed" },
+    { "name": "Diabetes Technology Society (DTS)", "relationshipClass": "working_relationship", "role": "Technology and program collaborator", "status": "Active collaboration in 2026; not a corporate executive role", "confidence": "Confirmed" },
+    { "name": "Manos Health", "relationshipClass": "board_advisory", "role": "Regulatory and Technology Advisor", "status": "Current", "confidence": "Confirmed" },
+    { "name": "VIP Care Cardio", "relationshipClass": "board_advisory", "role": "Board member; technology, operating-model, and venture-development adviser", "status": "Current or recently active in 2026", "confidence": "Confirmed" },
+    { "name": "OurHakeem", "relationshipClass": "working_relationship", "role": "Co-builder and operating architect", "status": "Active build in 2026; no legal co-founder title, equity, or separate entity established", "confidence": "Confirmed" },
+    { "name": "Revenue Acceleration LLC", "relationshipClass": "working_relationship", "role": "Venture sponsor, strategic partner, owner, or principal relationship", "status": "Current relationship; exact ownership and title unresolved", "confidence": "Confirmed" },
+    { "name": "Opsfolio", "relationshipClass": "working_relationship", "role": "Venture leader, product strategist, and principal directing positioning, roadmap, GTM, and affiliate strategy", "status": "Current IF Studios project; not an independent Shahid company", "confidence": "Confirmed" },
+    { "name": "Codvo.ai", "relationshipClass": "fractional_operating", "role": "Strategic adviser and project-level fractional CTO; formal fractional CTO/CISO engagement proposed", "status": "Work documented in 2025; formal appointment and currentness unresolved", "confidence": "Confirmed" },
+    { "name": "Solve Ventures LLC", "relationshipClass": "board_advisory", "role": "Adviser", "status": "Historical or possibly continuing; no recent first-party confirmation", "confidence": "Probable" },
+    { "name": "COMSYS", "relationshipClass": "historical_executive", "role": "Senior Vice President of Healthcare Technology", "status": "Historical; COMSYS later became part of ManpowerGroup", "confidence": "Confirmed" },
+    { "name": "Cardinal Health Clinical Technologies and Services", "relationshipClass": "historical_executive", "role": "CTO of a billion-dollar clinical-technology division", "status": "Historical", "confidence": "Confirmed" },
+    { "name": "American Red Cross", "relationshipClass": "historical_executive", "role": "Chief Systems Architect", "status": "Historical", "confidence": "Confirmed" },
+    { "name": "Northrop Grumman / TRW", "relationshipClass": "historical_executive", "role": "Technical and program leadership on a large FDA-regulated program", "status": "Historical; exact title and dates unresolved", "confidence": "Confirmed" },
+    { "name": "Global Genomics Group, now G3 Therapeutics", "relationshipClass": "historical_executive", "role": "CTO", "status": "Historical; publicly documented in 2015", "confidence": "Confirmed" },
+    { "name": "rareLife solutions", "relationshipClass": "historical_executive", "role": "CTO", "status": "Historical; dates unresolved", "confidence": "Probable" },
+    { "name": "ResMed", "relationshipClass": "corporate_successor", "role": "Post-acquisition operating relationship through Citus Health and its engineering team", "status": "Historical; exact title and end date unresolved", "confidence": "Confirmed" },
+    { "name": "Hybrent", "relationshipClass": "board_advisory", "role": "Board member and angel investor", "status": "Former; acquired by Procurement Partners in 2021", "confidence": "Confirmed" },
+    { "name": "Caristix", "relationshipClass": "board_advisory", "role": "Board member", "status": "Former, approximately 2015-2017", "confidence": "Confirmed" },
+    { "name": "OSEHRA", "relationshipClass": "board_advisory", "role": "Chairman, Strategic Board of Advisors", "status": "Former, approximately 2012-2016", "confidence": "Confirmed" },
+    { "name": "Hoy Health", "relationshipClass": "board_advisory", "role": "Strategic Board of Advisors", "status": "Former", "confidence": "Confirmed" },
+    { "name": "Larta Institute", "relationshipClass": "board_advisory", "role": "Health Sciences and Technology Advisor", "status": "Former", "confidence": "Confirmed" },
+    { "name": "AHIP Innovation Lab", "relationshipClass": "board_advisory", "role": "Strategic adviser and Entrepreneur in Residence", "status": "Former, approximately 2015-2018", "confidence": "Confirmed" },
+    { "name": "QTS Realty Trust", "relationshipClass": "board_advisory", "role": "Member, Federal Advisory Board", "status": "Former; appointed 2017, QTS acquired by Blackstone in 2021", "confidence": "Confirmed" },
+    { "name": "Cloak Labs", "relationshipClass": "board_advisory", "role": "Adviser and board member", "status": "Historical/currentness unresolved; exact entity identity needs confirmation", "confidence": "Probable" },
+    { "name": "SD858 / Twazer", "relationshipClass": "investment", "role": "Investor and director; Twazer was SD858's operating brand", "status": "Former, 2015-2019", "confidence": "Confirmed" },
+    { "name": "Goomzee", "relationshipClass": "investment", "role": "Investor", "status": "Historical", "confidence": "Probable" },
+    { "name": "Poliwogg Holdings", "relationshipClass": "investment", "role": "Investor", "status": "Historical", "confidence": "Probable" },
+    { "name": "Buddie / Teleport", "relationshipClass": "investment", "role": "Investor", "status": "Historical or unresolved; entity naming varies", "confidence": "Probable" },
+    { "name": "Sen-Jam Pharmaceutical", "relationshipClass": "investment", "role": "Investor or stakeholder", "status": "Current as last reported in 2026", "confidence": "Confirmed" },
+    { "name": "Quiet Access I, LP / Quiet Capital", "relationshipClass": "investment", "role": "Limited partner", "status": "Current as last reported in 2026", "confidence": "Confirmed" },
+    { "name": "NewHoldCo, previously called VIP Care Health", "relationshipClass": "proposed_exploratory", "role": "Proposed co-founder and Managing Partner with Sunny Tara", "status": "Non-binding framework; not confirmed formed or funded", "confidence": "Confirmed" },
+    { "name": "Neuvist", "relationshipClass": "proposed_exploratory", "role": "Venture sponsor, strategic architect, or portfolio-company partner", "status": "Active 2026 concept; entity, ownership, and title unresolved", "confidence": "Uncertain" },
+    { "name": "PatientTeam", "relationshipClass": "proposed_exploratory", "role": "Relaunch sponsor, product strategist, or venture architect", "status": "Relaunch under discussion in 2026", "confidence": "Uncertain" },
+    { "name": "Payshent", "relationshipClass": "proposed_exploratory", "role": "Venture architect or co-builder", "status": "Early concept", "confidence": "Uncertain" },
+    { "name": "Coordinate with Care", "relationshipClass": "proposed_exploratory", "role": "Venture-development collaborator", "status": "Early-stage planning", "confidence": "Uncertain" },
+    { "name": "Caldarium", "relationshipClass": "proposed_exploratory", "role": "Venture sponsor or architect for an infusion-services AI Workforce", "status": "IF Studios exploration; no separate entity or formal title established", "confidence": "Confirmed" },
+    { "name": "Intelligent Radiology Corp.", "relationshipClass": "proposed_exploratory", "role": "Prospective advisory-board member", "status": "Invitation discussed; no evidence of acceptance", "confidence": "Uncertain" },
+    { "name": "CARBON / DEVCO", "relationshipClass": "proposed_exploratory", "role": "Proposed DEVCO co-founder and proposed CARBON fractional CTO or board member", "status": "Term-sheet alternatives documented in 2024; no evidence finalized", "confidence": "Uncertain" }
   ],
   "technicalSkills": {
     "methodology": "Proven skill = direct code evidence exists (a non-fork GitHub repository's detected primary language, across github.com/shah, github.com/netspective, and github.com/alim-foundation). Skill = LinkedIn-endorsed only, no code evidence found. LinkedIn source: www.shahidshah.com src/content/skills.ts.",

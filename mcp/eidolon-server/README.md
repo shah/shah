@@ -24,9 +24,10 @@ spec as the source of truth and this file as a derived cache.
 | Tool | What it does |
 | --- | --- |
 | `get_profile` | Identity, roles, education, personal principles, Eidolon metadata. |
-| `get_companies_founded` | The full ten-company/organization breakdown (active, exited via acquisition, closed, non-profit). |
+| `get_companies_founded` | Eleven confirmed companies/organizations plus one probable historical founder record, broken down by status. |
 | `get_property` | Look up a named company, brand, project, or role by substring match, labeled by category. |
 | `check_status` | Check whether a named property/role is current, former, closed, or unconfirmed — don't assume. |
+| `get_venture_roles` | Filter the full venture-role ledger by relationship class, confidence, or status text. |
 | `get_technical_skills` | Proven-skill / plain-skill breakdown, filterable. |
 
 ## Build and run
