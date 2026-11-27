@@ -1,0 +1,112 @@
+# The CLI Workshop (workshop/ in this repository), as the model of record.
+# ontology/check.ts fails when workshop/snshah.ts, the bootstraps or this
+# file disagree, so change them together.
+
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .
+@prefix doap:    <http://usefulinc.com/ns/doap#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix eid:     <https://github.com/shah/shah/ontology/eidolon#> .
+@prefix ws:      <https://github.com/shah/shah/ontology/workshop#> .
+
+ws:snshah a ws:Toolkit ;
+    rdfs:label "Workshop (snshah)" ;
+    rdfs:comment "Shahid Shah's shell and creature comforts for all work at the CLI." ;
+    doap:programming-language "TypeScript" ;
+    dcterms:creator "Shahid Shah" ;
+    eid:path "workshop/snshah.ts" ;
+    ws:version "0.1.0" ;
+    ws:idempotent true ;
+    ws:runtime ws:bun ;
+    ws:upstream "shah/shah@main" ;
+    ws:workspacesVariable "WORKSPACES_HOME" ;
+    ws:workspacesDefault "~/workspaces" ;
+    ws:workspacesOmarchy "~/Work" ;
+    ws:bootstrap ws:bootstrap-sh , ws:bootstrap-ps1 ;
+    ws:theme ws:theme-omp ;
+    ws:supportsPlatform ws:platform-linux , ws:platform-wsl , ws:platform-macos , ws:platform-windows ;
+    ws:emitsFor ws:shell-bash , ws:shell-zsh , ws:shell-fish , ws:shell-pwsh ;
+    ws:secretScope ws:scope-command , ws:scope-shell ;
+    ws:makesStep ws:step-directory , ws:step-file , ws:step-seed , ws:step-block , ws:step-json-fill , ws:step-toml-fill ;
+    ws:advisesWith ws:pm-apt , ws:pm-dnf , ws:pm-pacman , ws:pm-apk , ws:pm-zypper , ws:pm-brew , ws:pm-winget , ws:pm-omarchy ;
+    ws:dependsOn ws:dep-commander , ws:dep-chalk , ws:dep-clack ;
+    ws:usesPath ws:path-config , ws:path-types , ws:path-script , ws:path-theme , ws:path-receipt , ws:path-downloads , ws:path-bin ;
+    ws:hasCommand ws:cmd-plan , ws:cmd-apply , ws:cmd-doctor , ws:cmd-shell , ws:cmd-exec ,
+        ws:cmd-config-path , ws:cmd-config-check , ws:cmd-config-edit , ws:cmd-config-set-secret ,
+        ws:cmd-git-root , ws:cmd-git-add , ws:cmd-git-list , ws:cmd-git-path , ws:cmd-git-clone , ws:cmd-git-update , ws:cmd-git-remove ,
+        ws:cmd-update , ws:cmd-test .
+
+ws:bun a ws:Runtime ; rdfs:label "Bun" ; ws:minimumVersion "1.4.0" .
+
+# ---------- Bootstraps and theme ----------
+ws:bootstrap-sh a ws:BootstrapScript ; rdfs:label "POSIX sh bootstrap (Linux, WSL, macOS)" ;
+    eid:path "workshop/bootstrap.sh" ; ws:pinsBun "1.4.4" ; ws:idempotent true .
+ws:bootstrap-ps1 a ws:BootstrapScript ; rdfs:label "PowerShell bootstrap (Windows 11+)" ;
+    eid:path "workshop/bootstrap.ps1" ; ws:pinsBun "1.4.4" ; ws:idempotent true .
+ws:theme-omp a ws:Theme ; rdfs:label "Oh My Posh theme" ; eid:path "workshop/snshah.omp.json" .
+
+# ---------- Commands ----------
+ws:cmd-plan a ws:Command ; ws:name "plan" ; rdfs:comment "Read-only: the steps apply would take." .
+ws:cmd-apply a ws:Command ; ws:name "apply" ; rdfs:comment "Converge to the desired state; a second run changes nothing." .
+ws:cmd-doctor a ws:Command ; ws:name "doctor" ; rdfs:comment "Detect tools and advise installs; never installs." .
+ws:cmd-shell a ws:Command ; ws:name "shell" ; rdfs:comment "Print init code for one shell." .
+ws:cmd-exec a ws:Command ; ws:name "exec" ; rdfs:comment "Run a command with its command-scoped secrets." .
+ws:cmd-config-path a ws:Command ; ws:name "config path" .
+ws:cmd-config-check a ws:Command ; ws:name "config check" .
+ws:cmd-config-edit a ws:Command ; ws:name "config edit" .
+ws:cmd-config-set-secret a ws:Command ; ws:name "config set-secret" .
+ws:cmd-git-root a ws:Command ; ws:name "git root" .
+ws:cmd-git-add a ws:Command ; ws:name "git add" .
+ws:cmd-git-list a ws:Command ; ws:name "git list" .
+ws:cmd-git-path a ws:Command ; ws:name "git path" .
+ws:cmd-git-clone a ws:Command ; ws:name "git clone" .
+ws:cmd-git-update a ws:Command ; ws:name "git update" .
+ws:cmd-git-remove a ws:Command ; ws:name "git remove" .
+ws:cmd-update a ws:Command ; ws:name "update" ; rdfs:comment "Pin one upstream commit, preview, then apply." .
+ws:cmd-test a ws:Command ; ws:name "test" ; rdfs:comment "Self-test in a temporary HOME." .
+
+# ---------- Controlled values ----------
+ws:platform-linux a ws:Platform ; ws:name "linux" ; rdfs:label "Linux, any distribution" .
+ws:platform-wsl a ws:Platform ; ws:name "wsl" ; rdfs:label "Windows Subsystem for Linux" .
+ws:platform-macos a ws:Platform ; ws:name "macos" ; rdfs:label "macOS" .
+ws:platform-windows a ws:Platform ; ws:name "windows" ; rdfs:label "Windows 11 and later" .
+
+ws:shell-bash a ws:ShellTarget ; ws:name "bash" .
+ws:shell-zsh a ws:ShellTarget ; ws:name "zsh" .
+ws:shell-fish a ws:ShellTarget ; ws:name "fish" .
+ws:shell-pwsh a ws:ShellTarget ; ws:name "pwsh" .
+
+ws:scope-command a ws:SecretScope ; ws:name "command" ;
+    rdfs:comment "Reaches only the listed commands, through snshah exec or its wrapper function." .
+ws:scope-shell a ws:SecretScope ; ws:name "shell" ;
+    rdfs:comment "Also exported into every interactive shell." .
+
+ws:step-directory a ws:StepKind ; ws:name "directory" .
+ws:step-file a ws:StepKind ; ws:name "file" ; rdfs:comment "A file snshah owns outright." .
+ws:step-seed a ws:StepKind ; ws:name "seed" ; rdfs:comment "Created once, then never overwritten (the private config)." .
+ws:step-block a ws:StepKind ; ws:name "block" ; rdfs:comment "One marked block inside a file the user owns." .
+ws:step-json-fill a ws:StepKind ; ws:name "json-fill" ; rdfs:comment "Adds unset JSON keys only." .
+ws:step-toml-fill a ws:StepKind ; ws:name "toml-fill" ; rdfs:comment "Adds unset TOML keys only." .
+
+ws:pm-apt a ws:PackageManager ; ws:name "apt" .
+ws:pm-dnf a ws:PackageManager ; ws:name "dnf" .
+ws:pm-pacman a ws:PackageManager ; ws:name "pacman" .
+ws:pm-apk a ws:PackageManager ; ws:name "apk" .
+ws:pm-zypper a ws:PackageManager ; ws:name "zypper" .
+ws:pm-brew a ws:PackageManager ; ws:name "brew" .
+ws:pm-winget a ws:PackageManager ; ws:name "winget" .
+ws:pm-omarchy a ws:PackageManager ; ws:name "omarchy" .
+
+ws:dep-commander a ws:Dependency ; ws:name "commander" ; ws:pinnedVersion "12.1.0" .
+ws:dep-chalk a ws:Dependency ; ws:name "chalk" ; ws:pinnedVersion "5.6.2" .
+ws:dep-clack a ws:Dependency ; ws:name "@clack/prompts" ; ws:pinnedVersion "0.11.0" .
+
+# ---------- Strict XDG paths ----------
+ws:path-config a ws:XdgPath ; ws:name "config" ; ws:xdgBase "XDG_CONFIG_HOME" ; ws:fallback ".config" ; ws:relativePath "snshah/snshah.conf.ts" ;
+    rdfs:comment "Private, mode 0600, never in Git." .
+ws:path-types a ws:XdgPath ; ws:name "types" ; ws:xdgBase "XDG_CONFIG_HOME" ; ws:fallback ".config" ; ws:relativePath "snshah/snshah.auto.d.ts" .
+ws:path-script a ws:XdgPath ; ws:name "script" ; ws:xdgBase "XDG_DATA_HOME" ; ws:fallback ".local/share" ; ws:relativePath "snshah/snshah.ts" .
+ws:path-theme a ws:XdgPath ; ws:name "theme" ; ws:xdgBase "XDG_DATA_HOME" ; ws:fallback ".local/share" ; ws:relativePath "snshah/snshah.omp.json" .
+ws:path-receipt a ws:XdgPath ; ws:name "receipt" ; ws:xdgBase "XDG_STATE_HOME" ; ws:fallback ".local/state" ; ws:relativePath "snshah/installed.auto.json" .
+ws:path-downloads a ws:XdgPath ; ws:name "downloads" ; ws:xdgBase "XDG_CACHE_HOME" ; ws:fallback ".cache" ; ws:relativePath "snshah" .
+ws:path-bin a ws:XdgPath ; ws:name "bin" ; ws:xdgBase "XDG_BIN_HOME" ; ws:fallback ".local/bin" ; ws:relativePath "snshah" .

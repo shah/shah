@@ -1,0 +1,58 @@
+# Shahid Shah's public-tier Eidolon, as an index over this repository.
+# Every fact here cites the spec section it comes from (eid:sourcedFrom).
+# The specs win if the two ever disagree; fix this file to match.
+# The venture-role ledger is not modeled yet; it lives in spec 0001 and
+# mcp/eidolon-server/data/profile.json.
+
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix schema:  <https://schema.org/> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix eid:     <https://github.com/shah/shah/ontology/eidolon#> .
+@prefix ws:      <https://github.com/shah/shah/ontology/workshop#> .
+
+# ---------- The Eidolon and the person ----------
+eid:eidolon a eid:Eidolon ; rdfs:label "Shahid Shah's Eidolon" ;
+    eid:reflects eid:shahid-shah ; eid:tier "public" ;
+    eid:path "README.md" ;
+    eid:sourcedFrom "spec-kit/specs/0001-shahid-shah/spec.md#eidolon" .
+
+eid:shahid-shah a eid:Person ; schema:name "Shahid N. Shah" ;
+    schema:url <https://www.shahidshah.com> ;
+    schema:sameAs <https://github.com/shah> , <https://www.linkedin.com/in/shahidnshah/> ;
+    eid:holdsRole eid:role-fractional-cto , eid:role-fractional-ciso , eid:role-ctvo , eid:role-eir ;
+    eid:hasHolding eid:intellectual-frontiers ;
+    eid:specifiedBy eid:spec-0001 ;
+    eid:sourcedFrom "README.md#roles" .
+
+# ---------- Roles (README "Roles" table) ----------
+eid:role-fractional-cto a eid:Role ; schema:roleName "Fractional CTO" ; eid:sourcedFrom "README.md#roles" .
+eid:role-fractional-ciso a eid:Role ; schema:roleName "Fractional CISO" ; eid:sourcedFrom "README.md#roles" .
+eid:role-ctvo a eid:Role ; schema:roleName "CTVO (Chief Technology & Venture Officer)" ; eid:sourcedFrom "README.md#roles" .
+eid:role-eir a eid:Role ; schema:roleName "Entrepreneur-in-residence" ; eid:sourcedFrom "README.md#roles" .
+
+# ---------- Holdings that have their own spec ----------
+eid:intellectual-frontiers a eid:Holding ; schema:name "Intellectual Frontiers LLC" ;
+    schema:url <https://www.intellectualfrontiers.com> ;
+    eid:specifiedBy eid:spec-0002 ;
+    eid:sourcedFrom "spec-kit/specs/0002-intellectual-frontiers/spec.md" .
+
+# ---------- Specs ----------
+eid:spec-0001 a eid:Spec ; rdfs:label "Shahid N. Shah" ; eid:specId "0001-shahid-shah" ;
+    eid:path "spec-kit/specs/0001-shahid-shah/spec.md" ; eid:partOf eid:eidolon .
+eid:spec-0002 a eid:Spec ; rdfs:label "Intellectual Frontiers" ; eid:specId "0002-intellectual-frontiers" ;
+    eid:path "spec-kit/specs/0002-intellectual-frontiers/spec.md" ; eid:partOf eid:eidolon .
+eid:spec-0003 a eid:Spec ; rdfs:label "Workshop" ; eid:specId "0003-workshop" ;
+    eid:path "spec-kit/specs/0003-workshop/spec.md" ; eid:partOf eid:eidolon .
+
+# ---------- Artifacts (Labor as Code) ----------
+eid:skill-write-like-shahid a eid:Skill ; rdfs:label "write-like-shahid" ;
+    eid:path "skills/write-like-shahid/SKILL.md" ; eid:specifiedBy eid:spec-0001 ; eid:partOf eid:eidolon .
+eid:skill-shahid-editorial-audit a eid:Skill ; rdfs:label "shahid-editorial-audit" ;
+    eid:path "skills/shahid-editorial-audit/SKILL.md" ; eid:specifiedBy eid:spec-0001 ; eid:partOf eid:eidolon .
+eid:skill-shahid-quick-audit a eid:Skill ; rdfs:label "shahid-quick-audit" ;
+    eid:path "skills/shahid-quick-audit/SKILL.md" ; eid:specifiedBy eid:spec-0001 ; eid:partOf eid:eidolon .
+eid:eidolon-mcp-server a eid:McpServer ; rdfs:label "Eidolon MCP server" ;
+    eid:path "mcp/eidolon-server" ; eid:specifiedBy eid:spec-0001 ; eid:partOf eid:eidolon .
+eid:ontology a eid:Ontology ; rdfs:label "Eidolon and Workshop ontology" ;
+    eid:path "ontology" ; eid:partOf eid:eidolon .
+ws:snshah eid:partOf eid:eidolon ; eid:specifiedBy eid:spec-0003 .
