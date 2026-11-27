@@ -236,6 +236,20 @@ run changes nothing.
   private config unless `--purge`, never delete the git checkout, and be a
   no-op when run again.
 
+- **FR-043**: When an AI agent is driving the shell (a variable in
+  `agentVariables`, or `SNSHAH_AGENT=1`; `SNSHAH_AGENT=0` turns it off),
+  `snshah shell` MUST leave out the eza aliases and the prompt theme, MUST
+  default `GIT_PAGER`, `PAGER` and `GIT_TERMINAL_PROMPT` to plain values, and
+  the greeting MUST stay silent.
+- **FR-044**: `snshah profile allow` MUST refuse when an agent is detected,
+  even with `--yes` or `SNSHAH_AGENT=0`. This is a guardrail against
+  accidents, not a sandbox.
+- **FR-045**: `snshah context [--json]` MUST report in one call the snshah
+  version and commit, whether an agent is detected, platform, distribution,
+  shell, working directory, workspaces root, git state, tool versions,
+  problems, directory profiles and their trust, matching profiles and the
+  sandbox prerequisites.
+
 ### Profiles (profile.d)
 
 - **FR-018**: snshah MUST load every `*.ts` file in `workshop/profile.d/`

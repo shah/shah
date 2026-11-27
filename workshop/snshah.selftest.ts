@@ -114,7 +114,7 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
     for (const [k, v] of Object.entries(process.env)) {
       if (v === undefined) continue;
       if (
-        /^(XDG_|WORKSPACES_HOME$|CLAUDE_CONFIG_DIR$|CODEX_HOME$|ZDOTDIR$|SNSHAH_|BUN_INSTALL$|MISE_|GH_|GITHUB_TOKEN$|SSH_CONNECTION$|SSH_CLIENT$|SSH_USER_AUTH$|LC_SNSHAH_OS$|LC_SNSHAH_FONTS$|LC_TERMINAL$)/.test(
+        /^(XDG_|WORKSPACES_HOME$|CLAUDE_CONFIG_DIR$|CODEX_HOME$|ZDOTDIR$|SNSHAH_|BUN_INSTALL$|MISE_|GH_|GITHUB_TOKEN$|SSH_CONNECTION$|SSH_CLIENT$|SSH_USER_AUTH$|LC_SNSHAH_OS$|LC_SNSHAH_FONTS$|LC_TERMINAL$|CLAUDECODE$|CLAUDE_CODE_ENTRYPOINT$|CODEX_SANDBOX|CURSOR_AGENT$)/.test(
           k,
         )
       )
@@ -583,6 +583,90 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
           mod.reloadCommand("fish") === "snshah shell fish | source" &&
           mod.reloadCommand("pwsh").includes("Invoke-Expression") &&
           mod.guessShell({ SHELL: "/usr/bin/fish" }) === "fish",
+      );
+    }
+
+    // Agent mode: plain output when an AI agent drives the shell; agents can't trust profiles.
+    {
+      const ah = join(root, "agent-home");
+      await mkdir(ah);
+      const human = baseEnv(ah);
+      const agentEnv = { ...human, CLAUDECODE: "1" };
+      const humanInit = cli(["shell", "bash"], undefined, human).out;
+      const agentInit = cli(["shell", "bash"], undefined, agentEnv).out;
+      check(
+        "under an agent the shell init has no eza aliases, no prompt theme, and no pagers",
+        humanInit.includes("alias ll='eza") &&
+          !agentInit.includes("eza") &&
+          !agentInit.includes("oh-my-posh") &&
+          agentInit.includes("GIT_PAGER") &&
+          agentInit.includes("GIT_TERMINAL_PROMPT"),
+        agentInit,
+      );
+      const forced = cli(["shell", "bash"], undefined, {
+        ...agentEnv,
+        SNSHAH_AGENT: "0",
+      }).out;
+      check("SNSHAH_AGENT=0 turns agent mode off", forced === humanInit);
+      check(
+        "SNSHAH_AGENT=1 turns it on without a known variable",
+        !cli(["shell", "bash"], undefined, {
+          ...human,
+          SNSHAH_AGENT: "1",
+        }).out.includes("eza"),
+      );
+      check(
+        "an agent's shell gets no greeting",
+        cli(["shell", "bash", "--greet"], undefined, {
+          ...agentEnv,
+          SNSHAH_GREET: "1",
+        }).err === "",
+      );
+      const proj = join(root, "agent-proj");
+      await mkdir(proj);
+      const inProj = (args: string[], e: Record<string, string>) =>
+        sh([bun, "--no-env-file", script, ...args], proj, e);
+      inProj(["profile", "init"], human);
+      const refused = inProj(["profile", "allow", "--yes"], {
+        ...agentEnv,
+        SNSHAH_AGENT: "0",
+      });
+      check(
+        "an agent can't trust a profile file, even with --yes or SNSHAH_AGENT=0",
+        refused.code !== 0 &&
+          refused.err.includes("AI agent can't trust") &&
+          inProj(["profile", "list"], human).out.includes("NOT trusted"),
+        refused.out + refused.err,
+      );
+      check(
+        "you can, in your own terminal",
+        inProj(["profile", "allow", "--yes"], human).code === 0,
+      );
+      const ctxJson = json<{
+        agent: boolean;
+        platform: string;
+        sandbox: { bwrap: boolean };
+        dirProfiles: Array<{ status: string }>;
+        tools: Array<{ name: string }>;
+        snshah: { version: string };
+      }>(inProj(["context", "--json"], agentEnv));
+      check(
+        "context --json says who and where, and notes the agent",
+        ctxJson?.agent === true &&
+          ctxJson.snshah.version === mod.cliVersion &&
+          ctxJson.dirProfiles[0]?.status === "trusted" &&
+          typeof ctxJson.sandbox.bwrap === "boolean" &&
+          ctxJson.tools.some((t) => t.name === "bun"),
+        JSON.stringify(ctxJson),
+      );
+      const ctxText = inProj(["context"], human);
+      check(
+        "context prints a compact summary",
+        ctxText.code === 0 &&
+          ctxText.out.includes("snshah") &&
+          ctxText.out.includes("sandbox") &&
+          !ctxText.out.includes("agent mode"),
+        ctxText.out + ctxText.err,
       );
     }
 

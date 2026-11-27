@@ -161,7 +161,7 @@ type Covers<T extends readonly string[], U extends string> = [
   ? true
   : ["missing", Exclude<U, T[number]>];
 
-export const cliVersion = "0.7.2";
+export const cliVersion = "0.8.0";
 export const minimumBun = "1.4.0";
 /** The Oh My Posh release snshah installs when none is on PATH, by Bun-style target. */
 export const ohMyPosh = {
@@ -326,6 +326,7 @@ export const commandNames = [
   "whoami",
   "apply",
   "doctor",
+  "context",
   "shell",
   "exec",
   "config path",
@@ -2556,6 +2557,7 @@ const guidance = [
   "",
   "Proceed without asking for routine work an experienced engineer would do in their own sandbox: inspecting and editing project files, running builds and tests, and using Git locally.",
   "Stay inside the permissions and sandbox the session provides. Never print, store or commit secrets.",
+  "Run `snshah context --json` once to learn the OS, shell, tools, git state and sandbox here instead of probing. Never run `snshah profile allow`; only the owner trusts a profile file.",
   guidanceEnd,
 ].join("\n");
 
@@ -2767,6 +2769,26 @@ export type ShellOp =
   | { kind: "direnv" }
   | { kind: "prompt"; theme: string; binary: string };
 
+/** Variables that agents set in the shells they start. SNSHAH_AGENT=1 or 0 overrides the guess. */
+export const agentVariables = [
+  "CLAUDECODE",
+  "CLAUDE_CODE_ENTRYPOINT",
+  "CODEX_SANDBOX",
+  "CODEX_SANDBOX_NETWORK_DISABLED",
+  "CURSOR_AGENT",
+] as const;
+
+/** True when an AI agent is driving this shell, so output should stay plain and parseable. */
+export function runningUnderAgent(env: Env): boolean {
+  if (env.SNSHAH_AGENT === "0") return false;
+  return detectedAgent(env);
+}
+
+/** Like runningUnderAgent, but SNSHAH_AGENT=0 can't hide an agent: used where it would matter. */
+export function detectedAgent(env: Env): boolean {
+  return env.SNSHAH_AGENT === "1" || agentVariables.some((name) => !!env[name]);
+}
+
 export function shellOps(
   ctx: Context,
   config: WorkshopConfig,
@@ -2817,14 +2839,26 @@ export function shellOps(
     ops.push({ kind: "wrap", command, wrapper: wrapperFor(ctx, shell) });
   if (toolManagerOn(config)) ops.push({ kind: "mise", binary: ctx.miseBinary });
   if (config.tools?.direnv !== false) ops.push({ kind: "direnv" });
-  if (config.tools?.eza !== false)
+  // An agent reads this output: no pagers, no password prompts, no icons, no prompt theme.
+  const agent = runningUnderAgent(ctx.env);
+  if (agent)
+    for (const [name, value] of [
+      ["GIT_PAGER", "cat"],
+      ["PAGER", "cat"],
+      ["GIT_TERMINAL_PROMPT", "0"],
+    ] as const)
+      ops.push({ kind: "env-default", name, value });
+  if (config.tools?.eza !== false && !agent)
     ops.push({
       kind: "eza",
       icons: fonts !== "missing",
       // Names you set yourself in `aliases` are never replaced.
       skip: Object.keys(config.aliases ?? {}),
     });
-  if ((config.prompt ?? { kind: "oh-my-posh" }).kind === "oh-my-posh") {
+  if (
+    !agent &&
+    (config.prompt ?? { kind: "oh-my-posh" }).kind === "oh-my-posh"
+  ) {
     const custom =
       config.prompt?.kind === "oh-my-posh" ? config.prompt.theme : undefined;
     ops.push({
@@ -4331,6 +4365,118 @@ async function uninstall(
       "pending",
     );
   return 0;
+}
+
+// ---------------------------------------------------------------------------
+// context: one call that tells an agent (or you) where it is
+// ---------------------------------------------------------------------------
+
+export type AgentContext = {
+  snshah: { version: string; revision?: string; checkout?: string };
+  /** True when an AI agent is driving this shell (see agentVariables; SNSHAH_AGENT overrides). */
+  agent: boolean;
+  platform: Platform;
+  distro: string[];
+  shell: Shell;
+  cwd: string;
+  workspaces: string;
+  git?: { root: string; branch?: string; dirty: boolean };
+  tools: Array<{ name: string; version: string }>;
+  /** Checks that are not fine, each with what to do about it. */
+  problems: string[];
+  /** Directory profile files above the current directory and whether each is trusted. */
+  dirProfiles: Array<{ file: string; status: string }>;
+  profiles: string[];
+  sandbox: { bwrap: boolean; socat: boolean };
+};
+
+async function agentContext(ctx: Context): Promise<AgentContext> {
+  const effective = await loadEffective(ctx);
+  const report = await doctor(ctx);
+  const receipt = await readReceipt(ctx);
+  const state = await readState(ctx);
+  const cwd = process.cwd();
+  const top = git(cwd, "rev-parse", "--show-toplevel");
+  const has = (name: string) =>
+    report.checks.some((c) => c.check === name && c.status === "ok");
+  return {
+    snshah: {
+      version: cliVersion,
+      ...(receipt
+        ? {
+            revision: receipt.revision.slice(0, 12),
+            checkout: tilde(ctx, receipt.checkout),
+          }
+        : {}),
+    },
+    agent: runningUnderAgent(ctx.env),
+    platform: ctx.platform,
+    distro: effective.facts.distro,
+    shell: guessShell(ctx.env),
+    cwd: tilde(ctx, cwd),
+    workspaces: tilde(ctx, workspacesRoot(ctx, effective.config)),
+    ...(top
+      ? {
+          git: {
+            root: tilde(ctx, top),
+            ...(git(cwd, "symbolic-ref", "--quiet", "--short", "HEAD")
+              ? {
+                  branch: git(
+                    cwd,
+                    "symbolic-ref",
+                    "--quiet",
+                    "--short",
+                    "HEAD",
+                  )!,
+                }
+              : {}),
+            dirty: !!git(cwd, "status", "--porcelain"),
+          },
+        }
+      : {}),
+    tools: report.checks
+      .filter((c) => c.version && c.status === "ok")
+      .map((c) => ({ name: c.check, version: c.version! })),
+    problems: report.checks
+      .filter((c) => c.status !== "ok")
+      .map((c) => `${c.check}: ${c.detail}`),
+    dirProfiles: await Promise.all(
+      dirProfileChain(cwd).map(async (file) => ({
+        file: tilde(ctx, file),
+        status: (await dirFileStatus(ctx, file, state.trusted)).status.kind,
+      })),
+    ),
+    profiles: effective.profiles.filter((p) => p.matched).map((p) => p.id),
+    sandbox: { bwrap: has("bwrap"), socat: has("socat") },
+  };
+}
+
+function printAgentContext(c: AgentContext): void {
+  const line = (key: string, value: string) =>
+    console.log(`${key.padEnd(12)} ${value}`);
+  line(
+    "snshah",
+    `${c.snshah.version}${c.snshah.revision ? ` (${c.snshah.revision})` : ""}${c.agent ? "  [agent mode: plain output]" : ""}`,
+  );
+  line(
+    "os",
+    `${c.platform}${c.distro.length ? ` (${c.distro.join(", ")})` : ""}, ${c.shell}`,
+  );
+  line("cwd", c.cwd);
+  line("workspaces", c.workspaces);
+  if (c.git)
+    line(
+      "git",
+      `${c.git.root} on ${c.git.branch ?? "(detached)"}${c.git.dirty ? ", uncommitted changes" : ", clean"}`,
+    );
+  line("tools", c.tools.map((t) => `${t.name} ${t.version}`).join(", "));
+  line(
+    "sandbox",
+    `bwrap ${c.sandbox.bwrap ? "yes" : "NO"}, socat ${c.sandbox.socat ? "yes" : "NO"}`,
+  );
+  if (c.profiles.length) line("profiles", c.profiles.join(", "));
+  for (const d of c.dirProfiles) line("dir profile", `${d.file} (${d.status})`);
+  for (const problem of c.problems) line("problem", problem);
 }
 
 // ---------------------------------------------------------------------------
@@ -6291,6 +6437,10 @@ async function profileAllow(
   fileArg: string | undefined,
   options: { yes?: boolean },
 ): Promise<void> {
+  if (detectedAgent(ctx.env))
+    throw new UsageError(
+      "An AI agent can't trust a profile file: trusting one lets it run any code as you. Read the file yourself, then run `snshah profile allow` in your own terminal.",
+    );
   const file = await dirTarget(ctx, fileArg);
   const entry = await dirFileStatus(ctx, file, undefined);
   if (entry.status.kind === "blocked")
@@ -7140,6 +7290,18 @@ export async function buildCli(ctx: Context): Promise<CommanderCommand> {
     });
 
   program
+    .command("context")
+    .description(
+      "Where am I? OS, shell, tools, git state, profiles, sandbox and problems, for agents and people",
+    )
+    .option("--json", "print JSON")
+    .action(async (o: { json?: boolean }) => {
+      const c = await agentContext(ctx);
+      if (o.json) return console.log(JSON.stringify(c, null, 2));
+      printAgentContext(c);
+    });
+
+  program
     .command("shell")
     .description("Print shell init code: eval it from bash, zsh, fish or pwsh")
     .argument("<shell>", shells.join("|"))
@@ -7640,7 +7802,8 @@ export async function main(argv: string[]): Promise<number> {
       process.stdout.write(
         renderShell(argv[1], shellOps(ctx, config, argv[1], fonts)),
       );
-      if (argv[2] === "--greet") await greet(ctx, config);
+      if (argv[2] === "--greet" && !runningUnderAgent(ctx.env))
+        await greet(ctx, config);
       return 0;
     }
     if (

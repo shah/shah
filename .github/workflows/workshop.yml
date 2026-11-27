@@ -1,0 +1,33 @@
+name: workshop
+
+on:
+  push:
+    paths: ["workshop/**", "ontology/**", ".github/workflows/workshop.yml"]
+  pull_request:
+    paths: ["workshop/**", "ontology/**", ".github/workflows/workshop.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    # Native Windows has never run the self-test: report it, don't block on it yet.
+    continue-on-error: ${{ matrix.os == 'windows-latest' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - name: Format
+        run: bun fmt --check workshop ontology
+        shell: bash
+      - name: Self-test (plan, apply and every command, twice)
+        run: bun --no-env-file workshop/snshah.ts test
+      - name: Ontology agrees with the code
+        run: bun --no-env-file ontology/check.ts
