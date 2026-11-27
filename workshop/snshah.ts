@@ -148,7 +148,7 @@ type Covers<T extends readonly string[], U extends string> = [
   ? true
   : ["missing", Exclude<U, T[number]>];
 
-export const cliVersion = "0.4.4";
+export const cliVersion = "0.4.5";
 export const minimumBun = "1.4.0";
 /** The Oh My Posh release snshah installs when none is on PATH, by Bun-style target. */
 export const ohMyPosh = {
@@ -3890,27 +3890,51 @@ async function doctor(ctx: Context): Promise<{
     next.push(...fontsNext(found));
   }
 
-  // Over SSH with no way to tell how you logged in: one line makes it exact.
+  // Over SSH: always say how you got in, and point at keys when it was not one.
   if (ctx.env.SSH_CONNECTION) {
     const session = await detectSession(ctx);
-    if (session.kind === "ssh" && session.method === "unknown") {
-      const fix = exposeAuthInfoAdvice(
-        ctx,
-        isWindows || !!Bun.which("sudo", { PATH: envPath }),
-      );
-      checks.push({
-        check: "ssh",
-        status: "warn",
-        detail: fix.enabled
-          ? "login method unknown: sshd exposes it for new logins only; log out and back in"
-          : "login method unknown: sshd doesn't tell users how they logged in, so the password-login hint can't be exact",
-      });
-      if (!fix.enabled)
-        next.push({
-          title:
-            "Let sshd tell snshah how you logged in (then log out and back in):",
-          command: fix.command,
+    if (session.kind === "ssh") {
+      const copy: NextStep = {
+        title: "See how to set up an SSH key from your own computer:",
+        command: "snshah ssh copy",
+      };
+      if (session.method === "publickey") {
+        checks.push({
+          check: "ssh",
+          status: "ok",
+          detail: "logged in with an SSH key",
         });
+      } else if (usedPassword(session.method)) {
+        checks.push({
+          check: "ssh",
+          status: "warn",
+          detail:
+            "logged in with a password; an SSH key is safer and you stop typing it",
+        });
+        next.push(copy);
+      } else {
+        const fix = exposeAuthInfoAdvice(
+          ctx,
+          isWindows || !!Bun.which("sudo", { PATH: envPath }),
+        );
+        checks.push({
+          check: "ssh",
+          status: "warn",
+          detail: fix.enabled
+            ? "login method unknown: sshd exposes it for new logins only; log out and back in"
+            : "login method unknown: sshd doesn't tell users how they logged in, so the password-login hint can't be exact",
+        });
+        if (!fix.enabled)
+          next.push({
+            title:
+              "Let sshd tell snshah how you logged in (then log out and back in):",
+            command: fix.command,
+          });
+        next.push({
+          ...copy,
+          title: `If you used a password: ${copy.title.toLowerCase()}`,
+        });
+      }
     }
   }
 

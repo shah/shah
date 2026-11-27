@@ -1191,6 +1191,14 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
           "signed in with a password",
         ),
       );
+      const dp = cli(["doctor"], undefined, hintEnv);
+      check(
+        "doctor over SSH after a password login points to snshah ssh copy, every time",
+        dp.out.includes("logged in with a password") &&
+          dp.out.includes("snshah ssh copy") &&
+          !dp.out.includes("ssh-copy-id"),
+        dp.out,
+      );
       const dk = cli(["doctor"], undefined, keyedEnv);
       check(
         "doctor over SSH with an unknown login method gives the exact sshd line",
