@@ -649,7 +649,10 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
       await mkdir(dh);
       await mkdir(sub, { recursive: true });
       await mkdir(join(proj, "bin"));
-      const de = { ...baseEnv(dh), PROJ_VAR: "orig" };
+      const de: Record<string, string> = {
+        ...baseEnv(dh),
+        PROJ_VAR: "orig",
+      };
       cli(["apply", "--yes"], undefined, de);
       const file = join(proj, ".snshah.profile.ts");
       await writeFile(
@@ -683,7 +686,7 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
       const l0 = inDir(["profile", "list"]);
       check(
         "an untrusted profile file is listed as not trusted",
-        l0.out.includes("not trusted yet"),
+        l0.out.includes("NOT trusted yet"),
         l0.out + l0.err,
       );
       const load0 = sh(
@@ -788,7 +791,7 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
       const l1 = inDir(["profile", "list"]);
       check(
         "editing a trusted file makes it untrusted until you allow it again",
-        l1.out.includes("changed since you trusted it") &&
+        l1.out.includes("CHANGED since you trusted it") &&
           inDir(["profile", "show"]).out.includes("Nothing applies yet"),
         l1.out + l1.err,
       );
@@ -812,9 +815,86 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
       await symlink(file, join(linkDir, ".snshah.profile.ts"));
       check(
         "a symlinked profile file is followed; the content hash is the trust",
-        inDir(["profile", "list"], linkDir).out.includes("changed since") ||
-          inDir(["profile", "list"], linkDir).out.includes("not trusted yet") ||
-          inDir(["profile", "list"], linkDir).out.includes("trusted"),
+        inDir(["profile", "list"], linkDir).out.includes("trusted"),
+      );
+      // Discovery: profile list finds files above, below and (with --all) in your workspaces.
+      const scanRoot = join(root, "scan-root");
+      const scanWs = join(root, "scan-ws");
+      for (const d of [
+        join(scanRoot, "a"),
+        join(scanRoot, "a", "b", "c"),
+        join(scanRoot, "node_modules", "x"),
+        join(scanWs, "w"),
+      ])
+        await mkdir(d, { recursive: true });
+      for (const d of [
+        join(scanRoot, "a"),
+        join(scanRoot, "a", "b", "c"),
+        join(scanRoot, "node_modules", "x"),
+        join(scanWs, "w"),
+      ])
+        await writeFile(
+          join(d, ".snshah.profile.ts"),
+          "export const config = {};\n",
+        );
+      const found = mod.scanDirProfiles(scanRoot);
+      check(
+        "scanDirProfiles finds nested files and skips node_modules",
+        found.length === 2 &&
+          !found.some((f: string) => f.includes("node_modules")) &&
+          mod.scanDirProfiles(scanRoot, 1).length === 1,
+        JSON.stringify(found),
+      );
+      const ls1 = inDir(["profile", "ls"], scanRoot, {
+        ...de,
+        WORKSPACES_HOME: scanWs,
+      });
+      check(
+        "profile ls finds files below you, says what is not trusted, and summarizes",
+        ls1.out.includes("below here") &&
+          ls1.out.includes("NOT trusted yet") &&
+          ls1.out.includes("2 file(s)") &&
+          !ls1.out.includes("scan-ws") &&
+          ls1.out.includes("profile list --all"),
+        ls1.out + ls1.err,
+      );
+      const ls2 = inDir(["profile", "list", "--all"], scanRoot, {
+        ...de,
+        WORKSPACES_HOME: scanWs,
+      });
+      check(
+        "profile list --all also finds files in your workspaces",
+        ls2.out.includes("scan-ws") && ls2.out.includes("3 file(s)"),
+        ls2.out + ls2.err,
+      );
+      const lsj = JSON.parse(
+        inDir(["profile", "list", "--json"], join(scanRoot, "a", "b", "c")).out,
+      ) as Array<{ file: string; scope: string; status: { kind: string } }>;
+      check(
+        "profile list --json says where each file is and its status",
+        lsj.length === 2 &&
+          lsj.some(
+            (r) => r.scope === "here" && r.status.kind === "untrusted",
+          ) &&
+          inDir(["profile", "list", "--depth", "x"], scanRoot).code === 2,
+        JSON.stringify(lsj),
+      );
+      const gonePath = join(scanRoot, "a", "b", "c");
+      inDir(["profile", "allow", "--yes"], gonePath);
+      await rm(join(gonePath, ".snshah.profile.ts"));
+      const lsGone = inDir(["profile", "list"], scanRoot);
+      check(
+        "a trusted file that was deleted is reported as gone",
+        lsGone.out.includes("the file is gone"),
+        lsGone.out,
+      );
+      const pr1 = inDir(["profile", "prune"]);
+      const pr2 = inDir(["profile", "prune"]);
+      check(
+        "profile prune forgets stale trust, and twice is a no-op",
+        pr1.out.includes("Forgot trust for") &&
+          pr2.out.includes("No changes needed"),
+        pr1.out + pr2.out,
       );
       const fresh = join(root, "dir-fresh");
       await mkdir(fresh);

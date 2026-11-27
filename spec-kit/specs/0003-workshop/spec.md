@@ -329,8 +329,13 @@ run changes nothing.
   that `snshah apply` owns for the whole machine are refused, with that
   reason, and the file's own output MUST NOT reach the shell code. An
   untrusted file MUST cost the shell only a one-line notice.
-- **FR-041**: `snshah profile list|show|allow|deny|init|check|why` MUST be
-  idempotent, and `profile init` MUST never overwrite.
+- **FR-041**: `snshah profile list|show|allow|deny|init|check|why|prune` MUST
+  be idempotent, and `profile init` MUST never overwrite. `profile list` (alias
+  `ls`) MUST discover profile files above, in and below the current directory
+  (and with `--all` in the workspaces root and registered checkouts),
+  skipping vendored folders and never following links, and MUST show each
+  file as trusted, not trusted, changed or ignored, plus trust entries whose
+  file is gone.
 
 ### Model of record
 

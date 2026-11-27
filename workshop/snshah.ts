@@ -47,6 +47,7 @@ import {
   isAbsolute,
   join,
   resolve,
+  sep,
 } from "node:path";
 
 // ---------------------------------------------------------------------------
@@ -160,7 +161,7 @@ type Covers<T extends readonly string[], U extends string> = [
   ? true
   : ["missing", Exclude<U, T[number]>];
 
-export const cliVersion = "0.5.1";
+export const cliVersion = "0.5.2";
 export const minimumBun = "1.4.0";
 /** The Oh My Posh release snshah installs when none is on PATH, by Bun-style target. */
 export const ohMyPosh = {
@@ -350,6 +351,7 @@ export const commandNames = [
   "ssh host list",
   "ssh host remove",
   "profile list",
+  "profile prune",
   "profile show",
   "profile allow",
   "profile deny",
@@ -6161,38 +6163,164 @@ async function profileDeny(
   say(`No longer trusting ${tilde(ctx, file)}.`, "success");
 }
 
-async function profileList(ctx: Context, json: boolean): Promise<void> {
+const scanSkip = new Set([
+  "node_modules",
+  ".git",
+  ".cache",
+  ".venv",
+  "venv",
+  "target",
+  "dist",
+  "build",
+]);
+
+/** Every `.snshah.profile.ts` under `root`, to `maxDepth` levels. Skips vendored folders and never follows links. */
+export function scanDirProfiles(
+  root: string,
+  maxDepth = 6,
+  limit = 20000,
+): string[] {
+  const found: string[] = [];
+  let seen = 0;
+  const walk = (dir: string, depth: number) => {
+    if (seen > limit) return;
+    let entries: import("node:fs").Dirent[];
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      seen++;
+      if (entry.name === dirProfileFile && !entry.isDirectory())
+        found.push(join(dir, entry.name));
+      else if (
+        entry.isDirectory() &&
+        !entry.isSymbolicLink() &&
+        depth < maxDepth &&
+        !scanSkip.has(entry.name)
+      )
+        walk(join(dir, entry.name), depth + 1);
+    }
+  };
+  walk(resolve(root), 0);
+  return found.sort();
+}
+
+type DirListing = {
+  file: string;
+  scope: "here" | "below" | "elsewhere" | "gone";
+  status: DirStatus | { kind: "gone" };
+};
+
+async function profileList(
+  ctx: Context,
+  options: { json?: boolean; all?: boolean; depth?: string },
+): Promise<void> {
+  const depth = options.depth === undefined ? 6 : Number(options.depth);
+  if (!Number.isInteger(depth) || depth < 0)
+    throw new UsageError("--depth must be a whole number, 0 or more.");
   const state = await readState(ctx);
-  const files: DirFile[] = [];
-  for (const file of dirProfileChain(process.cwd()))
-    files.push(await dirFileStatus(ctx, file, state.trusted));
-  if (json) return console.log(JSON.stringify(files, null, 2));
-  if (!files.length)
+  const cwd = process.cwd();
+  const above = dirProfileChain(cwd);
+  const roots = [cwd];
+  if (options.all) {
+    const { config } = await loadEffective(ctx);
+    roots.push(workspacesRoot(ctx, config));
+    for (const repo of config.repositories ?? [])
+      roots.push(repoPath(ctx, config, repo));
+  }
+  const files = new Map<string, DirListing["scope"]>();
+  for (const f of above) files.set(f, "here");
+  for (const root of roots)
+    for (const f of scanDirProfiles(root, depth))
+      if (!files.has(f))
+        files.set(
+          f,
+          f.startsWith(cwd + sep) || dirname(f) === cwd ? "below" : "elsewhere",
+        );
+  const rows: DirListing[] = [];
+  for (const [file, scope] of [...files].sort(([a], [b]) => a.localeCompare(b)))
+    rows.push({
+      file,
+      scope,
+      status: (await dirFileStatus(ctx, file, state.trusted)).status,
+    });
+  // Trust entries whose file is gone: harmless, but worth cleaning up.
+  const known = new Set(
+    await Promise.all([...files.keys()].map((f) => realpath(f).catch(() => f))),
+  );
+  for (const path of Object.keys(state.trusted ?? {}))
+    if (!existsSync(path) && !known.has(path))
+      rows.push({ file: path, scope: "gone", status: { kind: "gone" } });
+  if (options.json) return console.log(JSON.stringify(rows, null, 2));
+  if (!rows.length)
     return say(
-      `No ${dirProfileFile} in ${tilde(ctx, process.cwd())} or above. Create one with snshah profile init.`,
+      `No ${dirProfileFile} ${options.all ? "found in this directory, above or below it, your workspaces or your checkouts" : `in ${tilde(ctx, cwd)}, above it or below it`}. Create one with snshah profile init${options.all ? "" : ", or look wider with snshah profile list --all"}.`,
       "pending",
     );
-  const detail: Record<DirStatus["kind"], string> = {
-    trusted: "trusted",
-    untrusted: "not trusted yet (read it, then snshah profile allow)",
-    changed: "changed since you trusted it (snshah profile allow)",
-    blocked: "ignored",
+  const detail = (r: DirListing): string => {
+    const st = r.status;
+    const where = {
+      here: "applies here",
+      below: "below here",
+      elsewhere: "elsewhere",
+      gone: "",
+    }[r.scope];
+    switch (st.kind) {
+      case "trusted":
+        return `trusted, runs with no limits (${where})`;
+      case "untrusted":
+        return `NOT trusted yet, does nothing (${where}); read it, then snshah profile allow ${tilde(ctx, r.file)}`;
+      case "changed":
+        return `CHANGED since you trusted it, does nothing (${where}); snshah profile allow ${tilde(ctx, r.file)}`;
+      case "blocked":
+        return `ignored: ${st.reason}`;
+      case "gone":
+        return "trusted once, but the file is gone (snshah profile prune)";
+      default:
+        return assertNever(st);
+    }
   };
   printChecks(
-    files.map((f) => ({
-      check: tilde(ctx, f.file),
+    rows.map((r) => ({
+      check: tilde(ctx, r.file),
       status:
-        f.status.kind === "trusted"
+        r.status.kind === "trusted"
           ? ("ok" as const)
-          : f.status.kind === "blocked"
+          : r.status.kind === "blocked"
             ? ("missing" as const)
             : ("warn" as const),
-      detail:
-        f.status.kind === "blocked"
-          ? `ignored: ${f.status.reason}`
-          : detail[f.status.kind],
+      detail: detail(r),
     })),
   );
+  const count = (k: string) => rows.filter((r) => r.status.kind === k).length;
+  say(
+    `${rows.length} file(s): ${count("trusted")} trusted, ${count("untrusted")} not trusted, ${count("changed")} changed, ${count("blocked")} ignored, ${count("gone")} gone.`,
+    "action",
+  );
+  if (!options.all)
+    console.log(
+      "  Look wider (your workspaces and registered checkouts): snshah profile list --all",
+    );
+}
+
+async function profilePrune(ctx: Context): Promise<void> {
+  const state = await readState(ctx);
+  const gone = Object.keys(state.trusted ?? {}).filter((p) => !existsSync(p));
+  if (!gone.length)
+    return say("No stale trust entries. No changes needed.", "success");
+  await patchState(ctx, (st) => ({
+    ...st,
+    trusted: Object.fromEntries(
+      Object.entries(st.trusted ?? {}).filter(([p]) => existsSync(p)),
+    ),
+  }));
+  say(
+    `Forgot trust for ${gone.length} file(s) that no longer exist.`,
+    "success",
+  );
+  for (const p of gone) console.log(`  ${tilde(ctx, p)}`);
 }
 
 async function profileShow(ctx: Context, json: boolean): Promise<void> {
@@ -7130,11 +7258,20 @@ export async function buildCli(ctx: Context): Promise<CommanderCommand> {
     );
   profile
     .command("list", { isDefault: true })
+    .alias("ls")
     .description(
-      "The profile files that apply here, and whether you trust them",
+      "Find profile files here, above and below, and show which you trust (--all: workspaces and checkouts too)",
     )
+    .option("--all", "also scan your workspaces root and registered checkouts")
+    .option("--depth <n>", "how many folders deep to look (default 6)")
     .option("--json", "print JSON")
-    .action(async (o: { json?: boolean }) => profileList(ctx, !!o.json));
+    .action(async (o: { json?: boolean; all?: boolean; depth?: string }) =>
+      profileList(ctx, o),
+    );
+  profile
+    .command("prune")
+    .description("Forget trust for profile files that no longer exist")
+    .action(async () => profilePrune(ctx));
   profile
     .command("show")
     .description("What the trusted files set here, and which file set it")
