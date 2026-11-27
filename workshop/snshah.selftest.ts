@@ -1133,17 +1133,17 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
         "a password login (no authorized keys) shows the SSH key hint on stderr only",
         h.code === 0 &&
           h.err.includes("signed in with a password") &&
-          h.err.includes("ssh-copy-id") &&
-          h.err.includes("@192.0.2.20") &&
+          h.err.includes("snshah ssh copy") &&
           h.out === plainShell.out,
         h.err,
       );
       const via = cli(["ssh", "copy"], undefined, hintEnv);
       check(
-        "the hint's instructions are the same text as `snshah ssh copy`",
-        via.out.length > 0 &&
-          h.err.includes(via.out.trim().split("\n")[0]!) &&
-          h.err.includes(via.out.trim().split("\n").at(-1)!),
+        "ssh copy shows how to see and create the key only when missing, per OS",
+        via.out.includes("ls ~/.ssh/*.pub") &&
+          via.out.includes("test -f ~/.ssh/id_ed25519.pub ||") &&
+          via.out.includes("Get-ChildItem") &&
+          via.out.includes("Test-Path"),
         via.out,
       );
       check(
@@ -1159,6 +1159,13 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
       check(
         "a new connection shows it again",
         other.err.includes("signed in with a password"),
+      );
+      check(
+        "the hint is short: it names the command, not the per-OS steps",
+        other.err.includes("snshah ssh copy") &&
+          !other.err.includes("ssh-copy-id") &&
+          other.err.trim().split("\n").length <= 6,
+        other.err,
       );
       const quietHome = join(root, "hint-quiet");
       await mkdir(quietHome);

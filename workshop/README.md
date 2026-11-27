@@ -141,7 +141,7 @@ sends `LC_SNSHAH_FONTS` over SSH, so servers you log in to know too.
 `copy` shows only the client's OS when it knows it. snshah's shell init exports
 `LC_SNSHAH_OS`, which default `ssh` and `sshd` configs already send and accept;
 otherwise it shows all three. If you log in with a password, the shell shows a
-colored hint with the same text as `snshah ssh copy`, once per connection.
+short colored hint, once per connection, that points to `snshah ssh copy` for the per-OS steps.
 Detection uses `SSH_USER_AUTH` (`ExposeAuthInfo yes` makes it exact; `snshah doctor` prints the exact `sudo` line when the method is unknown), else the
 sshd log, else "no authorized keys". `SNSHAH_SSH_HINT=0` silences the hint, and
 `SNSHAH_GREET=0` silences all greetings.

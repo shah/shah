@@ -148,7 +148,7 @@ type Covers<T extends readonly string[], U extends string> = [
   ? true
   : ["missing", Exclude<U, T[number]>];
 
-export const cliVersion = "0.4.3";
+export const cliVersion = "0.4.4";
 export const minimumBun = "1.4.0";
 /** The Oh My Posh release snshah installs when none is on PATH, by Bun-style target. */
 export const ohMyPosh = {
@@ -4377,14 +4377,12 @@ async function greet(ctx: Context, config: WorkshopConfig): Promise<void> {
         await patchState(ctx, (st) => ({ ...st, sshHintFor: id }));
         const session = await detectSession(ctx);
         if (session.kind === "ssh" && usedPassword(session.method)) {
-          const r = Bun.spawnSync([...self, "ssh", "copy", "--hint"], {
-            env: { ...ctx.env, ...colorEnv },
-            stdin: "ignore",
-            stdout: "pipe",
-            stderr: "pipe",
-          });
-          process.stderr.write(r.stdout);
-          process.stderr.write(r.stderr);
+          // Short on purpose: the full per-OS steps are one command away.
+          const c = (code: string, t: string) =>
+            tty ? `\x1b[${code}m${t}\x1b[0m` : t;
+          process.stderr.write(
+            `${c("1;33", "🔐 You signed in with a password. SSH keys are safer, and you will not have to type it again.")}\n  ${c("36", "To see how to copy a key into this server from your computer, run:")} ${c("1;32", "snshah ssh copy")}\n  ${c("2", "Shown once per login. Silence it with SNSHAH_SSH_HINT=0.")}\n`,
+          );
         }
       }
     }
@@ -4673,8 +4671,13 @@ export function copyCommands(os: ClientOs, t: SshTarget): CopyStep[] {
     case "macos":
       return [
         {
-          note: "Create a key if you don't have one (skip if ~/.ssh/id_ed25519.pub exists):",
-          command: "ssh-keygen -t ed25519 -a 100",
+          note: "See which public keys you already have (look for id_ed25519.pub):",
+          command: "ls ~/.ssh/*.pub",
+        },
+        {
+          note: "Create one only if id_ed25519.pub is missing (does nothing if it exists):",
+          command:
+            "test -f ~/.ssh/id_ed25519.pub || ssh-keygen -t ed25519 -a 100",
         },
         {
           note: `Copy your key into ${dest} (safe to run twice):`,
@@ -4693,8 +4696,13 @@ export function copyCommands(os: ClientOs, t: SshTarget): CopyStep[] {
     case "windows":
       return [
         {
-          note: "Create a key if you don't have one (skip if $env:USERPROFILE\\.ssh\\id_ed25519.pub exists):",
-          command: "ssh-keygen -t ed25519 -a 100",
+          note: "See which public keys you already have (look for id_ed25519.pub):",
+          command: "Get-ChildItem $env:USERPROFILE\\.ssh\\*.pub",
+        },
+        {
+          note: "Create one only if id_ed25519.pub is missing (does nothing if it exists):",
+          command:
+            'if (-not (Test-Path "$env:USERPROFILE\\.ssh\\id_ed25519.pub")) { ssh-keygen -t ed25519 -a 100 }',
         },
         {
           note: `Copy your key into ${dest} (PowerShell; safe to run twice):`,

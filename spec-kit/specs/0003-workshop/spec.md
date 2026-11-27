@@ -275,8 +275,9 @@ run changes nothing.
   Linux, macOS and Windows, using the address from `SSH_CONNECTION`.
 - **FR-032**: A login that used a password (from `SSH_USER_AUTH`, else the
   sshd log for that client address and port, else no authorized keys) MUST
-  show a colored hint once per connection with the output of
-  `snshah ssh copy`; `SNSHAH_SSH_HINT=0` MUST silence it.
+  show a short colored hint once per connection that names `snshah ssh copy`
+  (the full per-OS steps stay behind that command, and each shows how to check
+  for an existing key and creates one only when it is missing); `SNSHAH_SSH_HINT=0` MUST silence it.
 
 ### Fonts
 
