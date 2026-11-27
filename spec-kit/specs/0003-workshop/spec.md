@@ -250,6 +250,20 @@ run changes nothing.
   problems, directory profiles and their trust, matching profiles and the
   sandbox prerequisites.
 
+- **FR-046**: Every command MUST be classified in `commandEffects` as
+  `query`, `change`, `advice`, `emit` or `run`; every `query` MUST take
+  `--json`; `snshah commands [--json]` MUST list them. Exit codes: 0 success,
+  1 failure, 2 usage error.
+- **FR-047**: `snshah vscode` MUST preview by default, fill only unset keys
+  of VS Code's user settings, never rewrite a file with comments, and only
+  advise about extensions.
+- **FR-048**: `snshah wt new|ls|prune` MUST keep worktrees at
+  `<repo>.wt/<branch>`, be idempotent, and prune only clean worktrees under
+  that directory whose remote branch is gone (or merged, with `--merged`),
+  previewing unless `--yes`.
+- **FR-049**: CI MUST run the format check, the self-test and the ontology
+  check on Linux, macOS and Windows.
+
 ### Profiles (profile.d)
 
 - **FR-018**: snshah MUST load every `*.ts` file in `workshop/profile.d/`
@@ -431,6 +445,7 @@ run changes nothing.
 | FR-018, FR-019, FR-021 | Shahid N. Shah, direct statement, 2026-11-27 (profile.d, type-safe merge, command hooks with env passthrough)                                                |
 | FR-020, FR-022         | Shahid N. Shah, direct statement, 2026-11-27 (environment selectors first, fingerprint when needed, hostnames allowed); private-only rule proposed by Claude |
 | FR-023                 | Shahid N. Shah, decision, 2026-11-27 ("Yes, pinned and checksummed")                                                                                         |
+| FR-042 to FR-049       | Shahid N. Shah, direct statements, 2026-11-27 (`snshah uninstall`; agent-first improvements: agent mode, `context`, `vscode`, `wt`, `commands`, CI)          |
 | FR-037 to FR-041       | Shahid N. Shah, direct statement, 2026-11-27 (`exa` by default with `tree`; `.snshah.profile.ts` per-directory profiles; `snshah profile safe`)              |
 | FR-036                 | Shahid N. Shah, direct statement, 2026-11-27 (`snshah update` should re-source the profile, or explain how)                                                  |
 | FR-033 to FR-035       | Shahid N. Shah, direct statement, 2026-11-27 (Nerd Fonts in Windows Terminal; `snshah ux fonts`)                                                             |

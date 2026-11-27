@@ -344,6 +344,10 @@ the bootstrap and `snshah git clone shah` put it in
 | `snshah whoami [--json]`                                  | Print the facts profile selectors match against.                                                 |
 | `snshah apply [--yes] [--json]`                           | Bring this machine to the desired state.                                                         |
 | `snshah doctor [--json]`                                  | Check tools and print install commands for this distribution and package manager.                |
+| `snshah context [--json]`                                 | Where am I? OS, shell, tools, git state, profiles, sandbox, problems.                            |
+| `snshah commands [--json]`                                | Every command, what it does to the machine, and whether it takes `--json`.                       |
+| `snshah vscode [--yes] [--json]`                          | Fill VS Code user settings (fill-only) and list recommended extensions.                          |
+| `snshah wt new\|ls\|prune`                                | Git worktrees next to the repository, one per branch.                                            |
 | `snshah shell <shell> [--greet]`                          | Print init code for bash, zsh, fish or pwsh.                                                     |
 | `snshah exec <command> [args]`                            | Run a command with its command-scoped secrets.                                                   |
 | `snshah config path\|check\|edit\|set-secret`             | Manage the private config.                                                                       |
@@ -361,6 +365,60 @@ has uncommitted changes, is detached, is on another branch, or has diverged
 from origin. `update --check` only asks origin. The installed CLI is a copy,
 not a symlink, so a half-finished edit in the checkout never breaks your
 shell; it changes when you run `snshah apply` or `snshah update`.
+
+## For AI agents and VS Code
+
+snshah is built for CLI work that agents and editors share with you.
+
+**Agent mode.** When a shell is started by an agent (Claude Code, Codex,
+Cursor: any variable in `agentVariables`, or `SNSHAH_AGENT=1`), `snshah shell`
+leaves out the `ls`/`tree` eza aliases and the prompt theme, defaults
+`GIT_PAGER=cat`, `PAGER=cat` and `GIT_TERMINAL_PROMPT=0`, and the greeting
+stays silent, so the output an agent reads is plain. `SNSHAH_AGENT=0` turns
+it off.
+
+**Agents can't trust profiles.** `snshah profile allow` refuses when an agent
+is detected, even with `--yes` or `SNSHAH_AGENT=0`: trusting a
+`.snshah.profile.ts` runs code as you with no limits, so only you do it, in
+your own terminal. This is a guardrail against accidents, not a sandbox; an
+agent with a shell can already do anything you can.
+
+**One call instead of probing.** `snshah context --json` says where it is:
+OS, distribution, shell, working directory, workspaces root, git state, tool
+versions, problems (each with what to do), directory profiles and whether
+they are trusted, and whether the sandbox prerequisites (`bwrap`, `socat`)
+are present. The guidance block `apply` adds to Claude Code's and Codex's
+instruction files tells agents to run it once.
+
+**Machine-readable help.** `snshah commands --json` lists every command with
+its options and its effect: `query` (prints facts; always takes `--json`),
+`change` (writes files or state; previews or is idempotent), `advice` (only
+prints instructions), `emit` (shell code, or runs another command) and `run`
+(the self-test). Exit codes: 0 success, 1 failure (for `doctor`, something
+required is missing), 2 you used it wrongly. Every command is safe to re-run,
+and a second run reports "No changes needed."
+
+**Worktrees for parallel agents.** One checkout can't safely hold several
+agents' work. `snshah wt new feat/x` creates `<repo>.wt/feat-x` on a new
+branch (or finds it again), `snshah wt ls` shows each with uncommitted and
+merged markers, and `snshah wt prune` removes the clean ones whose remote
+branch was deleted (what a merged pull request leaves behind); it previews
+unless you add `--yes`, and `--merged` also includes branches merged locally.
+Worktrees sit next to the repository under `$WORKSPACES_HOME`, so
+`snshah profile list --all` and your editor find them.
+
+**VS Code.** `snshah vscode` previews, and `--yes` writes, VS Code user
+settings it only fills when you haven't set them: the Nerd Font terminal
+font, shell integration, scrollback, and final newline and trailing
+whitespace handling. A settings file with comments is never rewritten; it
+prints the keys for you to add. It also lists recommended extensions that are
+missing (Claude Code, Bun, direnv, TOML, YAML) as `code --install-extension`
+lines. Run it on the computer whose VS Code you look at: over Remote-SSH the
+terminal font comes from that computer.
+
+**CI.** `.github/workflows/workshop.yml` runs the format check, the
+self-test and the ontology check on Linux, macOS and Windows. The Windows job
+reports but doesn't block until it has passed once.
 
 ## Removing snshah
 

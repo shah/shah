@@ -161,7 +161,7 @@ type Covers<T extends readonly string[], U extends string> = [
   ? true
   : ["missing", Exclude<U, T[number]>];
 
-export const cliVersion = "0.8.0";
+export const cliVersion = "0.9.0";
 export const minimumBun = "1.4.0";
 /** The Oh My Posh release snshah installs when none is on PATH, by Bun-style target. */
 export const ohMyPosh = {
@@ -327,6 +327,8 @@ export const commandNames = [
   "apply",
   "doctor",
   "context",
+  "commands",
+  "vscode",
   "shell",
   "exec",
   "config path",
@@ -365,6 +367,9 @@ export const commandNames = [
   "ux fonts missing",
   "ux fonts reset",
   "ux fonts install",
+  "wt new",
+  "wt ls",
+  "wt prune",
   "uninstall",
   "update",
   "test",
@@ -449,6 +454,69 @@ export type SecretScope = Secret["scope"];
 export type StepKind = (typeof stepKinds)[number];
 export type PackageManager = (typeof packageManagers)[number];
 export type CommandName = (typeof commandNames)[number];
+
+/**
+ * What a command does to the machine, so agents can decide what is safe to
+ * run unprompted. `query` prints facts and MUST offer --json (the self-test
+ * enforces it); `change` writes files or state (previewing, or idempotent);
+ * `advice` only prints instructions; `emit` prints shell code or runs
+ * another command; `run` is the self-test. Exit codes: 0 success, 1 failure
+ * (doctor: something required is missing), 2 you used it wrong.
+ */
+export type Effect = "query" | "change" | "advice" | "emit" | "run";
+export const commandEffects: Record<CommandName, Effect> = {
+  plan: "query",
+  whoami: "query",
+  apply: "change",
+  doctor: "query",
+  context: "query",
+  commands: "query",
+  vscode: "change",
+  shell: "emit",
+  exec: "emit",
+  "config path": "query",
+  "config check": "query",
+  "config edit": "change",
+  "config set-secret": "change",
+  "git root": "query",
+  "git add": "change",
+  "git list": "query",
+  "git path": "query",
+  "git clone": "change",
+  "git update": "change",
+  "git remove": "change",
+  "ssh status": "query",
+  "ssh keys": "query",
+  "ssh new": "change",
+  "ssh copy": "advice",
+  "ssh authorize": "change",
+  "ssh authorized": "query",
+  "ssh test": "run",
+  "ssh harden": "advice",
+  "ssh host add": "change",
+  "ssh host list": "query",
+  "ssh host remove": "change",
+  "profile list": "query",
+  "profile prune": "change",
+  "profile show": "query",
+  "profile allow": "change",
+  "profile deny": "change",
+  "profile init": "change",
+  "profile check": "query",
+  "profile why": "query",
+  "profile load": "emit",
+  "ux fonts status": "query",
+  "ux fonts installed": "change",
+  "ux fonts missing": "change",
+  "ux fonts reset": "change",
+  "ux fonts install": "change",
+  "wt new": "change",
+  "wt ls": "query",
+  "wt prune": "change",
+  uninstall: "change",
+  update: "change",
+  test: "run",
+};
 
 async function configTypes(): Promise<string> {
   const source = await readFile(import.meta.path, "utf8");
@@ -4480,6 +4548,435 @@ function printAgentContext(c: AgentContext): void {
 }
 
 // ---------------------------------------------------------------------------
+// vscode: creature comforts for VS Code's user settings (fill-only)
+// ---------------------------------------------------------------------------
+
+/** Keys snshah fills when you haven't set them. Existing values are never changed. */
+export const vscodeDefaults: JsonObject = {
+  "terminal.integrated.fontFamily":
+    "'MesloLGM Nerd Font Mono', 'MesloLGM Nerd Font', monospace",
+  "terminal.integrated.shellIntegration.enabled": true,
+  "terminal.integrated.scrollback": 10000,
+  "files.insertFinalNewline": true,
+  "files.trimTrailingWhitespace": true,
+};
+
+export const vscodeExtensions = [
+  "anthropic.claude-code",
+  "oven.bun-vscode",
+  "mkhl.direnv",
+  "tamasfe.even-better-toml",
+  "redhat.vscode-yaml",
+] as const;
+
+export function vscodeSettingsPath(ctx: Context): string {
+  switch (ctx.platform) {
+    case "macos":
+      return join(
+        ctx.home,
+        "Library",
+        "Application Support",
+        "Code",
+        "User",
+        "settings.json",
+      );
+    case "windows":
+      return join(
+        ctx.env.APPDATA || join(ctx.home, "AppData", "Roaming"),
+        "Code",
+        "User",
+        "settings.json",
+      );
+    case "linux":
+    case "wsl":
+      return join(
+        xdg(ctx.env, ctx.home, "XDG_CONFIG_HOME", ".config"),
+        "Code",
+        "User",
+        "settings.json",
+      );
+    default:
+      return assertNever(ctx.platform);
+  }
+}
+
+export type VscodeFill =
+  | { kind: "fill"; next: string; added: string[] }
+  | { kind: "current" }
+  /** The file has comments or trailing commas, which snshah won't rewrite. */
+  | { kind: "commented"; missing: JsonObject };
+
+export function vscodeFill(previous: string | undefined): VscodeFill {
+  let current: unknown;
+  try {
+    current = previous?.trim() ? JSON.parse(previous) : {};
+  } catch {
+    const missing: JsonObject = {};
+    for (const [key, value] of Object.entries(vscodeDefaults))
+      if (!previous!.includes(`"${key}"`)) missing[key] = value;
+    return { kind: "commented", missing };
+  }
+  if (!isObject(current))
+    throw new UsageError("VS Code settings.json must hold a JSON object.");
+  const next = fillDefaults(current, vscodeDefaults);
+  const added = Object.keys(next).filter((k) => !(k in current));
+  return added.length
+    ? { kind: "fill", next: JSON.stringify(next, null, 2) + "\n", added }
+    : { kind: "current" };
+}
+
+async function vscode(
+  ctx: Context,
+  options: { yes: boolean; json: boolean },
+): Promise<number> {
+  const path = vscodeSettingsPath(ctx);
+  const previous = await readText(path);
+  const fill = vscodeFill(previous);
+  const PATH = ctx.env.PATH ?? "";
+  const codeBinary = Bun.which("code", { PATH });
+  const installed = codeBinary
+    ? (capture([codeBinary, "--list-extensions"]) ?? "")
+        .split("\n")
+        .map((l) => l.trim().toLowerCase())
+    : [];
+  const missingExtensions = codeBinary
+    ? vscodeExtensions.filter((e) => !installed.includes(e))
+    : [...vscodeExtensions];
+  const remote = !!ctx.env.SSH_CONNECTION;
+  const report = {
+    settings: tilde(ctx, path),
+    settingsStatus: fill.kind,
+    wouldAdd:
+      fill.kind === "fill"
+        ? fill.added
+        : fill.kind === "commented"
+          ? Object.keys(fill.missing)
+          : [],
+    codeOnPath: !!codeBinary,
+    missingExtensions,
+    remote,
+  };
+  if (options.json) {
+    console.log(JSON.stringify(report, null, 2));
+    return 0;
+  }
+  if (remote)
+    say(
+      "You are on a server over SSH. VS Code's settings and terminal font live on your own computer: run `snshah vscode` there. (Over Remote-SSH, VS Code draws the terminal with the client's fonts.)",
+      "pending",
+    );
+  say(`VS Code user settings: ${tilde(ctx, path)}`, "action");
+  switch (fill.kind) {
+    case "current":
+      say("Already has snshah's settings. No changes needed.", "success");
+      break;
+    case "commented":
+      say(
+        "That file has comments, so snshah won't rewrite it. Add these keys yourself:",
+        "pending",
+      );
+      console.log(JSON.stringify(fill.missing, null, 2).replace(/^/gm, "   "));
+      break;
+    case "fill":
+      if (!options.yes) {
+        say(
+          `Would add (never changing what you set): ${fill.added.join(", ")}`,
+          "pending",
+        );
+        say("Nothing was changed. To add them: snshah vscode --yes", "pending");
+      } else {
+        await writeAtomic(path, fill.next, 0o644);
+        say(
+          `Added ${fill.added.join(", ")}. Reload VS Code windows to see them.`,
+          "success",
+        );
+      }
+      break;
+    default:
+      return assertNever(fill);
+  }
+  if (!codeBinary)
+    say(
+      "The `code` command is not on PATH, so extensions can't be checked. In VS Code: Command Palette > Shell Command: Install 'code' command in PATH.",
+      "pending",
+    );
+  else if (missingExtensions.length) {
+    say("Useful extensions you don't have yet (run what you want):", "pending");
+    for (const id of missingExtensions)
+      console.log(`   code --install-extension ${id}`);
+  } else say("All recommended extensions are installed.", "success");
+  if (fill.kind !== "current" || missingExtensions.length)
+    console.log(
+      "Fonts: the terminal font setting needs a Nerd Font on this computer. Install: oh-my-posh font install Meslo, then run: snshah ux fonts installed",
+    );
+  return 0;
+}
+
+// ---------------------------------------------------------------------------
+// wt: git worktrees for parallel work (agents especially), next to the repo
+// ---------------------------------------------------------------------------
+
+export type Worktree = {
+  path: string;
+  branch?: string;
+  head: string;
+  main: boolean;
+  dirty: boolean;
+  /** "gone" when the remote branch was deleted (merged PRs); "merged" when it is an ancestor of the default branch. */
+  stale?: "gone" | "merged";
+};
+
+/** The repository root that owns `cwd` (even from inside one of its worktrees) and where its worktrees live. */
+function worktreeHome(cwd: string): { root: string; base: string } {
+  const common = git(
+    cwd,
+    "rev-parse",
+    "--path-format=absolute",
+    "--git-common-dir",
+  );
+  if (!common)
+    throw new UsageError("Not inside a git repository. cd into one first.");
+  const root = basename(common) === ".git" ? dirname(common) : common;
+  return { root, base: `${root}.wt` };
+}
+
+function defaultRef(root: string): string {
+  const origin = git(
+    root,
+    "symbolic-ref",
+    "--quiet",
+    "--short",
+    "refs/remotes/origin/HEAD",
+  );
+  if (origin) return origin;
+  for (const name of ["main", "master"])
+    if (git(root, "rev-parse", "--verify", "--quiet", name)) return name;
+  return "HEAD";
+}
+
+export function listWorktrees(root: string): Worktree[] {
+  const text = git(root, "worktree", "list", "--porcelain") ?? "";
+  const gone = new Set(
+    (
+      git(
+        root,
+        "for-each-ref",
+        "--format=%(refname:short) %(upstream:track)",
+        "refs/heads",
+      ) ?? ""
+    )
+      .split("\n")
+      .filter((l) => l.endsWith("[gone]"))
+      .map((l) => l.split(" ")[0]!),
+  );
+  const base = defaultRef(root);
+  const baseTip = git(root, "rev-parse", base);
+  const found: Worktree[] = [];
+  for (const block of text.split("\n\n").filter(Boolean)) {
+    const field = (key: string) =>
+      block
+        .split("\n")
+        .find((l) => l.startsWith(`${key} `))
+        ?.slice(key.length + 1);
+    const path = field("worktree");
+    if (!path || block.includes("\nbare")) continue;
+    const branch = field("branch")?.replace(/^refs\/heads\//, "");
+    const head = field("HEAD") ?? "";
+    const tree: Worktree = {
+      path,
+      ...(branch ? { branch } : {}),
+      head: head.slice(0, 12),
+      main: found.length === 0,
+      dirty: !!git(path, "status", "--porcelain"),
+    };
+    if (branch && !tree.main) {
+      if (gone.has(branch)) tree.stale = "gone";
+      else if (
+        head !== baseTip &&
+        run(["git", "-C", root, "merge-base", "--is-ancestor", head, base], {
+          quiet: true,
+        }) === 0
+      )
+        tree.stale = "merged";
+    }
+    found.push(tree);
+  }
+  return found;
+}
+
+async function worktreeNew(
+  ctx: Context,
+  branch: string,
+  options: { from?: string; json?: boolean },
+): Promise<void> {
+  const { root, base } = worktreeHome(process.cwd());
+  if (
+    run(["git", "check-ref-format", "--branch", branch], { quiet: true }) !== 0
+  )
+    throw new UsageError(`${branch} is not a valid branch name.`);
+  const existing = listWorktrees(root).find((w) => w.branch === branch);
+  const path = existing?.path ?? join(base, branch.replaceAll("/", "-"));
+  if (!existing) {
+    const exists = !!git(
+      root,
+      "rev-parse",
+      "--verify",
+      "--quiet",
+      `refs/heads/${branch}`,
+    );
+    const args = exists
+      ? ["worktree", "add", "--quiet", path, branch]
+      : [
+          "worktree",
+          "add",
+          "--quiet",
+          "-b",
+          branch,
+          path,
+          options.from ?? defaultRef(root),
+        ];
+    if (run(["git", "-C", root, ...args], { quiet: true }) !== 0)
+      throw new Error(
+        `git worktree add failed for ${branch}. Is ${tilde(ctx, path)} in the way?`,
+      );
+  }
+  if (options.json) {
+    console.log(
+      JSON.stringify(
+        { branch, path: tilde(ctx, path), created: !existing },
+        null,
+        2,
+      ),
+    );
+    return;
+  }
+  say(
+    existing
+      ? `${branch} already has a worktree. No changes needed.`
+      : `Created worktree for ${branch}.`,
+    "success",
+  );
+  console.log(`   cd ${tilde(ctx, path)}`);
+}
+
+async function worktreeList(ctx: Context, json: boolean): Promise<void> {
+  const { root } = worktreeHome(process.cwd());
+  const trees = listWorktrees(root);
+  if (json) {
+    console.log(
+      JSON.stringify(
+        trees.map((w) => ({ ...w, path: tilde(ctx, w.path) })),
+        null,
+        2,
+      ),
+    );
+    return;
+  }
+  for (const w of trees)
+    console.log(
+      `${w.main ? "main  " : "      "}${(w.branch ?? "(detached)").padEnd(32)} ${w.head}  ${tilde(ctx, w.path)}${w.dirty ? "  uncommitted changes" : ""}${w.stale === "gone" ? "  remote branch deleted" : w.stale === "merged" ? "  merged" : ""}`,
+    );
+}
+
+async function worktreePrune(
+  ctx: Context,
+  options: { yes: boolean; merged: boolean },
+): Promise<void> {
+  const { root, base } = worktreeHome(process.cwd());
+  const victims = listWorktrees(root).filter(
+    (w) =>
+      !w.main &&
+      !w.dirty &&
+      w.path.startsWith(base + sep) &&
+      (w.stale === "gone" || (options.merged && w.stale === "merged")),
+  );
+  if (!victims.length) {
+    say("No worktrees to prune. No changes needed.", "success");
+    run(["git", "-C", root, "worktree", "prune"], { quiet: true });
+    return;
+  }
+  say(
+    options.yes
+      ? "Pruning:"
+      : "Would prune (clean, and their work is on the remote):",
+    "action",
+  );
+  for (const w of victims)
+    console.log(
+      `   ${w.branch}  ${tilde(ctx, w.path)}  (${w.stale === "gone" ? "remote branch deleted" : "merged"})`,
+    );
+  if (!options.yes) {
+    say(
+      `Nothing was changed. To remove them: snshah wt prune --yes${options.merged ? " --merged" : ""}`,
+      "pending",
+    );
+    return;
+  }
+  for (const w of victims) {
+    if (
+      run(["git", "-C", root, "worktree", "remove", w.path], {
+        quiet: true,
+      }) !== 0
+    ) {
+      say(`Could not remove ${tilde(ctx, w.path)}; left in place.`, "error");
+      continue;
+    }
+    run(
+      [
+        "git",
+        "-C",
+        root,
+        "branch",
+        w.stale === "gone" ? "-D" : "-d",
+        w.branch!,
+      ],
+      { quiet: true },
+    );
+  }
+  run(["git", "-C", root, "worktree", "prune"], { quiet: true });
+  say("Pruned.", "success");
+}
+
+// ---------------------------------------------------------------------------
+// commands: machine-readable help
+// ---------------------------------------------------------------------------
+
+export type CommandInfo = {
+  name: string;
+  description: string;
+  effect: Effect;
+  /** True when the command takes --json. */
+  json: boolean;
+  arguments: string[];
+  options: Array<{ flags: string; description: string }>;
+};
+
+export function commandInfos(program: CommanderCommand): CommandInfo[] {
+  const walk = (command: CommanderCommand, prefix: string): CommandInfo[] =>
+    command.commands.flatMap((c) =>
+      c.commands.length
+        ? walk(c, `${prefix}${c.name()} `)
+        : [
+            {
+              name: `${prefix}${c.name()}`,
+              description: c.description(),
+              effect: commandEffects[`${prefix}${c.name()}` as CommandName],
+              json: c.options.some((o) => o.long === "--json"),
+              arguments: c.registeredArguments.map(
+                (a) =>
+                  `${a.required ? "<" : "["}${a.name()}${a.required ? ">" : "]"}`,
+              ),
+              options: c.options.map((o) => ({
+                flags: o.flags,
+                description: o.description,
+              })),
+            },
+          ],
+    );
+  return walk(program, "").filter((c) => c.effect !== undefined);
+}
+
+// ---------------------------------------------------------------------------
 // update: pinned to one upstream commit, applied only after a preview
 // ---------------------------------------------------------------------------
 
@@ -5569,7 +6066,7 @@ const localOs = (ctx: Context): ClientOs =>
       ? "windows"
       : "linux";
 
-async function sshStatus(ctx: Context): Promise<void> {
+async function sshStatus(ctx: Context, json = false): Promise<void> {
   const rows: Check[] = [];
   const session = await detectSession(ctx);
   const next: NextStep[] = [];
@@ -5669,6 +6166,7 @@ async function sshStatus(ctx: Context): Promise<void> {
           "the login method could not be read; since passwords are allowed for that Match rule, you may have used one",
       });
   }
+  if (json) return console.log(JSON.stringify({ checks: rows, next }, null, 2));
   printChecks(rows);
   printNext(next);
   // Not a key login (or can't tell): show how to put a key here, per client OS.
@@ -6050,9 +6548,10 @@ async function sshHostAdd(
   );
 }
 
-async function sshHostList(ctx: Context): Promise<void> {
+async function sshHostList(ctx: Context, json = false): Promise<void> {
   const config = (await readText(join(sshDir(ctx), "config"))) ?? "";
   const aliases = listHostAliases(config);
+  if (json) return console.log(JSON.stringify(aliases, null, 2));
   if (!aliases.length)
     return say(
       "No hosts saved by snshah. Add one with snshah ssh host add <alias> <user@host>.",
@@ -6718,13 +7217,25 @@ async function profileShow(ctx: Context, json: boolean): Promise<void> {
   printChecks(rows);
 }
 
-async function profileWhy(ctx: Context, name: string): Promise<void> {
+async function profileWhy(
+  ctx: Context,
+  name: string,
+  json = false,
+): Promise<void> {
   const e = await effectiveDirProfile(ctx, process.cwd());
   const hits = Object.keys(e.source).filter(
     (k) => k.endsWith(` ${name}`) || k === name,
   );
   if (!hits.length)
     throw new UsageError(`${name} is not set by a directory profile here.`);
+  if (json)
+    return console.log(
+      JSON.stringify(
+        hits.map((k) => ({ key: k, file: tilde(ctx, e.source[k]!) })),
+        null,
+        2,
+      ),
+    );
   for (const k of hits)
     say(`${k} comes from ${tilde(ctx, e.source[k]!)}`, "success");
 }
@@ -6732,6 +7243,7 @@ async function profileWhy(ctx: Context, name: string): Promise<void> {
 async function profileCheck(
   ctx: Context,
   fileArg: string | undefined,
+  json = false,
 ): Promise<void> {
   const file = await dirTarget(ctx, fileArg);
   const state = await readState(ctx);
@@ -6747,6 +7259,10 @@ async function profileCheck(
     Object.keys(config.aliases ?? {}).length +
     Object.keys(config.env ?? {}).length +
     (config.path?.length ?? 0);
+  if (json)
+    return console.log(
+      JSON.stringify({ file: tilde(ctx, file), valid: true, settings: n }),
+    );
   say(
     `${tilde(ctx, file)} is valid (${n} setting${n === 1 ? "" : "s"}).`,
     "success",
@@ -6892,12 +7408,16 @@ export function detectFonts(ctx: Context, saved?: FontWord): FontEvidence {
   return fontFileEvidence(ctx);
 }
 
-async function fontsStatus(ctx: Context): Promise<void> {
+async function fontsStatus(ctx: Context, json = false): Promise<void> {
   const state = await readState(ctx);
   const found = detectFonts(ctx, state.fonts?.kind);
   const label = { yes: "installed", no: "missing", unknown: "unknown" }[
     found.kind
   ];
+  if (json)
+    return console.log(
+      JSON.stringify({ status: label, why: found.why }, null, 2),
+    );
   say(
     `Nerd Font: ${label}. ${found.why}.`,
     found.kind === "yes" ? "success" : "pending",
@@ -7152,6 +7672,9 @@ type CommanderCommand = {
   ): CommanderCommand;
   alias(name: string): CommanderCommand;
   description(text: string): CommanderCommand;
+  description(): string;
+  options: Array<{ flags: string; long?: string; description: string }>;
+  registeredArguments: Array<{ name(): string; required: boolean }>;
   option(
     flags: string,
     description?: string,
@@ -7302,6 +7825,33 @@ export async function buildCli(ctx: Context): Promise<CommanderCommand> {
     });
 
   program
+    .command("commands")
+    .description(
+      "Every command with what it does to the machine (query, change, advice, emit, run) and whether it takes --json",
+    )
+    .option("--json", "print JSON")
+    .action((o: { json?: boolean }) => {
+      const infos = commandInfos(program);
+      if (o.json) return console.log(JSON.stringify(infos, null, 2));
+      const width = Math.max(...infos.map((c) => c.name.length));
+      for (const c of infos)
+        console.log(
+          `${c.name.padEnd(width)}  ${c.effect.padEnd(6)} ${c.json ? "json" : "    "}  ${c.description}`,
+        );
+    });
+
+  program
+    .command("vscode")
+    .description(
+      "Fill VS Code user settings (Nerd Font terminal, shell integration) and list recommended extensions; previews unless --yes",
+    )
+    .option("-y, --yes", "write the settings")
+    .option("--json", "print what it found, change nothing")
+    .action(async (o: { yes?: boolean; json?: boolean }) => {
+      process.exitCode = await vscode(ctx, { yes: !!o.yes, json: !!o.json });
+    });
+
+  program
     .command("shell")
     .description("Print shell init code: eval it from bash, zsh, fish or pwsh")
     .argument("<shell>", shells.join("|"))
@@ -7328,7 +7878,12 @@ export async function buildCli(ctx: Context): Promise<CommanderCommand> {
   config
     .command("path")
     .description("Print the config file path")
-    .action(() => console.log(ctx.configFile));
+    .option("--json", "print JSON")
+    .action((o: { json?: boolean }) =>
+      console.log(
+        o.json ? JSON.stringify({ path: ctx.configFile }) : ctx.configFile,
+      ),
+    );
   config
     .command("check")
     .description("Validate the config (never prints secret values)")
@@ -7417,9 +7972,11 @@ export async function buildCli(ctx: Context): Promise<CommanderCommand> {
   git
     .command("root")
     .description("Print the workspaces root")
-    .action(async () =>
-      console.log(workspacesRoot(ctx, (await loadEffective(ctx)).config)),
-    );
+    .option("--json", "print JSON")
+    .action(async (o: { json?: boolean }) => {
+      const root = workspacesRoot(ctx, (await loadEffective(ctx)).config);
+      console.log(o.json ? JSON.stringify({ root }) : root);
+    });
   git
     .command("add")
     .description(
@@ -7467,9 +8024,11 @@ export async function buildCli(ctx: Context): Promise<CommanderCommand> {
     .command("path")
     .description("Print a checkout path (for scripts)")
     .argument("<name>", "registry name")
-    .action(async (name: string) => {
+    .option("--json", "print JSON")
+    .action(async (name: string, o: { json?: boolean }) => {
       const { config: c } = await loadEffective(ctx);
-      console.log(repoPath(ctx, c, selectRepos(c, name, false)[0]!));
+      const path = repoPath(ctx, c, selectRepos(c, name, false)[0]!);
+      console.log(o.json ? JSON.stringify({ name, path }) : path);
     });
   git
     .command("clone")
@@ -7505,7 +8064,8 @@ export async function buildCli(ctx: Context): Promise<CommanderCommand> {
     .description(
       "How you logged in, your keys, the agent, who can log in here, and what to do next",
     )
-    .action(async () => sshStatus(ctx));
+    .option("--json", "print JSON")
+    .action(async (o: { json?: boolean }) => sshStatus(ctx, !!o.json));
   ssh
     .command("keys")
     .description("List your keys with fingerprints and the public key to share")
@@ -7610,7 +8170,8 @@ export async function buildCli(ctx: Context): Promise<CommanderCommand> {
   sshHost
     .command("list")
     .description("List saved aliases")
-    .action(async () => sshHostList(ctx));
+    .option("--json", "print JSON")
+    .action(async (o: { json?: boolean }) => sshHostList(ctx, !!o.json));
   sshHost
     .command("remove")
     .description("Forget an alias")
@@ -7667,12 +8228,18 @@ export async function buildCli(ctx: Context): Promise<CommanderCommand> {
     .command("check")
     .description("Validate a trusted profile file")
     .argument("[file]", "the file or its directory; default the nearest")
-    .action(async (file: string | undefined) => profileCheck(ctx, file));
+    .option("--json", "print JSON")
+    .action(async (file: string | undefined, o: { json?: boolean }) =>
+      profileCheck(ctx, file, !!o.json),
+    );
   profile
     .command("why")
     .description("Which file sets an alias, variable or PATH entry here")
     .argument("<name>", "alias, variable or directory")
-    .action(async (name: string) => profileWhy(ctx, name));
+    .option("--json", "print JSON")
+    .action(async (name: string, o: { json?: boolean }) =>
+      profileWhy(ctx, name, !!o.json),
+    );
   profile
     .command("load", { hidden: true })
     .description("Internal: what the shell hook evaluates")
@@ -7692,7 +8259,8 @@ export async function buildCli(ctx: Context): Promise<CommanderCommand> {
   fonts
     .command("status", { isDefault: true })
     .description("Show what snshah knows and how it knows")
-    .action(async () => fontsStatus(ctx));
+    .option("--json", "print JSON")
+    .action(async (o: { json?: boolean }) => fontsStatus(ctx, !!o.json));
   fonts
     .command("installed")
     .description("Record that your terminal shows the icons correctly")
@@ -7710,6 +8278,43 @@ export async function buildCli(ctx: Context): Promise<CommanderCommand> {
     .description("Show (or with --run, do) the Nerd Font install")
     .option("--run", "run oh-my-posh font install Meslo now")
     .action(async (o: { run?: boolean }) => fontsInstall(ctx, !!o.run));
+
+  const wt = program
+    .command("wt")
+    .description(
+      "Git worktrees for parallel work, next to the repository (one per branch; good for agents)",
+    );
+  wt.command("new")
+    .description(
+      "Create (or find) the worktree for a branch: <repo>.wt/<branch>",
+    )
+    .argument(
+      "<branch>",
+      "branch name; created from --from when it doesn't exist",
+    )
+    .option(
+      "--from <ref>",
+      "start point for a new branch (default: the default branch)",
+    )
+    .option("--json", "print JSON")
+    .action(async (branch: string, o: { from?: string; json?: boolean }) =>
+      worktreeNew(ctx, branch, o),
+    );
+  wt.command("ls")
+    .description(
+      "List this repository's worktrees, with dirty and merged markers",
+    )
+    .option("--json", "print JSON")
+    .action(async (o: { json?: boolean }) => worktreeList(ctx, !!o.json));
+  wt.command("prune")
+    .description(
+      "Remove clean worktrees whose remote branch was deleted; previews unless --yes",
+    )
+    .option("-y, --yes", "do it")
+    .option("--merged", "also those merged into the default branch locally")
+    .action(async (o: { yes?: boolean; merged?: boolean }) =>
+      worktreePrune(ctx, { yes: !!o.yes, merged: !!o.merged }),
+    );
 
   program
     .command("uninstall")

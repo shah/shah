@@ -670,6 +670,205 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
       );
     }
 
+    // commands: every command is classified, and every query takes --json.
+    {
+      const infos = json<
+        Array<{ name: string; effect: string; json: boolean }>
+      >(cli(["commands", "--json"]));
+      check(
+        "commands --json lists every command with an effect",
+        infos?.length === mod.commandNames.length &&
+          !!infos?.every(
+            (c) =>
+              c.effect in { query: 1, change: 1, advice: 1, emit: 1, run: 1 },
+          ),
+        JSON.stringify(infos?.map((c) => c.name)),
+      );
+      const withoutJson = (infos ?? [])
+        .filter((c) => c.effect === "query" && !c.json)
+        .map((c) => c.name);
+      check(
+        "every query command takes --json",
+        withoutJson.length === 0,
+        withoutJson.join(", "),
+      );
+      const outside = join(root, "not-a-repo");
+      await mkdir(outside);
+      const misuse = sh([bun, "--no-env-file", script, "wt", "ls"], outside);
+      check(
+        "using a command wrongly exits 2",
+        misuse.code === 2,
+        `${misuse.code} ${misuse.err}`,
+      );
+      for (const args of [
+        ["config", "path", "--json"],
+        ["git", "root", "--json"],
+        ["ux", "fonts", "status", "--json"],
+        ["ssh", "host", "list", "--json"],
+        ["ssh", "status", "--json"],
+      ])
+        check(
+          `snshah ${args.join(" ")} prints valid JSON`,
+          json(cli(args)) !== undefined,
+          cli(args).out + cli(args).err,
+        );
+    }
+
+    // vscode: fill-only user settings; files with comments are left alone.
+    {
+      const vh = join(root, "vscode-home");
+      await mkdir(vh);
+      const ve = baseEnv(vh);
+      const settings = mod.vscodeSettingsPath(mod.makeContext(ve));
+      await mkdir(dirname(settings), { recursive: true });
+      await writeFile(
+        settings,
+        JSON.stringify({ "terminal.integrated.scrollback": 500, "my.own": 1 }),
+      );
+      const before = await readFile(settings, "utf8");
+      const preview = cli(["vscode"], undefined, ve);
+      check(
+        "vscode previews and changes nothing without --yes",
+        preview.code === 0 &&
+          preview.out.includes("Would add") &&
+          !preview.out.includes("scrollback,") &&
+          (await readFile(settings, "utf8")) === before,
+        preview.out + preview.err,
+      );
+      const done = cli(["vscode", "--yes"], undefined, ve);
+      const after = JSON.parse(await readFile(settings, "utf8"));
+      check(
+        "vscode --yes fills unset keys and never changes yours",
+        done.code === 0 &&
+          after["terminal.integrated.scrollback"] === 500 &&
+          after["my.own"] === 1 &&
+          String(after["terminal.integrated.fontFamily"]).includes(
+            "Nerd Font",
+          ) &&
+          after["terminal.integrated.shellIntegration.enabled"] === true,
+        done.out + done.err,
+      );
+      check(
+        "vscode again reports no changes",
+        cli(["vscode", "--yes"], undefined, ve).out.includes(
+          "No changes needed",
+        ),
+      );
+      await writeFile(settings, '{\n  // mine\n  "my.own": 1,\n}\n');
+      const kept = await readFile(settings, "utf8");
+      const commented = cli(["vscode", "--yes"], undefined, ve);
+      check(
+        "a settings file with comments is never rewritten; the keys to add are printed",
+        (await readFile(settings, "utf8")) === kept &&
+          commented.out.includes("has comments") &&
+          commented.out.includes("terminal.integrated.fontFamily"),
+        commented.out + commented.err,
+      );
+      const info = json<{
+        settingsStatus: string;
+        missingExtensions: string[];
+      }>(cli(["vscode", "--json"], undefined, ve));
+      check(
+        "vscode --json reports and changes nothing",
+        info?.settingsStatus === "commented" &&
+          Array.isArray(info.missingExtensions),
+      );
+      const server = cli(["vscode"], undefined, {
+        ...ve,
+        SSH_CONNECTION: "192.0.2.10 50000 192.0.2.20 22",
+      });
+      check(
+        "over SSH it says to run it on your own computer",
+        server.out.includes("on your own computer"),
+        server.out,
+      );
+    }
+
+    // wt: worktrees next to the repository; prune only what is safe.
+    {
+      const wh = join(root, "wt-home");
+      const repo = join(wh, "repo");
+      const originDir = join(wh, "origin.git");
+      await mkdir(repo, { recursive: true });
+      const we = baseEnv(wh);
+      const g = (cwd: string, ...args: string[]) =>
+        sh(["git", ...args], cwd, we);
+      g(wh, "init", "--bare", "--quiet", "-b", "main", originDir);
+      g(repo, "init", "--quiet", "-b", "main");
+      await writeFile(join(repo, "a.txt"), "a\n");
+      g(repo, "add", "-A");
+      g(repo, "commit", "--quiet", "-m", "first");
+      g(repo, "remote", "add", "origin", originDir);
+      g(repo, "push", "--quiet", "-u", "origin", "main");
+      const wt = (args: string[], cwd = repo) =>
+        sh([bun, "--no-env-file", script, "wt", ...args], cwd, we);
+      const made = wt(["new", "feat/x"]);
+      const tree = join(`${repo}.wt`, "feat-x");
+      check(
+        "wt new creates <repo>.wt/<branch> on a new branch",
+        made.code === 0 &&
+          existsSync(join(tree, "a.txt")) &&
+          g(tree, "branch", "--show-current").out.trim() === "feat/x",
+        made.out + made.err,
+      );
+      check(
+        "wt new again changes nothing",
+        wt(["new", "feat/x"]).out.includes("No changes needed"),
+      );
+      check(
+        "wt new from inside a worktree finds the same repository",
+        wt(["new", "feat/x"], tree).out.includes("No changes needed"),
+      );
+      wt(["new", "keep/z"]);
+      const listed = json<Array<{ branch?: string; main: boolean }>>(
+        wt(["ls", "--json"]),
+      );
+      check(
+        "wt ls --json lists the main tree and each worktree",
+        listed?.length === 3 &&
+          listed[0]?.main === true &&
+          listed.some((w) => w.branch === "feat/x"),
+        JSON.stringify(listed),
+      );
+      const none = wt(["prune"]);
+      check(
+        "wt prune leaves worktrees alone while their remote branch exists",
+        none.out.includes("No changes needed"),
+        none.out + none.err,
+      );
+      // A merged pull request: the branch was pushed, then deleted on the remote.
+      await writeFile(join(tree, "b.txt"), "b\n");
+      g(tree, "add", "-A");
+      g(tree, "commit", "--quiet", "-m", "work");
+      g(tree, "push", "--quiet", "-u", "origin", "feat/x");
+      g(repo, "push", "--quiet", "origin", "--delete", "feat/x");
+      g(repo, "fetch", "--quiet", "--prune");
+      const preview = wt(["prune"]);
+      check(
+        "wt prune previews a worktree whose remote branch is gone, and changes nothing",
+        preview.out.includes("feat/x") &&
+          preview.out.includes("Would prune") &&
+          existsSync(tree),
+        preview.out + preview.err,
+      );
+      await writeFile(join(tree, "dirty.txt"), "unsaved\n");
+      check(
+        "wt prune never touches a worktree with uncommitted changes",
+        wt(["prune", "--yes"]).out.includes("No changes needed") &&
+          existsSync(tree),
+      );
+      await rm(join(tree, "dirty.txt"));
+      const gone = wt(["prune", "--yes"]);
+      check(
+        "wt prune --yes removes the clean stale worktree and its branch, and keeps the others",
+        gone.code === 0 &&
+          !existsSync(tree) &&
+          existsSync(join(`${repo}.wt`, "keep-z")) &&
+          !g(repo, "branch", "--list", "feat/x").out.trim(),
+        gone.out + gone.err,
+      );
+    }
+
     // eza: tree, ls, ll, la and exa, with icons unless your fonts are missing.
     {
       const eh = join(root, "eza-home");

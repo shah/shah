@@ -71,6 +71,18 @@ Rules for a person or an AI agent changing anything in `workshop/`.
   github.com/strategy-coach/workspaces-host
   (`dot_config/oh-my-posh/coach.omp.json`), kept byte-for-byte. Don't edit
   or reformat it; `.prettierignore` keeps `bun fmt` away from it.
+- Every command has an entry in `commandEffects` (a `Record<CommandName, …>`,
+  so the compiler insists). A `query` command MUST take `--json`; the
+  self-test checks it. Exit codes: 0 success, 1 failure, 2 usage error.
+- Agent mode (`runningUnderAgent`) keeps `snshah shell` output plain and
+  silent. `profile allow` must keep refusing under `detectedAgent`, which
+  `SNSHAH_AGENT=0` can't switch off. The self-test strips agent variables
+  from its environment (`baseEnv`); keep that list in step with
+  `agentVariables`.
+- `snshah vscode` only fills unset keys and never rewrites a settings file
+  it can't parse as strict JSON. `snshah wt prune` only removes clean
+  worktrees under `<repo>.wt/` whose remote branch is gone (or, with
+  `--merged`, that are merged).
 - Install the CLI files last, so a failed apply keeps the old CLI working.
 
 ## Before every push
