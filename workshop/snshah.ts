@@ -148,7 +148,7 @@ type Covers<T extends readonly string[], U extends string> = [
   ? true
   : ["missing", Exclude<U, T[number]>];
 
-export const cliVersion = "0.4.1";
+export const cliVersion = "0.4.2";
 export const minimumBun = "1.4.0";
 /** The Oh My Posh release snshah installs when none is on PATH, by Bun-style target. */
 export const ohMyPosh = {
@@ -3874,6 +3874,30 @@ async function doctor(ctx: Context): Promise<{
     next.push(...fontsNext(found));
   }
 
+  // Over SSH with no way to tell how you logged in: one line makes it exact.
+  if (ctx.env.SSH_CONNECTION) {
+    const session = await detectSession(ctx);
+    if (session.kind === "ssh" && session.method === "unknown") {
+      const fix = exposeAuthInfoAdvice(
+        ctx,
+        isWindows || !!Bun.which("sudo", { PATH: envPath }),
+      );
+      checks.push({
+        check: "ssh",
+        status: "warn",
+        detail: fix.enabled
+          ? "login method unknown: sshd exposes it for new logins only; log out and back in"
+          : "login method unknown: sshd doesn't tell users how they logged in, so the password-login hint can't be exact",
+      });
+      if (!fix.enabled)
+        next.push({
+          title:
+            "Let sshd tell snshah how you logged in (then log out and back in):",
+          command: fix.command,
+        });
+    }
+  }
+
   const advice: string[] = [];
   const hasSudo = isWindows || !!Bun.which("sudo", { PATH: envPath });
   const viaManager = missing
@@ -3899,6 +3923,32 @@ async function doctor(ctx: Context): Promise<{
     platform: ctx.platform,
     system: systemName(ctx),
     manager,
+  };
+}
+
+/** The exact command that turns on sshd's ExposeAuthInfo (sets SSH_USER_AUTH at login). */
+export function exposeAuthInfoAdvice(
+  ctx: Context,
+  hasSudo: boolean,
+): { enabled: boolean; command: string } {
+  const sshd = readSshd();
+  if (sshd?.get("exposeauthinfo") === "yes")
+    return { enabled: true, command: "" };
+  const service =
+    existsSync("/lib/systemd/system/ssh.service") ||
+    existsSync("/usr/lib/systemd/system/ssh.service")
+      ? "ssh"
+      : "sshd";
+  const dropIn = existsSync("/etc/ssh/sshd_config.d");
+  const write = dropIn
+    ? "echo 'ExposeAuthInfo yes' | tee /etc/ssh/sshd_config.d/50-snshah.conf"
+    : "echo 'ExposeAuthInfo yes' | tee -a /etc/ssh/sshd_config";
+  const body = `${write} >/dev/null && systemctl reload ${service}`;
+  return {
+    enabled: false,
+    command: hasSudo
+      ? `echo 'ExposeAuthInfo yes' | sudo tee ${dropIn ? "/etc/ssh/sshd_config.d/50-snshah.conf" : "-a /etc/ssh/sshd_config"} >/dev/null && sudo systemctl reload ${service}`
+      : `su -c "${body}"`,
   };
 }
 
@@ -4092,13 +4142,22 @@ function isUpdateCheck(v: unknown): v is UpdateCheck {
 export function updateNotice(
   u: UpdateCheck,
   installed: string | undefined,
+  color = false,
 ): string | undefined {
-  return u.kind === "checked" &&
+  if (!(
+    u.kind === "checked" &&
     installed &&
     u.installed === installed &&
     u.latest !== installed
-    ? `an update is available on ${u.ref} (${u.latest.slice(0, 12)}). Run snshah update.`
-    : undefined;
+  ))
+    return undefined;
+  const c = (code: string, t: string) =>
+    color ? `\x1b[${code}m${t}\x1b[0m` : t;
+  return [
+    c("1;33", "⬆️  snshah update available"),
+    c("2", `${installed.slice(0, 8)} → ${u.latest.slice(0, 8)} on ${u.ref}`),
+    c("1;36", "🚀 run: snshah update"),
+  ].join("  ");
 }
 
 export function updateDue(
@@ -4302,8 +4361,8 @@ async function greet(ctx: Context, config: WorkshopConfig): Promise<void> {
     }
     const u = state.update;
     const installed = await installedRevision(ctx);
-    const notice = updateNotice(u, installed);
-    if (notice) process.stderr.write(`snshah: ${notice}\n`);
+    const notice = updateNotice(u, installed, tty);
+    if (notice) process.stderr.write(`${notice}\n`);
     const now = Date.now();
     const due = updateDue(u, installed, now);
     if (due) {

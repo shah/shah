@@ -1126,6 +1126,42 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
           "signed in with a password",
         ),
       );
+      const dk = cli(["doctor"], undefined, keyedEnv);
+      check(
+        "doctor over SSH with an unknown login method gives the exact sshd line",
+        dk.out.includes("ExposeAuthInfo yes") &&
+          dk.out.includes("systemctl reload") &&
+          dk.out.includes("log out and back in"),
+        dk.out,
+      );
+      check(
+        "the update notice has color on a terminal and none off it",
+        mod
+          .updateNotice(
+            {
+              kind: "checked",
+              at: "x",
+              ref: "main",
+              latest: "b".repeat(40),
+              installed: "a".repeat(40),
+            },
+            "a".repeat(40),
+            true,
+          )
+          ?.includes("\x1b[") === true &&
+          !mod
+            .updateNotice(
+              {
+                kind: "checked",
+                at: "x",
+                ref: "main",
+                latest: "b".repeat(40),
+                installed: "a".repeat(40),
+              },
+              "a".repeat(40),
+            )
+            ?.includes("\x1b["),
+      );
       const localHome = join(root, "hint-local");
       await mkdir(localHome);
       const localEnv = { ...baseEnv(localHome), SNSHAH_GREET: "1" };
@@ -1160,7 +1196,7 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
       });
       check(
         "an update notice shows when the check was made against this install",
-        mod.updateNotice(checked(a, b), a)?.includes("update is available") ===
+        mod.updateNotice(checked(a, b), a)?.includes("update available") ===
           true,
       );
       check(
