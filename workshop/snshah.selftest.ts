@@ -956,6 +956,295 @@ export const commands = { group: "probe", summary: "x", effects: { "": "change" 
       );
     }
 
+    // efss: rclone mirrors, with a stub rclone that records what it was asked.
+    if (process.platform !== "win32") {
+      const eh = join(root, "efss-home");
+      const bin = join(eh, "stubs");
+      await mkdir(bin, { recursive: true });
+      const log = join(eh, "calls.log");
+      await writeFile(
+        join(bin, "rclone"),
+        `#!/bin/sh
+echo "rclone $*" >> "${log}"
+conf=""
+prev=""
+for a in "$@"; do
+  [ "$prev" = "--config" ] && conf="$a"
+  prev="$a"
+done
+case " $* " in
+  *" config create "*)
+    name=$(printf '%s\\n' "$@" | sed -n '/^snshah-/p' | head -1)
+    printf '[%s]\\ntype = stub\\n' "$name" >> "$conf" ;;
+  *" config delete "*)
+    name=$(printf '%s\\n' "$@" | sed -n '/^snshah-/p' | head -1)
+    grep -v -e "^\\[$name\\]" -e '^type = stub' "$conf" > "$conf.new"; mv "$conf.new" "$conf" ;;
+  *" lsf "*) echo a.txt ;;
+esac
+exit 0
+`,
+        { mode: 0o755 },
+      );
+      await writeFile(
+        join(bin, "systemctl"),
+        `#!/bin/sh\necho "systemctl $*" >> "${log}"\nexit 0\n`,
+        { mode: 0o755 },
+      );
+      const bare = baseEnv(eh);
+      const ee = { ...bare, PATH: `${bin}${delimiter}${bare.PATH ?? ""}` };
+      const calls = async () =>
+        existsSync(log) ? await readFile(log, "utf8") : "";
+      const inactive = cli(["efss", "list"], undefined, bare);
+      check(
+        "efss is inactive without rclone and says how to get it",
+        inactive.code === 2 && inactive.err.includes("rclone"),
+        inactive.err,
+      );
+      const read = cli(["efss", "connect", "onedrive", "work"], undefined, ee);
+      const stateFile = join(eh, ".local", "state", "snshah", "efss.json");
+      check(
+        "connect defaults to read-only, with a read-only OneDrive scope",
+        read.code === 0 &&
+          (await calls()).includes("config create snshah-work onedrive") &&
+          (await calls()).includes("access_scopes=Files.Read Files.Read.All") &&
+          !(await calls()).includes("Files.ReadWrite") &&
+          existsSync(join(eh, "efss", "work")),
+        read.out + read.err,
+      );
+      check(
+        "connecting again changes nothing",
+        cli(
+          ["efss", "connect", "onedrive", "work"],
+          undefined,
+          ee,
+        ).out.includes("No changes needed"),
+      );
+      const listed = json<
+        Array<{ id: string; access: string; signedIn: boolean }>
+      >(cli(["efss", "list", "--json"], undefined, ee));
+      check(
+        "list --json shows the connection signed in",
+        listed?.[0]?.id === "work" &&
+          listed[0].access === "read" &&
+          listed[0].signedIn === true,
+      );
+      const refused = cli(["efss", "push", "work", "--yes"], undefined, ee);
+      check(
+        "push on a read-only connection is refused",
+        refused.code === 2 && refused.err.includes("read-only"),
+        refused.err,
+      );
+      const write = cli(
+        [
+          "efss",
+          "connect",
+          "gdrive",
+          "docs",
+          "--read-write",
+          "--folder",
+          "/Projects",
+        ],
+        undefined,
+        ee,
+      );
+      check(
+        "--read-write asks Google for the full scope",
+        write.code === 0 &&
+          (await calls()).includes("scope=drive\n") &&
+          !(await calls()).includes("drive.readonly\n"),
+        write.out + write.err + (await calls()),
+      );
+      const secret = cli(
+        ["efss", "connect", "webdav", "dav", "--set", "pass=hunter2"],
+        undefined,
+        ee,
+      );
+      check(
+        "a secret option is refused before rclone runs",
+        secret.code === 2 && !(await calls()).includes("hunter2"),
+        secret.err,
+      );
+      const host = cli(
+        ["efss", "connect", "sftp", "nas", "--set", "host=nas.test", "user=me"],
+        undefined,
+        ee,
+      );
+      check(
+        "--set passes rclone options through",
+        host.code === 0 && (await calls()).includes("host=nas.test user=me"),
+        host.out + host.err,
+      );
+      const home = cli(
+        ["efss", "connect", "box", "b", "--mirror", "~"],
+        undefined,
+        ee,
+      );
+      check(
+        "a mirror that would swallow your home is refused",
+        home.code !== 0 && home.err.includes("contain your home"),
+        home.err,
+      );
+      const pullRun = cli(["efss", "pull", "docs"], undefined, ee);
+      check(
+        "pull copies with --update and never syncs",
+        pullRun.code === 0 &&
+          (await calls()).includes("copy snshah-docs:Projects") &&
+          (await calls()).includes("--update") &&
+          !(await calls()).includes(" sync "),
+        pullRun.out + pullRun.err,
+      );
+      const stateNow = JSON.parse(await readFile(stateFile, "utf8"));
+      check(
+        "pull records when it last ran",
+        typeof stateNow.connections.find((c: { id: string }) => c.id === "docs")
+          ?.lastPull === "string",
+      );
+      const before = (await calls()).length;
+      const mirrorPreview = cli(
+        ["efss", "pull", "docs", "--mirror"],
+        undefined,
+        ee,
+      );
+      const added = (await calls()).slice(before);
+      check(
+        "pull --mirror previews with --dry-run unless --yes",
+        mirrorPreview.code === 0 &&
+          added.includes("sync snshah-docs:Projects") &&
+          added.includes("--dry-run"),
+        added,
+      );
+      const preview = cli(["efss", "push", "docs"], undefined, ee);
+      check(
+        "push previews with --dry-run by default",
+        preview.code === 0 &&
+          (await calls()).includes("--dry-run") &&
+          preview.out.includes("Nothing was changed"),
+        preview.out + preview.err,
+      );
+      const at = (await calls()).length;
+      const sent = cli(["efss", "push", "docs", "--yes"], undefined, ee);
+      const sentCalls = (await calls()).slice(at);
+      check(
+        "push --yes sends with copy and no --dry-run",
+        sent.code === 0 &&
+          sentCalls.includes("copy ") &&
+          !sentCalls.includes("--dry-run"),
+        sent.out + sent.err + sentCalls,
+      );
+      const noLimit = cli(
+        ["efss", "push", "docs", "--delete", "--yes"],
+        undefined,
+        ee,
+      );
+      check(
+        "push --delete needs --max-delete",
+        noLimit.code === 2 && noLimit.err.includes("--max-delete"),
+        noLimit.err,
+      );
+      const at2 = (await calls()).length;
+      const del = cli(
+        ["efss", "push", "docs", "--delete", "--max-delete", "5", "--yes"],
+        undefined,
+        ee,
+      );
+      const delCalls = (await calls()).slice(at2);
+      check(
+        "push --delete --max-delete uses sync with the limit",
+        del.code === 0 &&
+          delCalls.includes(" sync ") &&
+          delCalls.includes("--max-delete 5"),
+        del.out + del.err + delCalls,
+      );
+      const agentEnv = { ...ee, CLAUDECODE: "1" };
+      const agentConnect = cli(
+        ["efss", "connect", "box", "b"],
+        undefined,
+        agentEnv,
+      );
+      const agentPush = cli(
+        ["efss", "push", "docs", "--yes"],
+        undefined,
+        agentEnv,
+      );
+      const agentPreview = cli(["efss", "push", "docs"], undefined, agentEnv);
+      check(
+        "an agent can't sign in or send, but can preview a push",
+        agentConnect.code === 2 &&
+          agentPush.code === 2 &&
+          agentPreview.code === 0,
+        agentConnect.err + agentPush.err + agentPreview.err,
+      );
+      const where = json<{ path: string }>(
+        cli(["efss", "folder", "docs", "--json"], undefined, ee),
+      );
+      check(
+        "folder --json prints the mirror path",
+        where?.path === join(eh, "efss", "docs"),
+        JSON.stringify(where),
+      );
+      const online = json<Array<{ reachable: boolean }>>(
+        cli(["efss", "status", "--online", "--json"], undefined, ee),
+      );
+      check(
+        "status --online asks the provider",
+        online?.length === 3 && online.every((c) => c.reachable === true),
+        JSON.stringify(online),
+      );
+      if (process.platform === "linux") {
+        const timed = cli(["efss", "schedule", "docs", "6h"], undefined, ee);
+        const unit = join(
+          eh,
+          ".config",
+          "systemd",
+          "user",
+          "snshah-efss-docs.timer",
+        );
+        check(
+          "schedule writes a user timer and enables it",
+          timed.code === 0 &&
+            existsSync(unit) &&
+            (await readFile(unit, "utf8")).includes("OnUnitActiveSec=6h") &&
+            (await calls()).includes("enable --now snshah-efss-docs.timer"),
+          timed.out + timed.err,
+        );
+        check(
+          "schedule again changes nothing",
+          cli(["efss", "schedule", "docs", "6h"], undefined, ee).out.includes(
+            "No changes needed",
+          ),
+        );
+        cli(["efss", "schedule", "docs", "off"], undefined, ee);
+        check("schedule off removes the timer", !existsSync(unit));
+      }
+      const gone = cli(["efss", "remove", "work"], undefined, ee);
+      check(
+        "remove forgets the sign-in and leaves the local files",
+        gone.code === 0 &&
+          (await calls()).includes("config delete snshah-work") &&
+          existsSync(join(eh, "efss", "work")) &&
+          !(await readFile(stateFile, "utf8")).includes('"work"'),
+        gone.out + gone.err,
+      );
+      check(
+        "removing again changes nothing",
+        cli(["efss", "remove", "work"], undefined, ee).out.includes(
+          "No changes needed",
+        ),
+      );
+      const infos = json<
+        Array<{ name: string; source: string; active: boolean }>
+      >(cli(["commands", "--json"], undefined, ee));
+      check(
+        "commands --json lists efss from its profile, active",
+        !!infos?.find(
+          (c) =>
+            c.name === "efss pull" &&
+            c.source === "profile:repo:efss" &&
+            c.active,
+        ),
+      );
+    }
+
     // wt: worktrees next to the repository; prune only what is safe.
     {
       const wh = join(root, "wt-home");

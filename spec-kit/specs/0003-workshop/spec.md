@@ -284,6 +284,27 @@ run changes nothing.
   `--json` MUST match what it declared.
 - **FR-053**: `snshah apply` MUST install `workshop/ext/*.ts` beside the
   installed profile.d and remove retired ones.
+- **FR-054**: Where `rclone` is on PATH (profile `efss`), `snshah efss
+  connect <provider> [name]` MUST sign in through rclone for OneDrive
+  (personal, work or school), SharePoint, Google Drive, Box, Dropbox, SMB,
+  SFTP or WebDAV, and MUST NOT use FUSE. snshah MUST never see, accept or
+  store a password, token or other secret: `--set` refuses secret-looking
+  keys, and rclone keeps its own state in `$XDG_CONFIG_HOME/snshah/rclone.conf`,
+  which holds only snshah's remotes. `connect` MUST refuse when an agent is
+  detected.
+- **FR-055**: `connect` MUST take `--read` (the default) or `--read-write`.
+  Where the provider can limit its token (OneDrive, SharePoint, Google
+  Drive) a read connection MUST ask for the read-only scope; otherwise snshah
+  MUST say it enforces read-only itself. A read connection MUST refuse `push`.
+- **FR-056**: A connection mirrors into an ordinary local folder (default
+  `~/efss/<name>`, never one that contains the home folder). `pull` MUST copy
+  with `--update` and delete nothing; `pull --mirror` MUST preview unless
+  `--yes`. `push` MUST preview unless `--yes`; `push --delete` MUST require
+  `--max-delete <n>`. An agent MAY preview a push but MUST NOT send one.
+- **FR-057**: `list`, `status` and `folder` MUST take `--json`; `schedule
+  <name> <30m|6h|1d|off>` MUST write and enable a systemd user timer that runs
+  `snshah efss pull`, idempotently; `remove` MUST forget the sign-in and
+  leave local files, and advise revoking access at the provider.
 
 ### Profiles (profile.d)
 
@@ -466,6 +487,7 @@ run changes nothing.
 | FR-018, FR-019, FR-021 | Shahid N. Shah, direct statement, 2026-11-27 (profile.d, type-safe merge, command hooks with env passthrough)                                                |
 | FR-020, FR-022         | Shahid N. Shah, direct statement, 2026-11-27 (environment selectors first, fingerprint when needed, hostnames allowed); private-only rule proposed by Claude |
 | FR-023                 | Shahid N. Shah, decision, 2026-11-27 ("Yes, pinned and checksummed")                                                                                         |
+| FR-054 to FR-057       | Shahid N. Shah, direct statements, 2026-11-27 (`snshah efss` for OneDrive, SharePoint, Box, GDrive, Dropbox; no FUSE; read or read-write chosen at `connect`) |
 | FR-050 to FR-053       | Shahid N. Shah, direct statements, 2026-11-27 (a `service` selector so a profile contributes commands when its tool is present, "so the core stays lean")    |
 | FR-042 to FR-049       | Shahid N. Shah, direct statements, 2026-11-27 (`snshah uninstall`; agent-first improvements: agent mode, `context`, `vscode`, `wt`, `commands`, CI)          |
 | FR-037 to FR-041       | Shahid N. Shah, direct statement, 2026-11-27 (`exa` by default with `tree`; `.snshah.profile.ts` per-directory profiles; `snshah profile safe`)              |

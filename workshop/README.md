@@ -118,6 +118,40 @@ Do it before `git clone` or `git push` over HTTPS quietly fails. `snshah
 doctor` shows whether you are signed in, and your shell reminds you once a
 day until you are.
 
+## File sync: `snshah efss`
+
+Where `rclone` is on your PATH, `snshah efss` mirrors cloud and network
+folders to ordinary local folders. There is no FUSE: nothing is mounted,
+`pull` brings files down and `push` sends them up, so a stalled network
+never freezes your shell. (Get rclone with `tools: { rclone: "latest" }` in
+`snshah.conf.ts` and `snshah apply`, or your package manager.)
+
+```sh
+snshah efss connect onedrive                 # read-only by default; mirror in ~/efss/onedrive
+snshah efss connect sharepoint team --read-write
+snshah efss connect gdrive docs --folder /Projects
+snshah efss connect sftp nas --set host=nas.example user=me
+snshah efss pull onedrive                    # copies new and changed files; deletes nothing
+snshah efss push team                        # previews; add --yes to send
+snshah efss list | status [--online] | folder <name> | schedule <name> 6h | remove <name>
+```
+
+Providers: `onedrive`, `onedrive-business`, `sharepoint`, `gdrive`, `box`,
+`dropbox`, `smb`, `sftp`, `webdav`. You choose `--read` (the default) or
+`--read-write` when you connect. For OneDrive, SharePoint and Google Drive
+the sign-in itself is limited to read-only; Box, Dropbox, SMB, SFTP and WebDAV
+can't do that, so snshah refuses `push` on a read connection instead.
+
+snshah never sees a password or token: rclone does the sign-in (a browser
+window, or a prompt) and keeps it in `$XDG_CONFIG_HOME/snshah/rclone.conf`,
+separate from any rclone setup of your own. `--set` takes non-secret rclone
+options only. `connect` is for you in your own terminal; an agent is refused.
+`pull --mirror` also deletes local files the provider lacks and previews until
+`--yes`; `push --delete` needs `--max-delete <n>`. An agent may preview a push
+but not send one. `schedule` pulls from a systemd user timer; elsewhere it
+tells you to use your own scheduler. `remove` forgets the sign-in and keeps
+your files: revoke the access in the provider's settings too.
+
 ## Prompt icons: Nerd Fonts
 
 The prompt draws icons from a [Nerd Font](https://www.nerdfonts.com). If your
@@ -363,24 +397,25 @@ the bootstrap and `snshah git clone shah` put it in
 
 ## Commands
 
-| Command                                                   | What it does                                                                                      |
-| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `snshah plan [--json] [--explain] [--as FACTS]`           | Show what `apply` would change. Read-only.                                                        |
-| `snshah whoami [--json]`                                  | Print the facts profile selectors match against.                                                  |
-| `snshah apply [--yes] [--json]`                           | Bring this machine to the desired state.                                                          |
-| `snshah doctor [--json]`                                  | Check tools and print install commands for this distribution and package manager.                 |
-| `snshah context [--json]`                                 | Where am I? OS, shell, tools, git state, profiles, sandbox, problems.                             |
-| `snshah commands [--json]`                                | Every command, what it does to the machine, and whether it takes `--json`.                        |
-| `snshah vscode [--yes] [--json]`                          | Fill VS Code settings (fill-only), list extensions. Present where VS Code is (a profile command). |
-| `snshah wt new\|ls\|prune`                                | Git worktrees next to the repository, one per branch.                                             |
-| `snshah shell <shell> [--greet]`                          | Print init code for bash, zsh, fish or pwsh.                                                      |
-| `snshah exec <command> [args]`                            | Run a command with its command-scoped secrets.                                                    |
-| `snshah config path\|check\|edit\|set-secret`             | Manage the private config.                                                                        |
-| `snshah git root\|add\|list\|path\|clone\|update\|remove` | Manage checkouts.                                                                                 |
-| `snshah ssh <subcommand>`                                 | SSH keys, key copying and hosts (see above).                                                      |
-| `snshah update [--check [--quiet]] [--yes] [--ref REF]`   | Fetch the checkout, preview, fast-forward, apply. `--check` only says whether one is newer.       |
-| `snshah uninstall [--yes] [--purge]`                      | Remove snshah. Lists what would go; `--yes` does it; `--purge` also deletes your private config.  |
-| `snshah test [--remote REF]`                              | Self-test in a temporary HOME.                                                                    |
+| Command                                                                   | What it does                                                                                      |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `snshah plan [--json] [--explain] [--as FACTS]`                           | Show what `apply` would change. Read-only.                                                        |
+| `snshah whoami [--json]`                                                  | Print the facts profile selectors match against.                                                  |
+| `snshah apply [--yes] [--json]`                                           | Bring this machine to the desired state.                                                          |
+| `snshah doctor [--json]`                                                  | Check tools and print install commands for this distribution and package manager.                 |
+| `snshah context [--json]`                                                 | Where am I? OS, shell, tools, git state, profiles, sandbox, problems.                             |
+| `snshah commands [--json]`                                                | Every command, what it does to the machine, and whether it takes `--json`.                        |
+| `snshah efss connect\|list\|status\|pull\|push\|folder\|schedule\|remove` | Mirror cloud and network folders with rclone (present where rclone is). See File sync.            |
+| `snshah vscode [--yes] [--json]`                                          | Fill VS Code settings (fill-only), list extensions. Present where VS Code is (a profile command). |
+| `snshah wt new\|ls\|prune`                                                | Git worktrees next to the repository, one per branch.                                             |
+| `snshah shell <shell> [--greet]`                                          | Print init code for bash, zsh, fish or pwsh.                                                      |
+| `snshah exec <command> [args]`                                            | Run a command with its command-scoped secrets.                                                    |
+| `snshah config path\|check\|edit\|set-secret`                             | Manage the private config.                                                                        |
+| `snshah git root\|add\|list\|path\|clone\|update\|remove`                 | Manage checkouts.                                                                                 |
+| `snshah ssh <subcommand>`                                                 | SSH keys, key copying and hosts (see above).                                                      |
+| `snshah update [--check [--quiet]] [--yes] [--ref REF]`                   | Fetch the checkout, preview, fast-forward, apply. `--check` only says whether one is newer.       |
+| `snshah uninstall [--yes] [--purge]`                                      | Remove snshah. Lists what would go; `--yes` does it; `--purge` also deletes your private config.  |
+| `snshah test [--remote REF]`                                              | Self-test in a temporary HOME.                                                                    |
 
 `snshah update` runs `git fetch` in the install checkout, shows the plan the
 new commit would make (from a temporary worktree), asks, fast-forwards the

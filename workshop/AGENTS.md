@@ -86,6 +86,9 @@ Rules for a person or an AI agent changing anything in `workshop/`.
   it can't parse as strict JSON. `snshah wt prune` only removes clean
   worktrees under `<repo>.wt/` whose remote branch is gone (or, with
   `--merged`, that are merged).
+- `snshah efss` never handles a secret: sign-in is rclone's, `--set` refuses
+  secret-looking keys, `connect` refuses under an agent, and `push` sends
+  only with `--yes` (never from an agent) and deletes only with `--max-delete`.
 - Install the CLI files last, so a failed apply keeps the old CLI working.
 
 ## Before every push
