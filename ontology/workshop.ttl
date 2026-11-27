@@ -15,7 +15,7 @@ ws:snshah a ws:Toolkit ;
     doap:programming-language "TypeScript" ;
     dcterms:creator "Shahid Shah" ;
     eid:path "workshop/snshah.ts" ;
-    ws:version "0.13.0" ;
+    ws:version "0.14.0" ;
     ws:idempotent true ;
     ws:runtime ws:bun ;
     ws:upstream "shah/shah@main" ;
@@ -31,7 +31,7 @@ ws:snshah a ws:Toolkit ;
     ws:secretScope ws:scope-command , ws:scope-shell ;
     ws:makesStep ws:step-directory , ws:step-file , ws:step-seed , ws:step-block , ws:step-json-fill , ws:step-toml-fill ,
         ws:step-remove , ws:step-command , ws:step-download , ws:step-tools ;
-    ws:selectsBy ws:selector-always , ws:selector-platform , ws:selector-distro , ws:selector-omarchy , ws:selector-has , ws:selector-service , ws:selector-env , ws:selector-hostname , ws:selector-machine , ws:selector-all , ws:selector-any , ws:selector-not ;
+    ws:selectsBy ws:selector-always , ws:selector-platform , ws:selector-distro , ws:selector-omarchy , ws:selector-has , ws:selector-service , ws:selector-env , ws:selector-exists , ws:selector-hostname , ws:selector-machine , ws:selector-all , ws:selector-any , ws:selector-not ;
     ws:hooksWith ws:hook-file , ws:hook-block , ws:hook-command ;
     ws:hasProfile ws:profile-10-omarchy ,
         ws:profile-20-debian-bat ,
@@ -40,6 +40,7 @@ ws:snshah a ws:Toolkit ;
         ws:profile-30-macos ,
         ws:profile-30-windows ,
         ws:profile-30-wsl ,
+        ws:profile-omarchy-workstation ,
         ws:profile-vscode ,
         ws:profile-efss ,
         ws:profile-share ,
@@ -159,6 +160,7 @@ ws:selector-distro a ws:SelectorKind ; ws:name "distro" .
 ws:selector-omarchy a ws:SelectorKind ; ws:name "omarchy" .
 ws:selector-has a ws:SelectorKind ; ws:name "has" .
 ws:selector-service a ws:SelectorKind ; ws:name "service" ; rdfs:comment "A system service is installed or running. Probes the machine, so only profiles that contribute commands (no config, no hooks) may use it." .
+ws:selector-exists a ws:SelectorKind ; ws:name "exists" ; rdfs:comment "A file or folder exists (~ is your home)." .
 ws:selector-env a ws:SelectorKind ; ws:name "env" .
 ws:selector-hostname a ws:SelectorKind ; ws:name "hostname" ; ws:privateOnly true .
 ws:selector-machine a ws:SelectorKind ; ws:name "machine" .
@@ -194,6 +196,8 @@ ws:profile-ollama a ws:Profile ; ws:name "ollama" ; eid:path "workshop/profile.d
     ws:selectorKind ws:selector-has ; ws:providesGroup "ollama" ; rdfs:comment "snshah ollama: status and pulls for local models, present where ollama is." .
 ws:profile-age a ws:Profile ; ws:name "age" ; eid:path "workshop/profile.d/age.ts" ;
     ws:selectorKind ws:selector-has ; ws:providesGroup "vault" ; rdfs:comment "snshah vault: an age passphrase-encrypted backup of the private config, present where age is." .
+ws:profile-omarchy-workstation a ws:Profile ; ws:name "omarchy-workstation" ; eid:path "workshop/profile.d/omarchy-workstation.ts" ;
+    ws:selectorKind ws:selector-all ; rdfs:comment "Omarchy with the Hyprland Lua configuration: an snshah entry in the Omarchy menu, a key binding and a few web apps. Recommends rclone and age." .
 
 ws:bin-oh-my-posh a ws:PinnedBinary ; ws:name "oh-my-posh" ; ws:pinnedVersion "33.4.1" ;
     rdfs:comment "Installed under $XDG_DATA_HOME/snshah/bin only when no oh-my-posh is on PATH and the prompt allows it." .

@@ -1661,6 +1661,119 @@ exit 0`,
       );
     }
 
+    // recommends, the exists selector, and the omarchy-workstation profile.
+    if (process.platform !== "win32") {
+      const oh = join(root, "omarchy-ws-home");
+      const bin = join(oh, "stubs");
+      await mkdir(bin, { recursive: true });
+      const log = join(oh, "omarchy.log");
+      await writeFile(
+        join(bin, "omarchy"),
+        `#!/bin/sh
+echo "omarchy $*" >> "${log}"
+if [ "$1" = webapp ] && [ "$2" = install ]; then
+  mkdir -p "$HOME/.local/share/applications"
+  : > "$HOME/.local/share/applications/$3.desktop"
+fi
+exit 0
+`,
+        { mode: 0o755 },
+      );
+      const bare = baseEnv(oh);
+      const oe = { ...bare, PATH: `${bin}${delimiter}${bare.PATH ?? ""}` };
+      const hypr = join(oh, ".config", "hypr");
+      const menuFile = join(
+        oh,
+        ".config",
+        "omarchy",
+        "extensions",
+        "omarchy-menu.jsonc",
+      );
+      // Omarchy, but no Hyprland Lua configuration: the profile stays out.
+      const without = cli(["apply", "--yes"], undefined, oe);
+      check(
+        "omarchy-workstation needs the Hyprland Lua config to exist",
+        without.code === 0 && !existsSync(join(hypr, "snshah.auto.lua")),
+        without.out + without.err,
+      );
+      await mkdir(hypr, { recursive: true });
+      await writeFile(join(hypr, "hyprland.lua"), "-- mine\n");
+      await writeFile(
+        join(hypr, "bindings.lua"),
+        "o.bind('SUPER + T', 'term', 'x')\n",
+      );
+      await mkdir(dirname(menuFile), { recursive: true });
+      await writeFile(menuFile, '{\n  "mine": { "label": "Mine" },\n}\n');
+      const first = cli(["apply", "--yes"], undefined, oe);
+      const bindings = await readFile(join(hypr, "bindings.lua"), "utf8");
+      const menuText = await readFile(menuFile, "utf8");
+      check(
+        "omarchy-workstation adds the binding file, a Lua block, and menu entries inside the object",
+        first.code === 0 &&
+          (await readFile(join(hypr, "snshah.auto.lua"), "utf8")).includes(
+            "omarchy menu summon snshah",
+          ) &&
+          bindings.startsWith("o.bind('SUPER + T', 'term', 'x')\n") &&
+          bindings.includes("-- >>> snshah profile omarchy-workstation >>>") &&
+          menuText.startsWith(
+            "{\n// >>> snshah profile omarchy-workstation >>>",
+          ) &&
+          menuText.includes('"snshah.status.doctor"') &&
+          menuText.includes('"mine"') &&
+          menuText.trimEnd().endsWith("}"),
+        first.out + first.err + menuText,
+      );
+      check(
+        "the web apps were installed through omarchy",
+        (await readFile(log, "utf8")).includes("omarchy webapp install Gmail"),
+      );
+      const again = cli(["apply", "--yes"], undefined, oe);
+      check(
+        "a second apply on an Omarchy workstation reports no changes",
+        again.out.includes("No changes needed"),
+        again.out + again.err,
+      );
+
+      // recommends: shown by doctor, never installed.
+      const pdir = join(oh, ".config", "snshah", "profile.d");
+      await mkdir(pdir, { recursive: true });
+      await writeFile(
+        join(pdir, "80-suggest.ts"),
+        `export const selector = { kind: "always" };
+export const recommends = [
+  { tool: "snshah-nope", why: "does a thing" },
+  { tool: "sh", why: "is always there" },
+];
+`,
+        { mode: 0o600 },
+      );
+      const rec = json<{ checks: Array<{ check: string; status: string }> }>(
+        cli(["doctor", "--json"], undefined, oe),
+      );
+      check(
+        "doctor shows recommendations, warning for a missing tool",
+        rec?.checks.find((c) => c.check === "recommended: snshah-nope")
+          ?.status === "warn" &&
+          rec.checks.find((c) => c.check === "recommended: sh")?.status ===
+            "ok",
+        JSON.stringify(rec?.checks.map((c) => c.check)),
+      );
+      await writeFile(
+        join(pdir, "80-suggest.ts"),
+        `export const selector = { kind: "always" };
+export const recommends = [{ tool: "bad tool", why: "x" }];
+`,
+        { mode: 0o600 },
+      );
+      const badRec = cli(["plan"], undefined, oe);
+      check(
+        "a malformed recommends entry is refused",
+        badRec.code !== 0 && badRec.err.includes("recommends"),
+        badRec.err,
+      );
+      await rm(join(pdir, "80-suggest.ts"));
+    }
+
     // wt: worktrees next to the repository; prune only what is safe.
     {
       const wh = join(root, "wt-home");

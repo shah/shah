@@ -94,6 +94,9 @@ Rules for a person or an AI agent changing anything in `workshop/`.
 - `signin`, `vault` and `ollama pull` involve things only the owner can do:
   never read a token, never accept or store a passphrase, and keep refusing
   an agent where the owner must type (`vault`, `ollama pull`, `agent start`).
+- `omarchy-workstation` may only hold what any Omarchy owner could use:
+  no work accounts, tenants or private URLs, and no default-browser change
+  (that is a private profile). Keep its hooks idempotent.
 - Install the CLI files last, so a failed apply keeps the old CLI working.
 
 ## Before every push

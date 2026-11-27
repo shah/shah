@@ -333,6 +333,18 @@ run changes nothing.
   `backup` MUST do nothing when the config is unchanged; `restore` MUST
   preview unless `--yes`, keep the replaced file as `.before-restore`, and
   write mode 600; all four MUST refuse an agent where a passphrase is needed.
+- **FR-066**: A profile MAY export `recommends` (`{ tool, why }` entries).
+  Only `snshah doctor` MUST show them, as a warning when the tool is missing;
+  snshah MUST NOT install anything because of them.
+- **FR-067**: The `exists` selector (`{ kind: "exists", path }`) MUST match
+  when the file or folder exists, with `~` meaning the home folder. A block
+  hook MAY set `within: "object"` to put its block just inside a JSON or JSONC
+  object's opening brace, creating `{}` when the file is new.
+- **FR-068**: The `omarchy-workstation` profile MUST apply only on Omarchy with
+  `~/.config/hypr/hyprland.lua`, MUST add its Hyprland binding, Omarchy menu
+  entries and web apps only through managed blocks, files of its own and
+  idempotent `omarchy webapp install` hooks, and MUST NOT hold work accounts,
+  tenants or private URLs. The default browser stays a private choice.
 - **FR-057**: `list`, `status` and `folder` MUST take `--json`; `schedule
   <name> <30m|6h|1d|off>` MUST write and enable a systemd user timer that runs
   `snshah efss pull`, idempotently; `remove` MUST forget the sign-in and
@@ -519,6 +531,7 @@ run changes nothing.
 | FR-018, FR-019, FR-021 | Shahid N. Shah, direct statement, 2026-11-27 (profile.d, type-safe merge, command hooks with env passthrough)                                                |
 | FR-020, FR-022         | Shahid N. Shah, direct statement, 2026-11-27 (environment selectors first, fingerprint when needed, hostnames allowed); private-only rule proposed by Claude |
 | FR-023                 | Shahid N. Shah, decision, 2026-11-27 ("Yes, pinned and checksummed")                                                                                         |
+| FR-066 to FR-068       | Shahid N. Shah, direct statement, 2026-11-27 (anything Omarchy-specific from shah/workshop goes to an `omarchy-workstation` profile in shah/shah) |
 | FR-061 to FR-065       | Shahid N. Shah, direct statements, 2026-11-27 (headless features move into the core or into service-detecting profiles; ideas studied from shah/workshop: sign-in hints, agent sessions, the age vault, the private config workspace) |
 | FR-058 to FR-060       | Shahid N. Shah, direct statement, 2026-11-27 (`smbd` and `nfs` handled through print and audit, contributed by a service-detecting profile) |
 | FR-054 to FR-057       | Shahid N. Shah, direct statements, 2026-11-27 (`snshah efss` for OneDrive, SharePoint, Box, GDrive, Dropbox; no FUSE; read or read-write chosen at `connect`) |

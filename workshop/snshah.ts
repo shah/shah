@@ -109,6 +109,8 @@ export type Selector =
   /** A system service. `installed` (default) is cheap; `running` asks the service manager. Only for profiles that contribute commands. */
   | { kind: "service"; name: string; state?: "installed" | "running" }
   | { kind: "env"; name: string; equals?: string }
+  /** A file or folder exists (~ means your home). */
+  | { kind: "exists"; path: string }
   | { kind: "hostname"; is: string }
   | { kind: "machine"; fingerprint: string }
   | { kind: "all"; of: Selector[] }
@@ -130,6 +132,8 @@ export type Hook =
       path: string;
       content: string;
       comment?: "#" | "//" | ";" | "--" | "<!--";
+      /** Put the block just inside a JSON or JSONC object's opening brace instead of at the end. */
+      within?: "object";
     }
   | {
       kind: "command";
@@ -164,7 +168,7 @@ type Covers<T extends readonly string[], U extends string> = [
   ? true
   : ["missing", Exclude<U, T[number]>];
 
-export const cliVersion = "0.13.0";
+export const cliVersion = "0.14.0";
 export const minimumBun = "1.4.0";
 /** The Oh My Posh release snshah installs when none is on PATH, by Bun-style target. */
 export const ohMyPosh = {
@@ -292,6 +296,7 @@ export const selectorKinds = [
   "has",
   "service",
   "env",
+  "exists",
   "hostname",
   "machine",
   "all",
@@ -690,10 +695,19 @@ export function upsertBlock(
   begin: string,
   end: string,
   block: string,
+  within?: "object",
 ): string {
   const lines = content.split("\n");
   const first = lines.indexOf(begin);
   const last = lines.indexOf(end);
+  if (first === -1 && last === -1 && within === "object") {
+    // A JSON (or JSONC) object: the block goes just inside the opening brace.
+    const source = content.trim() === "" ? "{\n}\n" : content;
+    const open = source.indexOf("{");
+    if (open < 0 || !source.trimEnd().endsWith("}"))
+      throw new Error("Expected a JSON object to add a managed block to.");
+    return `${source.slice(0, open + 1)}\n${block}\n${source.slice(open + 1).replace(/^\r?\n/, "")}`;
+  }
   if (first === -1 && last === -1) {
     const separator = content === "" || content.endsWith("\n") ? "" : "\n";
     return `${content}${separator}${block}\n`;
@@ -1154,6 +1168,8 @@ export type CommandGroup = {
   advice?: string;
   load: () => Promise<{ register(group: CommanderCommand, api: ExtApi): void }>;
 };
+/** A tool a profile suggests for machines it matches. Only `snshah doctor` shows it; nothing is installed. */
+export type Recommendation = { tool: string; why: string };
 export type LoadedProfile = {
   id: string;
   origin: Origin;
@@ -1162,6 +1178,7 @@ export type LoadedProfile = {
   config: Contribution;
   hooks: Hook[];
   commands?: CommandGroup;
+  recommends?: Recommendation[];
 };
 /** Facts plus lazy lookups, so a shell start never pays for what no selector asks. */
 export type FactSource = {
@@ -1172,6 +1189,7 @@ export type FactSource = {
   machine: () => string;
   has: (command: string) => boolean;
   service: (name: string, state: "installed" | "running") => boolean;
+  exists: (path: string) => boolean;
   env: Env;
 };
 
@@ -1282,6 +1300,8 @@ export function factSource(ctx: Context): FactSource {
         (facts.commands
           ? facts.commands.includes(name)
           : !!Bun.which(name, { PATH })),
+      // A faked machine has no files to ask about.
+      exists: () => false,
       env: ctx.env,
     };
   }
@@ -1305,6 +1325,7 @@ export function factSource(ctx: Context): FactSource {
         );
       return probes.get(key)!;
     },
+    exists: (path) => existsSync(expandHome(ctx, path)),
     env: ctx.env,
   };
 }
@@ -1370,6 +1391,8 @@ export function matches(selector: Selector, facts: FactSource): boolean {
       return facts.has(selector.command);
     case "service":
       return facts.service(selector.name, selector.state ?? "installed");
+    case "exists":
+      return facts.exists(selector.path);
     case "env": {
       const value = facts.env[selector.name];
       return selector.equals === undefined
@@ -1425,6 +1448,9 @@ export function validateSelector(
         value.state !== "running"
       )
         fail(`${at}.state`, "must be installed or running");
+      return;
+    case "exists":
+      str("path");
       return;
     case "env":
       str("name");
@@ -1499,6 +1525,12 @@ export function validateHooks(
           !member(hookComments, hook.comment)
         )
           fail(`${at}.comment`, `must be one of ${hookComments.join(" ")}`);
+        if (
+          kind === "block" &&
+          hook.within !== undefined &&
+          hook.within !== "object"
+        )
+          fail(`${at}.within`, 'must be "object"');
         return;
       case "command": {
         if (!["before-apply", "after-apply"].includes(String(hook.phase)))
@@ -1550,6 +1582,25 @@ export function validateHooks(
   });
 }
 
+function validateRecommends(value: unknown): Recommendation[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) fail("recommends", "must be an array");
+  return value.map((item, i) => {
+    if (
+      !isObject(item) ||
+      typeof item.tool !== "string" ||
+      !/^[A-Za-z0-9][A-Za-z0-9._+-]*$/.test(item.tool) ||
+      typeof item.why !== "string" ||
+      !item.why
+    )
+      fail(
+        `recommends[${i}]`,
+        "must be { tool: a command name, why: a short reason }",
+      );
+    return { tool: item.tool, why: item.why };
+  });
+}
+
 function hasServiceSelector(selector: Selector): boolean {
   switch (selector.kind) {
     case "service":
@@ -1565,6 +1616,7 @@ function hasServiceSelector(selector: Selector): boolean {
     case "omarchy":
     case "has":
     case "env":
+    case "exists":
     case "hostname":
     case "machine":
       return false;
@@ -1648,10 +1700,14 @@ async function loadProfileDir(
     }
     try {
       for (const key of Object.keys(module))
-        if (!["selector", "config", "hooks", "commands"].includes(key))
+        if (
+          !["selector", "config", "hooks", "commands", "recommends"].includes(
+            key,
+          )
+        )
           fail(
             key,
-            "is not a profile export (use selector, config, hooks, commands)",
+            "is not a profile export (use selector, config, hooks, commands, recommends)",
           );
       validateSelector(module.selector, origin);
       const config = module.config ?? {};
@@ -1660,6 +1716,7 @@ async function loadProfileDir(
         fail("config.secrets", "secrets belong only in snshah.conf.ts");
       const hooks = module.hooks ?? [];
       validateHooks(hooks, origin);
+      const recommends = validateRecommends(module.recommends);
       const commands =
         module.commands === undefined
           ? undefined
@@ -1680,6 +1737,7 @@ async function loadProfileDir(
         config,
         hooks,
         ...(commands ? { commands } : {}),
+        ...(recommends.length ? { recommends } : {}),
       });
     } catch (error) {
       throw new Error(`${where}: ${(error as Error).message}`);
@@ -1748,6 +1806,7 @@ export type Effective = {
   facts: FactSource;
   profiles: Array<{ id: string; origin: Origin; matched: boolean }>;
   hooks: Array<{ profile: string; origin: Origin; hook: Hook }>;
+  recommendations: Array<Recommendation & { profile: string }>;
   overrides: Override[];
 };
 
@@ -1786,16 +1845,25 @@ export async function loadEffective(ctx: Context): Promise<Effective> {
   ];
   const profiles: Effective["profiles"] = [];
   const hooks: Effective["hooks"] = [];
+  const recommendations: Effective["recommendations"] = [];
   const use = (p: LoadedProfile) => {
     // A commands-only profile has nothing to apply; its selector is checked
     // only when its commands are asked about (see loadExtGroups).
-    if (p.commands && !Object.keys(p.config).length && !p.hooks.length) return;
+    if (
+      p.commands &&
+      !Object.keys(p.config).length &&
+      !p.hooks.length &&
+      !p.recommends
+    )
+      return;
     const matched = matches(p.selector, facts);
     profiles.push({ id: p.id, origin: p.origin, matched });
     if (!matched) return;
     layers.push({ name: `${p.origin}:${p.id}`, config: p.config });
     for (const hook of p.hooks)
       hooks.push({ profile: p.id, origin: p.origin, hook });
+    for (const r of p.recommends ?? [])
+      recommendations.push({ ...r, profile: `${p.origin}:${p.id}` });
   };
   repo.forEach(use);
   layers.push({ name: "snshah.conf.ts", config: privateConfig });
@@ -1820,6 +1888,7 @@ export async function loadEffective(ctx: Context): Promise<Effective> {
     facts,
     profiles,
     hooks,
+    recommendations,
     overrides,
   };
 }
@@ -2543,12 +2612,13 @@ export async function plan(
     end: string,
     block: string,
     label: string,
+    within?: "object",
   ) => {
     const entry = blocks.get(path) ?? {
       content: (await readText(path)) ?? "",
       labels: [],
     };
-    entry.content = upsertBlock(entry.content, begin, end, block);
+    entry.content = upsertBlock(entry.content, begin, end, block, within);
     entry.labels.push(label);
     blocks.set(path, entry);
   };
@@ -2625,6 +2695,7 @@ export async function plan(
           end,
           `${begin}\n${body}\n${end}`,
           `${where}: block`,
+          hook.within,
         );
         break;
       }
@@ -4294,6 +4365,16 @@ async function doctor(ctx: Context): Promise<{
       status: "ok",
       detail: `${effective.profiles.filter((p) => p.matched).length} of ${effective.profiles.length} profile.d file(s) match this machine`,
     });
+    for (const r of effective.recommendations) {
+      const here = Bun.which(r.tool, {
+        PATH: [ctx.miseShims, envPath].join(delimiter),
+      });
+      checks.push({
+        check: `recommended: ${r.tool}`,
+        status: here ? "ok" : "warn",
+        detail: `${r.why} (suggested by ${r.profile}${here ? "" : "; not installed"})`,
+      });
+    }
     checks.push({
       check: "config",
       status: effective.privateSource ? "ok" : "warn",

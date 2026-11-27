@@ -299,7 +299,7 @@ export const hooks = [
 
 - **Selectors** are `always`, `platform`, `distro`, `omarchy`, `has`
   (a command on PATH), `service` (installed or running; for command-only
-  profiles), `env`, `hostname`, `machine` (a hashed machine
+  profiles), `exists` (a file or folder), `env`, `hostname`, `machine` (a hashed machine
   fingerprint, see `snshah whoami`), and `all`, `any`, `not` to combine
   them. `hostname` and `machine` are allowed only in the private
   directory, because this repository is public.
@@ -315,6 +315,45 @@ export const hooks = [
 - `snshah whoami` prints the facts selectors match against.
   `snshah plan --explain` shows which profiles match and which layer set
   each value. `snshah plan --as facts.json` plans as if on another machine.
+
+### Omarchy workstation
+
+On Omarchy with the Hyprland Lua configuration (`~/.config/hypr/hyprland.lua`),
+`profile.d/omarchy-workstation.ts` adds an `snshah` entry to the Omarchy menu
+(Doctor, Preview changes, Who is signed in, Update, Apply), a `SUPER + ALT + M`
+binding that opens it, and Gmail, WhatsApp and Discord web apps, all in marked
+blocks or files of its own. It also suggests `rclone` and `age` (see
+`recommends` below). Your browser, work accounts and cloud folders are private,
+so they go in `$XDG_CONFIG_HOME/snshah/profile.d/`:
+
+```ts
+// 50-omarchy-private.ts: Edge as the default browser, and a private web app
+import type { Hook, Selector } from "../snshah.auto.d.ts";
+export const selector = { kind: "omarchy" } satisfies Selector;
+export const hooks = [
+  {
+    kind: "command",
+    phase: "after-apply",
+    run: ["omarchy", "default", "browser", "edge"],
+    unless: [
+      "sh",
+      "-c",
+      '[ "$(xdg-settings get default-web-browser)" = microsoft-edge.desktop ]',
+    ],
+  },
+] satisfies Hook[];
+```
+
+For OneDrive or SharePoint use `snshah efss connect` instead of a mount.
+
+### Recommendations and the `exists` selector
+
+A profile can export `recommends = [{ tool, why }]`. `snshah doctor` lists
+each as a warning when the tool is missing and installs nothing. The `exists`
+selector (`{ kind: "exists", path: "~/.config/hypr/hyprland.lua" }`) matches
+when a file or folder is there. A `block` hook with `within: "object"` puts
+its block just inside a JSON or JSONC object, which is how the Omarchy menu
+entries are added without disturbing yours.
 
 ### Profiles that contribute commands
 
