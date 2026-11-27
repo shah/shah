@@ -725,6 +725,12 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
         SNSHAH_REF: "0123456789abcdef0123456789abcdef01234567",
       };
       cli(["apply", "--yes"], undefined, ge);
+      const first = cli(["shell", "bash", "--greet"], undefined, ge);
+      check(
+        "the first greeting leaves the GitHub step to doctor, with no second reminder",
+        !first.err.includes("snshah: GitHub is not signed in"),
+        first.err,
+      );
       const a = cli(["shell", "bash", "--greet"], undefined, ge);
       check(
         "greeting reminds about GitHub sign-in with the command to run",
@@ -1023,6 +1029,10 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
         sshd.get("passwordauthentication") === "no" &&
           sshd.get("permitrootlogin") === "prohibit-password",
       );
+      check(
+        "a Match block that reopens passwords is reported, not mistaken for keys only",
+        sshd.get("match-password") === "User x",
+      );
       const hard = cli(["ssh", "harden"], undefined, se);
       check(
         "ssh harden only prints advice",
@@ -1130,8 +1140,34 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
         "ssh status reports the password login and the next step",
         st.code === 0 &&
           st.out.includes("with a password") &&
-          st.out.includes("snshah ssh copy"),
+          st.out.includes("To copy a key into") &&
+          st.out.includes("ssh-copy-id"),
         st.out + st.err,
+      );
+    }
+
+    // Update notices only count for the install they were checked against.
+    {
+      const a = "a".repeat(40);
+      const b = "b".repeat(40);
+      const at = new Date().toISOString();
+      const checked = (installed: string, latest: string) => ({
+        kind: "checked" as const,
+        at,
+        ref: "main",
+        latest,
+        installed,
+      });
+      check(
+        "an update notice shows when the check was made against this install",
+        mod.updateNotice(checked(a, b), a)?.includes("update is available") ===
+          true,
+      );
+      check(
+        "no notice after an upgrade made the cached check stale, and it is due again",
+        mod.updateNotice(checked(a, a), b) === undefined &&
+          mod.updateDue(checked(a, a), b, Date.now()) === true &&
+          mod.updateDue(checked(b, b), b, Date.now()) === false,
       );
     }
 

@@ -148,7 +148,7 @@ type Covers<T extends readonly string[], U extends string> = [
   ? true
   : ["missing", Exclude<U, T[number]>];
 
-export const cliVersion = "0.4.0";
+export const cliVersion = "0.4.1";
 export const minimumBun = "1.4.0";
 /** The Oh My Posh release snshah installs when none is on PATH, by Bun-style target. */
 export const ohMyPosh = {
@@ -4088,6 +4088,41 @@ function isUpdateCheck(v: unknown): v is UpdateCheck {
   }
 }
 
+/** A cached check counts only for the install it was made against; an upgrade makes it stale. */
+export function updateNotice(
+  u: UpdateCheck,
+  installed: string | undefined,
+): string | undefined {
+  return u.kind === "checked" &&
+    installed &&
+    u.installed === installed &&
+    u.latest !== installed
+    ? `an update is available on ${u.ref} (${u.latest.slice(0, 12)}). Run snshah update.`
+    : undefined;
+}
+
+export function updateDue(
+  u: UpdateCheck,
+  installed: string | undefined,
+  now: number,
+): boolean {
+  switch (u.kind) {
+    case "never":
+      return true;
+    case "running":
+      return now - Date.parse(u.startedAt) > staleRunMs;
+    case "checked":
+      return (
+        u.installed !== installed ||
+        now - Date.parse(u.at) > updateCheckIntervalMs
+      );
+    case "failed":
+      return now - Date.parse(u.at) > updateCheckIntervalMs;
+    default:
+      return assertNever(u);
+  }
+}
+
 /** Unreadable or unknown state is treated as empty, never as an error. */
 export async function readState(ctx: Context): Promise<State> {
   try {
@@ -4110,6 +4145,35 @@ export async function readState(ctx: Context): Promise<State> {
     /* missing or corrupt: start over */
   }
   return emptyState;
+}
+
+/** Read-modify-write from fresh disk state, so a background check and a shell never undo each other's field. */
+async function patchState(
+  ctx: Context,
+  change: (state: State) => State,
+): Promise<void> {
+  // A lock file keeps two processes (a shell and the background check) from
+  // reading the same old state; a lock older than 5 s is a crashed holder's.
+  const lock = `${ctx.stateFile}.lock`;
+  await mkdir(dirname(lock), { recursive: true });
+  let held = false;
+  for (let i = 0; i < 100 && !held; i++) {
+    try {
+      await (await openFile(lock, "wx")).close();
+      held = true;
+    } catch {
+      const age =
+        Date.now() -
+        ((await stat(lock).catch(() => undefined))?.mtimeMs ?? Date.now());
+      if (age > 5000) await rm(lock, { force: true });
+      else await Bun.sleep(20);
+    }
+  }
+  try {
+    await writeState(ctx, change(await readState(ctx)));
+  } finally {
+    if (held) await rm(lock, { force: true });
+  }
 }
 
 async function writeState(ctx: Context, state: State): Promise<void> {
@@ -4141,7 +4205,7 @@ async function checkForUpdate(
   } catch (error) {
     update = { kind: "failed", at, ref, error: (error as Error).message };
   }
-  await writeState(ctx, { ...(await readState(ctx)), update });
+  await patchState(ctx, (st) => ({ ...st, update }));
   if (update.kind === "failed") {
     if (!quiet) say(update.error, "error");
     return 1;
@@ -4168,9 +4232,10 @@ async function greet(ctx: Context, config: WorkshopConfig): Promise<void> {
   try {
     let state = await readState(ctx);
     const self = [process.execPath, "--no-env-file", import.meta.path];
-    if (state.doctorRanFor !== cliVersion) {
+    const doctorShown = state.doctorRanFor !== cliVersion;
+    if (doctorShown) {
       state = { ...state, doctorRanFor: cliVersion };
-      await writeState(ctx, state);
+      await patchState(ctx, (st) => ({ ...st, doctorRanFor: cliVersion }));
       // The shell is about to get these PATH entries from the init code it
       // evaluates, so doctor sees the PATH the user will actually have.
       const bunBin = join(ctx.env.BUN_INSTALL || join(ctx.home, ".bun"), "bin");
@@ -4200,7 +4265,7 @@ async function greet(ctx: Context, config: WorkshopConfig): Promise<void> {
         .slice(0, 16);
       if (state.sshHintFor !== id) {
         state = { ...state, sshHintFor: id };
-        await writeState(ctx, state);
+        await patchState(ctx, (st) => ({ ...st, sshHintFor: id }));
         const session = await detectSession(ctx);
         if (session.kind === "ssh" && usedPassword(session.method)) {
           const r = Bun.spawnSync([...self, "ssh", "copy", "--hint"], {
@@ -4223,11 +4288,13 @@ async function greet(ctx: Context, config: WorkshopConfig): Promise<void> {
     const lastReminder = Date.parse(state.githubReminderAt ?? "");
     if (
       ghWanted &&
+      !doctorShown && // doctor's own output already says it
       !githubSignedIn(ctx) &&
       !(Date.now() - lastReminder < 24 * 3600 * 1000)
     ) {
-      state = { ...state, githubReminderAt: new Date().toISOString() };
-      await writeState(ctx, state);
+      const remindedAt = new Date().toISOString();
+      state = { ...state, githubReminderAt: remindedAt };
+      await patchState(ctx, (st) => ({ ...st, githubReminderAt: remindedAt }));
       const y = (t: string) => (tty ? `\x1b[33m${t}\x1b[0m` : t);
       process.stderr.write(
         `${y("snshah: GitHub is not signed in yet; git and gh will fail on private repositories until you do.")}\n  ${githubSignIn}\n`,
@@ -4235,21 +4302,15 @@ async function greet(ctx: Context, config: WorkshopConfig): Promise<void> {
     }
     const u = state.update;
     const installed = await installedRevision(ctx);
-    if (u.kind === "checked" && installed && u.latest !== installed)
-      process.stderr.write(
-        `snshah: an update is available on ${u.ref} (${u.latest.slice(0, 12)}). Run snshah update.\n`,
-      );
+    const notice = updateNotice(u, installed);
+    if (notice) process.stderr.write(`snshah: ${notice}\n`);
     const now = Date.now();
-    const due =
-      u.kind === "never" ||
-      (u.kind === "running"
-        ? now - Date.parse(u.startedAt) > staleRunMs
-        : now - Date.parse(u.at) > updateCheckIntervalMs);
+    const due = updateDue(u, installed, now);
     if (due) {
-      await writeState(ctx, {
-        ...state,
+      await patchState(ctx, (st) => ({
+        ...st,
         update: { kind: "running", startedAt: new Date(now).toISOString() },
-      });
+      }));
       const child = spawnChild(
         self[0]!,
         [...self.slice(1), "update", "--check", "--quiet"],
@@ -4689,6 +4750,7 @@ export function parseSshdConfig(
   file = "/etc/ssh/sshd_config",
 ): Map<string, string> {
   const out = new Map<string, string>();
+  let match: string | undefined; // the Match line whose settings we are reading
   const visit = (path: string, depth: number): boolean => {
     const text = read(path);
     if (text === undefined || depth > 3) return true;
@@ -4697,7 +4759,20 @@ export function parseSshdConfig(
       if (!line || line.startsWith("#")) continue;
       const [word, ...rest] = line.split(/\s+/);
       const key = word!.toLowerCase();
-      if (key === "match") return false;
+      if (key === "match") {
+        match = rest.join(" ");
+        continue;
+      }
+      if (match !== undefined) {
+        // Only record what can reopen passwords; the top-level answer stays top-level.
+        if (
+          key === "passwordauthentication" &&
+          rest[0]?.toLowerCase() === "yes" &&
+          !out.has("match-password")
+        )
+          out.set("match-password", match);
+        continue;
+      }
       if (key === "include") {
         for (const pattern of rest) {
           const full = pattern.startsWith("/")
@@ -4833,6 +4908,7 @@ async function sshStatus(ctx: Context): Promise<void> {
   const rows: Check[] = [];
   const session = await detectSession(ctx);
   const next: NextStep[] = [];
+  const usedKey = session.kind === "ssh" && session.method === "publickey";
   if (session.kind === "local") {
     rows.push({
       check: "session",
@@ -4851,12 +4927,6 @@ async function sshStatus(ctx: Context): Promise<void> {
       status: usedPassword(session.method) ? "warn" : "ok",
       detail: `logged in over SSH from ${session.client} with ${how[session.method]}${session.evidence === "no-authorized-keys" ? " (this account has no authorized keys, so it was not a key)" : ""}`,
     });
-    if (usedPassword(session.method))
-      next.push({
-        title:
-          "You signed in with a password. Set up a key, from your own computer:",
-        command: "snshah ssh copy",
-      });
   }
   const keys = await listKeys(ctx);
   if (!keys.length) {
@@ -4865,10 +4935,12 @@ async function sshStatus(ctx: Context): Promise<void> {
       status: "warn",
       detail: `no key pair in ${tilde(ctx, sshDir(ctx))}`,
     });
-    next.push({
-      title: "Create one on this machine:",
-      command: "snshah ssh new",
-    });
+    // Over SSH the key that matters lives on the computer you came from.
+    if (session.kind === "local")
+      next.push({
+        title: "Create one on this machine:",
+        command: "snshah ssh new",
+      });
   }
   for (const k of keys)
     rows.push({
@@ -4920,11 +4992,25 @@ async function sshStatus(ctx: Context): Promise<void> {
       status: passwords ? "warn" : "ok",
       detail: passwords
         ? "this machine's SSH server still accepts passwords (snshah ssh harden)"
-        : "this machine's SSH server accepts keys only",
+        : sshd.has("match-password")
+          ? `this machine's SSH server accepts keys, except passwords are allowed for: Match ${sshd.get("match-password")}`
+          : "this machine's SSH server accepts keys only",
     });
+    if (!passwords && sshd.has("match-password") && !usedKey)
+      rows.push({
+        check: "method",
+        status: "warn",
+        detail:
+          "the login method could not be read; since passwords are allowed for that Match rule, you may have used one",
+      });
   }
   printChecks(rows);
   printNext(next);
+  // Not a key login (or can't tell): show how to put a key here, per client OS.
+  if (session.kind === "ssh" && !usedKey) {
+    console.log("");
+    await sshCopy(ctx, undefined, {});
+  }
 }
 
 async function sshKeys(ctx: Context, json: boolean): Promise<void> {
@@ -5508,13 +5594,12 @@ async function fontsSet(ctx: Context, word: FontWord | "reset"): Promise<void> {
       `Fonts already ${word === "reset" ? "unknown" : word}. No changes needed.`,
       "success",
     );
-  const { fonts: _old, ...rest } = state;
-  await writeState(
-    ctx,
-    word === "reset"
-      ? rest
-      : { ...rest, fonts: { kind: word, at: new Date().toISOString() } },
-  );
+  await patchState(ctx, (st) => {
+    const { fonts: _gone, ...others } = st;
+    return word === "reset"
+      ? others
+      : { ...others, fonts: { kind: word, at: new Date().toISOString() } };
+  });
   say(
     word === "reset"
       ? "Forgot your answer; doctor shows fonts as unknown again."
