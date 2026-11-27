@@ -1280,15 +1280,20 @@ exit 0
 /srv/lan 192.168.1.0/24(ro,sync,no_subtree_check)
 `,
       );
+      // A faked machine with no commands at all: neither file server is there.
+      const facts = json<Record<string, unknown>>(
+        cli(["whoami", "--json"], undefined, bare),
+      );
+      const factsFile = join(sh2, "facts.json");
+      await writeFile(factsFile, JSON.stringify({ ...facts, commands: [] }));
       const off = cli(["share", "status"], undefined, {
         ...bare,
-        PATH: "/usr/bin:/bin",
+        SNSHAH_FACTS: factsFile,
       });
-      const hasExportfs = !!Bun.which("exportfs", { PATH: "/usr/bin:/bin" });
       check(
         "share is inactive without Samba or NFS and says how to get one",
-        hasExportfs || (off.code === 2 && off.err.includes("turns on when")),
-        off.err,
+        off.code === 2 && off.err.includes("turns on when"),
+        off.out + off.err,
       );
       const audit = json<{
         findings: Array<{ id: string; where: string; severity: string }>;
