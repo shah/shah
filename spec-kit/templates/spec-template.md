@@ -3,7 +3,8 @@ How to use this template
 
 1. Copy it to spec-kit/specs/NNNN-kebab-case-slug/spec.md, where NNNN is
    the next unused four-digit number in spec-kit/specs/ (0001 is taken by
-   the spec for Shahid himself, 0002 by Intellectual Frontiers).
+   the spec for Shahid himself, 0002 by Intellectual Frontiers, 0003 by
+   the Workshop; check the folder for newer ones).
 2. Fill in every bracketed field. Each section below carries its own
    guidance comment, like this one — delete each comment as you fill in
    the section it explains, so nothing but real content ships.

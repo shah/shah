@@ -158,6 +158,14 @@ spec-kit/
     0002-intellectual-frontiers/
       spec.md                  thin — cites intellectual-frontiers/.github
                                 for everything, restates nothing
+    0003-workshop/
+      spec.md                  the CLI Workshop: what it must and must
+                                not do, and how to check it
+ontology/                      Turtle: vocabulary, an index of the specs
+                                (eidolon.ttl), the Workshop model
+                                (workshop.ttl), and check.ts
+workshop/                      my shell and creature comforts for all CLI
+                                work; see workshop/README.md
 skills/                        portable Agent Skills — Labor as Code
                                 for voice and judgment; see skills/README.md
 mcp/
@@ -179,6 +187,26 @@ packages three of Shahid's own writing/editing prompts as portable
 public-tier facts — profile, companies founded, the confidence-aware
 venture-role ledger, and technical skills — as callable tools, generated
 from `spec.md` rather than duplicating it as a second source of truth.
+
+## Ontology
+
+[`ontology/`](ontology/) is a small Turtle model of this repository,
+reusing schema.org, PROV and DOAP. `eidolon.ttl` indexes the public-tier
+facts and cites the spec section each comes from; the specs stay the
+source of truth. `workshop.ttl` is the model of record for the Workshop.
+`bun --no-env-file ontology/check.ts` fails if a cited path or heading is
+missing or if the Workshop model and its code disagree.
+
+## Workshop
+
+[`workshop/`](workshop/) holds my shell and "creature comforts" for all
+work that I do at the CLI: one typed TypeScript CLI on Bun 1.4+, for any
+Linux, WSL, macOS and Windows 11+, that adds a single block to each shell's
+startup file and is safe to re-run. Install with
+`curl -fsSL https://raw.githubusercontent.com/shah/shah/main/workshop/bootstrap.sh | sh`
+(or `bootstrap.ps1` on Windows). See
+[`workshop/README.md`](workshop/README.md) and
+[spec 0003](spec-kit/specs/0003-workshop/spec.md).
 
 ## Build your own Eidolon
 

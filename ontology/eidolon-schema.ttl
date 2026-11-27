@@ -1,0 +1,99 @@
+# Vocabulary for Shahid Shah's public Eidolon (eid:) and his CLI Workshop (ws:).
+# Public tier only. Reuses schema.org, PROV-O, DOAP and Dublin Core where
+# they fit; eid: and ws: add only what those don't say.
+# Checked by ontology/check.ts.
+
+@prefix rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:     <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .
+@prefix schema:  <https://schema.org/> .
+@prefix prov:    <http://www.w3.org/ns/prov#> .
+@prefix doap:    <http://usefulinc.com/ns/doap#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix eid:     <https://github.com/shah/shah/ontology/eidolon#> .
+@prefix ws:      <https://github.com/shah/shah/ontology/workshop#> .
+
+<https://github.com/shah/shah/ontology/eidolon> a owl:Ontology ;
+    rdfs:label "Shahid Shah Eidolon and Workshop vocabulary" ;
+    dcterms:creator "Shahid Shah" ;
+    rdfs:comment "A checkable model of the public-tier Eidolon in github.com/shah/shah. The spec-kit specs are the narrative source; this ontology is the machine-readable index that cites them." .
+
+# ---------- Eidolon classes ----------
+eid:Person a owl:Class ; rdfs:subClassOf schema:Person ;
+    rdfs:comment "The person an Eidolon reflects. An Eidolon of a person is not the person." .
+eid:Role a owl:Class ; rdfs:subClassOf schema:Role ;
+    rdfs:comment "A role the person offers or holds, as listed in the public profile." .
+eid:Holding a owl:Class ; rdfs:subClassOf schema:Organization ;
+    rdfs:comment "A property in spec 0001's sense: a company, brand or vehicle the person holds, founded or is closely identified with. Named Holding to avoid confusion with rdf:Property." .
+eid:Spec a owl:Class ; rdfs:subClassOf prov:Entity ;
+    rdfs:comment "A spec-kit specification in this repository." .
+eid:Artifact a owl:Class ; rdfs:subClassOf prov:Entity ;
+    rdfs:comment "Something in this repository built on the specs (Labor as Code): a skill, an MCP server, an ontology, a toolkit." .
+eid:Skill a owl:Class ; rdfs:subClassOf eid:Artifact .
+eid:McpServer a owl:Class ; rdfs:subClassOf eid:Artifact .
+eid:Ontology a owl:Class ; rdfs:subClassOf eid:Artifact .
+eid:Eidolon a owl:Class ; rdfs:subClassOf prov:Entity ;
+    rdfs:comment "A working digital reflection of a person: structured, checkable, a read reference rather than a live agent." .
+
+# ---------- Eidolon properties ----------
+eid:reflects a owl:ObjectProperty ; rdfs:domain eid:Eidolon ; rdfs:range eid:Person .
+eid:tier a owl:DatatypeProperty ; rdfs:domain eid:Eidolon ; rdfs:range xsd:string ;
+    rdfs:comment "Which tier this Eidolon covers. Only \"public\" exists today." .
+eid:holdsRole a owl:ObjectProperty ; rdfs:domain eid:Person ; rdfs:range eid:Role .
+eid:hasHolding a owl:ObjectProperty ; rdfs:domain eid:Person ; rdfs:range eid:Holding .
+eid:specifiedBy a owl:ObjectProperty ; rdfs:range eid:Spec ;
+    rdfs:comment "The spec that governs this thing's facts." .
+eid:partOf a owl:ObjectProperty ; rdfs:range eid:Eidolon .
+eid:path a owl:DatatypeProperty ; rdfs:range xsd:string ;
+    rdfs:comment "Repository-relative path. ontology/check.ts fails if it does not exist." .
+eid:specId a owl:DatatypeProperty ; rdfs:domain eid:Spec ; rdfs:range xsd:string .
+eid:status a owl:DatatypeProperty ; rdfs:range xsd:string ;
+    rdfs:comment "Status as the governing spec states it; never inferred here." .
+eid:sourcedFrom a owl:DatatypeProperty ; rdfs:subPropertyOf prov:wasDerivedFrom ;
+    rdfs:comment "Where in a spec the fact comes from, as a repository path with an optional #anchor." .
+
+# ---------- Workshop classes ----------
+ws:Toolkit a owl:Class ; rdfs:subClassOf eid:Artifact , doap:Project ;
+    rdfs:comment "The CLI Workshop: shell and creature comforts for all CLI work." .
+ws:Command a owl:Class ; rdfs:comment "A snshah command or subcommand. Every one is idempotent." .
+ws:Platform a owl:Class ; rdfs:comment "An operating environment the Workshop supports." .
+ws:ShellTarget a owl:Class ; rdfs:comment "A shell that `snshah shell` emits init code for." .
+ws:SecretScope a owl:Class ; rdfs:comment "Where a secret from the private config may reach." .
+ws:StepKind a owl:Class ; rdfs:comment "A kind of idempotent change that `snshah apply` can make." .
+ws:PackageManager a owl:Class ; rdfs:comment "A package manager `snshah doctor` writes install advice for. snshah never runs it." .
+ws:Dependency a owl:Class ; rdfs:comment "A pinned npm package snshah loads through Bun." .
+ws:XdgPath a owl:Class ; rdfs:comment "A file or directory snshah uses, relative to an XDG base directory." .
+ws:BootstrapScript a owl:Class ; rdfs:subClassOf eid:Artifact ;
+    rdfs:comment "A thin installer: get Bun, pin one commit, run apply." .
+ws:Theme a owl:Class ; rdfs:subClassOf eid:Artifact .
+ws:Runtime a owl:Class .
+
+# ---------- Workshop properties ----------
+ws:name a owl:DatatypeProperty ; rdfs:range xsd:string ;
+    rdfs:comment "The exact identifier the code uses for this value." .
+ws:version a owl:DatatypeProperty ; rdfs:domain ws:Toolkit ; rdfs:range xsd:string .
+ws:runtime a owl:ObjectProperty ; rdfs:domain ws:Toolkit ; rdfs:range ws:Runtime .
+ws:minimumVersion a owl:DatatypeProperty ; rdfs:range xsd:string .
+ws:hasCommand a owl:ObjectProperty ; rdfs:domain ws:Toolkit ; rdfs:range ws:Command .
+ws:supportsPlatform a owl:ObjectProperty ; rdfs:domain ws:Toolkit ; rdfs:range ws:Platform .
+ws:emitsFor a owl:ObjectProperty ; rdfs:domain ws:Toolkit ; rdfs:range ws:ShellTarget .
+ws:secretScope a owl:ObjectProperty ; rdfs:domain ws:Toolkit ; rdfs:range ws:SecretScope .
+ws:makesStep a owl:ObjectProperty ; rdfs:domain ws:Toolkit ; rdfs:range ws:StepKind .
+ws:advisesWith a owl:ObjectProperty ; rdfs:domain ws:Toolkit ; rdfs:range ws:PackageManager .
+ws:dependsOn a owl:ObjectProperty ; rdfs:domain ws:Toolkit ; rdfs:range ws:Dependency .
+ws:pinnedVersion a owl:DatatypeProperty ; rdfs:range xsd:string .
+ws:usesPath a owl:ObjectProperty ; rdfs:domain ws:Toolkit ; rdfs:range ws:XdgPath .
+ws:xdgBase a owl:DatatypeProperty ; rdfs:domain ws:XdgPath ; rdfs:range xsd:string .
+ws:fallback a owl:DatatypeProperty ; rdfs:domain ws:XdgPath ; rdfs:range xsd:string ;
+    rdfs:comment "Home-relative directory used when the XDG variable is unset or relative." .
+ws:relativePath a owl:DatatypeProperty ; rdfs:domain ws:XdgPath ; rdfs:range xsd:string .
+ws:bootstrap a owl:ObjectProperty ; rdfs:domain ws:Toolkit ; rdfs:range ws:BootstrapScript .
+ws:pinsBun a owl:DatatypeProperty ; rdfs:domain ws:BootstrapScript ; rdfs:range xsd:string .
+ws:theme a owl:ObjectProperty ; rdfs:domain ws:Toolkit ; rdfs:range ws:Theme .
+ws:upstream a owl:DatatypeProperty ; rdfs:domain ws:Toolkit ; rdfs:range xsd:string ;
+    rdfs:comment "owner/repo@ref that `snshah update` and the bootstraps pin a commit from." .
+ws:workspacesVariable a owl:DatatypeProperty ; rdfs:domain ws:Toolkit ; rdfs:range xsd:string .
+ws:workspacesDefault a owl:DatatypeProperty ; rdfs:domain ws:Toolkit ; rdfs:range xsd:string .
+ws:workspacesOmarchy a owl:DatatypeProperty ; rdfs:domain ws:Toolkit ; rdfs:range xsd:string .
+ws:idempotent a owl:DatatypeProperty ; rdfs:range xsd:boolean .
