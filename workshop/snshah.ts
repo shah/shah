@@ -161,7 +161,7 @@ type Covers<T extends readonly string[], U extends string> = [
   ? true
   : ["missing", Exclude<U, T[number]>];
 
-export const cliVersion = "0.7.1";
+export const cliVersion = "0.7.2";
 export const minimumBun = "1.4.0";
 /** The Oh My Posh release snshah installs when none is on PATH, by Bun-style target. */
 export const ohMyPosh = {
@@ -4186,16 +4186,16 @@ function reloadAdvice(ctx: Context): void {
     return;
   }
   say("🔁 To use the changes in this shell, run:", "action");
-  console.log(`  ${reloadCommand(guessShell(ctx.env))}`);
+  console.log(`   ${reloadCommand(guessShell(ctx.env))}`);
   console.log(
-    "  or log out and back in (new shells pick them up by themselves).",
+    "   or log out and back in (new shells pick them up by themselves).",
   );
 }
 
 function printNext(next: readonly NextStep[]): void {
   for (const step of next) {
     say(step.title, "pending");
-    console.log(`  ${step.command}`);
+    console.log(`   ${step.command}`);
   }
 }
 
@@ -4783,7 +4783,7 @@ async function greet(ctx: Context, config: WorkshopConfig): Promise<void> {
           const c = (code: string, t: string) =>
             tty ? `\x1b[${code}m${t}\x1b[0m` : t;
           process.stderr.write(
-            `${c("1;33", "🔐 You signed in with a password. SSH keys are safer, and you will not have to type it again.")}\n  ${c("36", "To see how to copy a key into this server from your computer, run:")} ${c("1;32", "snshah ssh copy")}\n  ${c("2", "Shown once per login. Silence it with SNSHAH_SSH_HINT=0.")}\n`,
+            `${c("1;33", "🔐 You signed in with a password. SSH keys are safer, and you will not have to type it again.")}\n   ${c("36", "To see how to copy a key into this server from your computer, run:")} ${c("1;32", "snshah ssh copy")}\n   ${c("2", "Shown once per login. Silence it with SNSHAH_SSH_HINT=0.")}\n`,
           );
         }
       }
@@ -6811,7 +6811,7 @@ async function fontsInstall(ctx: Context, run: boolean): Promise<void> {
       "Install a Nerd Font in your account (run this on the machine whose terminal you look at):",
       "action",
     );
-    console.log(`  ${fontInstallCommand}`);
+    console.log(`   ${fontInstallCommand}`);
     if (run)
       say("oh-my-posh is not installed yet; run snshah apply first.", "error");
   } else {
@@ -6827,7 +6827,7 @@ async function fontsInstall(ctx: Context, run: boolean): Promise<void> {
   console.log(
     "Then choose it as the font in your terminal (Windows Terminal: Settings > Profiles > Defaults > Appearance > Font face), and run:",
   );
-  console.log("  snshah ux fonts installed");
+  console.log("   snshah ux fonts installed");
 }
 
 // ---------------------------------------------------------------------------
@@ -6880,6 +6880,22 @@ function say(
   console.log(`${icon} ${color(message)}`);
 }
 
+/** Word-wrap `text` to the terminal, indenting continuation lines by `indent` columns. */
+function wrapDetail(text: string, indent: number): string {
+  const columns = process.stdout.columns || 100;
+  const room = Math.max(20, columns - indent - 1);
+  const lines: string[] = [];
+  let line = "";
+  for (const word of text.split(" ")) {
+    if (line && line.length + 1 + word.length > room) {
+      lines.push(line);
+      line = word;
+    } else line = line ? `${line} ${word}` : word;
+  }
+  lines.push(line);
+  return lines.join("\n" + " ".repeat(indent));
+}
+
 /** One line per check: icon, bold name, version in cyan, detail dimmed. */
 function printChecks(checks: readonly Check[]): void {
   const width = Math.max(...checks.map((c) => c.check.length));
@@ -6894,7 +6910,10 @@ function printChecks(checks: readonly Check[]): void {
       c.status
     ];
     const version = (c.version ?? "").padEnd(vwidth);
-    const detail = c.status === "ok" ? chalk.dim(c.detail) : name(c.detail);
+    // icon (2 columns) + space + name + gap + version + gap
+    const indent = 3 + width + 2 + vwidth + 2;
+    const text = wrapDetail(c.detail, indent);
+    const detail = c.status === "ok" ? chalk.dim(text) : name(text);
     console.log(
       `${icon} ${chalk.bold(name(c.check.padEnd(width)))}  ${chalk.cyan(version)}  ${detail}`,
     );
@@ -7092,7 +7111,7 @@ export async function buildCli(ctx: Context): Promise<CommanderCommand> {
               `Some tools snshah uses are missing. To install on ${system}${manager ? ` (${manager})` : ""}:`,
               "pending",
             );
-            for (const line of advice) console.log(`  ${line}`);
+            for (const line of advice) console.log(`   ${line}`);
           }
         }
       });
@@ -7113,7 +7132,7 @@ export async function buildCli(ctx: Context): Promise<CommanderCommand> {
           `To install on ${report.system}${report.manager ? ` (${report.manager})` : ""}:`,
           "action",
         );
-        for (const line of report.advice) console.log(`  ${line}`);
+        for (const line of report.advice) console.log(`   ${line}`);
       }
       printNext(report.next);
       if (report.checks.some((c) => c.status === "missing"))
