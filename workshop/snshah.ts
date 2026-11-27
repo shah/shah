@@ -79,12 +79,19 @@ export type WorkshopConfig = {
   prompt?: Prompt;
   toolManager?: ToolManager;
   tools?: Record<string, ToolSpec>;
+  /** Plain (non-secret) environment variables for every shell. */
+  env?: Record<string, string>;
   agents?: { claude?: AgentDefaults; codex?: AgentDefaults };
   repositories?: Repository[];
   secrets?: Secret[];
 };
 /** What a profile.d file may contribute. Secrets stay in the private config. */
 export type Contribution = Omit<WorkshopConfig, "secrets">;
+/** What a `.snshah.path.ts` file may set while your shell is inside its directory. */
+export type DirectoryContribution = Pick<
+  WorkshopConfig,
+  "path" | "aliases" | "env"
+>;
 /** Which machines a profile applies to. Environment first; identity last. */
 export type Selector =
   | { kind: "always" }
@@ -148,7 +155,7 @@ type Covers<T extends readonly string[], U extends string> = [
   ? true
   : ["missing", Exclude<U, T[number]>];
 
-export const cliVersion = "0.4.5";
+export const cliVersion = "0.5.0";
 export const minimumBun = "1.4.0";
 /** The Oh My Posh release snshah installs when none is on PATH, by Bun-style target. */
 export const ohMyPosh = {
@@ -245,6 +252,7 @@ export const defaultTools = {
   yq: "latest",
   delta: "latest",
   direnv: "latest",
+  eza: "latest",
 } as const satisfies Record<string, string>;
 export const dependencies = {
   commander: "12.1.0",
@@ -336,6 +344,14 @@ export const commandNames = [
   "ssh host add",
   "ssh host list",
   "ssh host remove",
+  "profile list",
+  "profile show",
+  "profile allow",
+  "profile deny",
+  "profile init",
+  "profile check",
+  "profile why",
+  "profile load",
   "ux fonts status",
   "ux fonts installed",
   "ux fonts missing",
@@ -778,6 +794,7 @@ export function validateConfig(
     "prompt",
     "toolManager",
     "tools",
+    "env",
     "agents",
     "repositories",
     "secrets",
@@ -810,6 +827,14 @@ export function validateConfig(
             `aliases.${name}.${k}`,
             "must be posix, fish or pwsh with a string value",
           );
+    }
+  }
+  if (value.env !== undefined) {
+    if (!isObject(value.env)) fail("env", "must be an object");
+    for (const [name, v] of Object.entries(value.env)) {
+      if (!identifier.test(name))
+        fail(`env.${name}`, "is not a valid variable name");
+      if (typeof v !== "string") fail(`env.${name}`, "must be a string");
     }
   }
   if (value.prompt !== undefined) {
@@ -962,7 +987,6 @@ export async function interpretConfig(source: string): Promise<WorkshopConfig> {
 }
 
 const defaultAliases: Record<string, AliasValue> = {
-  ll: { posix: "ls -al", fish: "ls -al", pwsh: "Get-ChildItem -Force" },
   gs: "git status --short --branch",
   gd: "git diff",
   gds: "git diff --staged",
@@ -1429,6 +1453,7 @@ const mergers: Mergers = {
   // Records: a later layer's keys win; each agent's union is replaced whole.
   aliases: (a, b) => (a || b ? { ...a, ...b } : undefined),
   tools: (a, b) => (a || b ? { ...a, ...b } : undefined),
+  env: (a, b) => (a || b ? { ...a, ...b } : undefined),
   agents: (a, b) => (a || b ? { ...a, ...b } : undefined),
   // Lists: concatenate; keyed lists let a later layer replace an entry.
   path: (a, b) =>
@@ -1472,6 +1497,8 @@ function overridable(config: WorkshopConfig): Map<string, string> {
     out.set("toolManager", JSON.stringify(config.toolManager));
   for (const [k, v] of Object.entries(config.tools ?? {}))
     out.set(`tools.${k}`, JSON.stringify(v));
+  for (const [k, v] of Object.entries(config.env ?? {}))
+    out.set(`env.${k}`, JSON.stringify(v));
   for (const [k, v] of Object.entries(config.agents ?? {}))
     out.set(`agents.${k}`, JSON.stringify(v));
   for (const [k, v] of Object.entries(config.aliases ?? {}))
@@ -2721,6 +2748,8 @@ export type ShellOp =
   | { kind: "alias"; name: string; value: AliasValue }
   | { kind: "mkcd" }
   | { kind: "reload" }
+  | { kind: "eza"; icons: boolean; skip: string[] }
+  | { kind: "dirhook" }
   | { kind: "wrap"; command: string; wrapper: string }
   | { kind: "mise"; binary: string }
   | { kind: "direnv" }
@@ -2762,6 +2791,8 @@ export function shellOps(
   for (const secret of config.secrets ?? [])
     if (secret.scope === "shell")
       ops.push({ kind: "env", name: secret.variable, value: secret.value });
+  for (const [name, value] of Object.entries(config.env ?? {}))
+    ops.push({ kind: "env", name, value });
   for (const [name, value] of Object.entries(config.aliases ?? {}))
     ops.push({ kind: "alias", name, value });
   ops.push({ kind: "mkcd" });
@@ -2774,6 +2805,13 @@ export function shellOps(
     ops.push({ kind: "wrap", command, wrapper: wrapperFor(ctx, shell) });
   if (toolManagerOn(config)) ops.push({ kind: "mise", binary: ctx.miseBinary });
   if (config.tools?.direnv !== false) ops.push({ kind: "direnv" });
+  if (config.tools?.eza !== false)
+    ops.push({
+      kind: "eza",
+      icons: fonts !== "missing",
+      // Names you set yourself in `aliases` are never replaced.
+      skip: Object.keys(config.aliases ?? {}),
+    });
   if ((config.prompt ?? { kind: "oh-my-posh" }).kind === "oh-my-posh") {
     const custom =
       config.prompt?.kind === "oh-my-posh" ? config.prompt.theme : undefined;
@@ -2783,7 +2821,72 @@ export function shellOps(
       binary: ctx.poshBinary,
     });
   }
+  // After the prompt, so its init can't replace the hook that follows your directory.
+  ops.push({ kind: "dirhook" });
   return ops;
+}
+
+/** The eza aliases, shared by every shell. `icons` follows `snshah ux fonts`. */
+export function ezaCommands(icons: boolean): Record<string, string> {
+  const i = icons ? " --icons=auto" : "";
+  const base = `eza${i} --group-directories-first`;
+  return {
+    ls: base,
+    ll: `${base} -l --git`,
+    la: `${base} -la --git`,
+    tree: `${base} --tree --git-ignore`,
+    exa: "eza",
+  };
+}
+
+export const dirProfileFile = ".snshah.path.ts";
+
+/**
+ * Per-directory profiles: a prompt hook finds `.snshah.path.ts` files above
+ * your directory and, only when that list changes, asks `snshah profile load`
+ * for the trusted ones. The helpers record what they replace so leaving the
+ * directory puts it back.
+ */
+function renderDirHookPosix(shell: "bash" | "zsh"): string[] {
+  const aliasShow = shell === "zsh" ? "alias -L" : "alias";
+  const registration =
+    shell === "zsh"
+      ? [
+          `case " \${chpwd_functions[*]-} " in *" __snshah_dir_hook "*) ;; *) chpwd_functions+=(__snshah_dir_hook) ;; esac`,
+          `__snshah_dir_hook`,
+        ]
+      : [
+          `case ";\${PROMPT_COMMAND-};" in *__snshah_dir_hook*) ;; *) PROMPT_COMMAND="\${PROMPT_COMMAND:+$PROMPT_COMMAND;}__snshah_dir_hook" ;; esac`,
+        ];
+  return [
+    `__snshah_dir_undo=''`,
+    `__snshah_q() { printf "'%s'" "$(printf %s "$1" | sed "s/'/'\\\\\\\\''/g")"; }`,
+    `__snshah_dir_alias() { if alias "$1" >/dev/null 2>&1; then __snshah_dir_undo="$(${aliasShow} "$1")
+$__snshah_dir_undo"; else __snshah_dir_undo="unalias $1
+$__snshah_dir_undo"; fi; alias "$1=$2"; }`,
+    `__snshah_dir_env() { if eval "[ \\"\\\${$1+x}\\" = x ]"; then eval "__snshah_old=\\\${$1}"; __snshah_dir_undo="export $1=$(__snshah_q "$__snshah_old")
+$__snshah_dir_undo"; else __snshah_dir_undo="unset $1
+$__snshah_dir_undo"; fi; export "$1=$2"; }`,
+    `__snshah_dir_unpath() { __snshah_t=":$PATH:"; __snshah_t=\${__snshah_t//":$1:"/:}; __snshah_t=\${__snshah_t#:}; PATH=\${__snshah_t%:}; export PATH; }`,
+    `__snshah_dir_path() { case ":$PATH:" in *":$1:"*) return 0 ;; esac; PATH="$1:$PATH"; export PATH; __snshah_dir_undo="__snshah_dir_unpath $(__snshah_q "$1")
+$__snshah_dir_undo"; }`,
+    `__snshah_dir_reset() { if [ -n "$__snshah_dir_undo" ]; then eval "$__snshah_dir_undo"; fi; __snshah_dir_undo=''; }`,
+    `__snshah_dir_hook() { [ "$PWD" = "\${__snshah_dir_pwd-}" ] && return 0; __snshah_dir_pwd=$PWD; __snshah_d=$PWD; __snshah_f=''; while :; do if [ -f "$__snshah_d/${dirProfileFile}" ]; then __snshah_f="$__snshah_d/${dirProfileFile}\${__snshah_f:+
+$__snshah_f}"; fi; [ "$__snshah_d" = / ] && break; __snshah_d=\${__snshah_d%/*}; [ -n "$__snshah_d" ] || __snshah_d=/; done; [ "$__snshah_f" = "\${__snshah_dir_sig-}" ] && return 0; __snshah_dir_reset; __snshah_dir_sig=$__snshah_f; if [ -n "$__snshah_f" ]; then eval "$(SNSHAH_DIRFILES="$__snshah_f" command snshah profile load --shell ${shell})"; fi; return 0; }`,
+    ...registration,
+  ];
+}
+
+function renderDirHookFish(): string[] {
+  return [
+    `set -g __snshah_dir_undo`,
+    `function __snshah_dir_alias; if functions -q $argv[1]; functions -c $argv[1] __snshah_prev_$argv[1]; set -ga __snshah_dir_undo "functions -e $argv[1]; functions -c __snshah_prev_$argv[1] $argv[1]; functions -e __snshah_prev_$argv[1]"; else; set -ga __snshah_dir_undo "functions -e $argv[1]"; end; alias $argv[1] $argv[2]; end`,
+    `function __snshah_dir_env; if set -q $argv[1]; set -ga __snshah_dir_undo "set -gx $argv[1] "(string escape -- "$$argv[1]"); else; set -ga __snshah_dir_undo "set -e $argv[1]"; end; set -gx $argv[1] $argv[2]; end`,
+    `function __snshah_dir_path; contains -- $argv[1] $PATH; and return 0; set -ga __snshah_dir_undo "set -gx PATH (string match -v -- "(string escape -- $argv[1])" \\$PATH)"; set -gx PATH $argv[1] $PATH; end`,
+    `function __snshah_dir_reset; for c in $__snshah_dir_undo; eval $c; end; set -g __snshah_dir_undo; end`,
+    `function __snshah_dir_hook --on-variable PWD; test "$PWD" = "$__snshah_dir_pwd"; and return 0; set -g __snshah_dir_pwd $PWD; set -l d $PWD; set -l f; while true; if test -f "$d/${dirProfileFile}"; set f "$d/${dirProfileFile}" $f; end; test "$d" = /; and break; set d (path dirname $d); end; test "$f" = "$__snshah_dir_sig"; and return 0; __snshah_dir_reset; set -g __snshah_dir_sig "$f"; if test -n "$f"; env SNSHAH_DIRFILES=(string join \\n -- $f | string collect) snshah profile load --shell fish | source; end; end`,
+    `__snshah_dir_hook`,
+  ];
 }
 
 function aliasText(
@@ -2843,11 +2946,26 @@ function renderPosix(shell: "bash" | "zsh", op: ShellOp): string[] {
       return [
         `${defined("mkcd")} || mkcd() { mkdir -p -- "$1" && cd -- "$1"; }`,
       ];
+    case "eza": {
+      const cmds = ezaCommands(op.icons);
+      const set = Object.entries(cmds)
+        .filter(([name]) => !op.skip.includes(name))
+        .map(([name, text]) => `alias ${name}=${quotePosix(text)}`)
+        .join("; ");
+      const plain = op.skip.includes("ll")
+        ? ""
+        : `${defined("ll")} || alias ll='ls -al'`;
+      return [
+        `if command -v eza >/dev/null 2>&1; then ${set || ":"}; else ${plain || ":"}; fi`,
+      ];
+    }
+    case "dirhook":
+      return renderDirHookPosix(shell);
     case "reload":
       // After a successful `snshah update` or `snshah apply`, re-source this init in
       // the shell you are in. Always redefined, so a reload refreshes the function too.
       return [
-        `snshah() { SNSHAH_RELOAD=1 command snshah "$@"; __snshah_rc=$?; if [ "$__snshah_rc" -eq 0 ]; then case "$1" in update|apply) case " $* " in *" --check "*|*" --json "*|*" --help "*|*" -h "*) ;; *) eval "$(command snshah shell ${shell})" ;; esac ;; esac; fi; return "$__snshah_rc"; }`,
+        `snshah() { SNSHAH_RELOAD=1 command snshah "$@"; __snshah_rc=$?; if [ "$__snshah_rc" -eq 0 ]; then case " $* " in *" --check "*|*" --json "*|*" --help "*|*" -h "*) ;; *) case "$1" in update|apply) eval "$(command snshah shell ${shell})" ;; profile) __snshah_dir_pwd=''; __snshah_dir_sig=reload; __snshah_dir_hook ;; esac ;; esac; fi; return "$__snshah_rc"; }`,
       ];
     case "wrap":
       return [
@@ -2896,9 +3014,21 @@ function renderFish(op: ShellOp): string[] {
       return [
         "functions -q mkcd; or function mkcd; mkdir -p -- $argv[1]; and cd -- $argv[1]; end",
       ];
+    case "eza": {
+      const set = Object.entries(ezaCommands(op.icons))
+        .filter(([name]) => !op.skip.includes(name))
+        .map(([name, text]) => `alias ${name} ${quoteFish(text)}`)
+        .join("; ");
+      const plain = op.skip.includes("ll")
+        ? "true"
+        : "functions -q ll; or alias ll 'ls -al'";
+      return [`if command -sq eza; ${set || "true"}; else; ${plain}; end`];
+    }
+    case "dirhook":
+      return renderDirHookFish();
     case "reload":
       return [
-        `function snshah --description 'snshah; re-sources this shell after update or apply'; env SNSHAH_RELOAD=1 snshah $argv; set -l __snshah_rc $status; if test $__snshah_rc -eq 0; and contains -- "$argv[1]" update apply; and not contains -- --check $argv; and not contains -- --json $argv; and not contains -- --help $argv; command snshah shell fish | source; end; return $__snshah_rc; end`,
+        `function snshah --description 'snshah; re-sources this shell after update or apply'; env SNSHAH_RELOAD=1 snshah $argv; set -l __snshah_rc $status; if test $__snshah_rc -eq 0; and not contains -- --check $argv; and not contains -- --json $argv; and not contains -- --help $argv; if contains -- "$argv[1]" update apply; command snshah shell fish | source; else if test "$argv[1]" = profile; set -g __snshah_dir_pwd ""; set -g __snshah_dir_sig reload; __snshah_dir_hook; end; end; return $__snshah_rc; end`,
       ];
     case "wrap":
       return [
@@ -2949,6 +3079,25 @@ function renderPwsh(op: ShellOp): string[] {
       return [
         `if (${undefinedCommand("mkcd")}) { function global:mkcd { param([string]$Path) New-Item -ItemType Directory -Force -Path $Path | Out-Null; Set-Location -LiteralPath $Path } }`,
       ];
+    case "eza": {
+      // Functions never beat PowerShell's own `ls` alias, so `ls` is left alone.
+      const set = Object.entries(ezaCommands(op.icons))
+        .filter(([name]) => name !== "ls" && !op.skip.includes(name))
+        .map(
+          ([name, text]) =>
+            `if (${undefinedCommand(name)}) { function global:${name} { ${text} @args } }`,
+        )
+        .join("; ");
+      const plain = op.skip.includes("ll")
+        ? ""
+        : ` elseif (${undefinedCommand("ll")}) { function global:ll { Get-ChildItem -Force @args } }`;
+      return [
+        `if (Get-Command eza -CommandType Application -ErrorAction SilentlyContinue) { ${set || ";"} }${plain}`,
+      ];
+    }
+    case "dirhook":
+      // PowerShell has no safe hook for this yet; use `snshah profile list` there.
+      return [];
     case "reload":
       // A function can't define things in the global scope PowerShell shows you,
       // so pwsh gets advice from the CLI instead (see reloadAdvice).
@@ -3505,6 +3654,22 @@ const tools: Tool[] = [
       brew: "fd",
       winget: "sharkdp.fd",
       omarchy: "fd",
+    },
+  },
+  {
+    name: "eza",
+    mise: "eza",
+    purpose: "ls and tree with colors and icons",
+    required: false,
+    advice: {
+      apt: "eza",
+      dnf: "eza",
+      pacman: "eza",
+      apk: "eza",
+      zypper: "eza",
+      brew: "eza",
+      winget: "eza-community.eza",
+      omarchy: "eza",
     },
   },
   {
@@ -4183,6 +4348,8 @@ export type State = {
   sshHintFor?: string;
   /** What the owner said about Nerd Fonts in the terminal they look at. */
   fonts?: { kind: FontWord; at: string };
+  /** `.snshah.path.ts` files the owner trusted: real path to the SHA-256 of what they read. */
+  trusted?: Record<string, string>;
   update: UpdateCheck;
 };
 const emptyState: State = { version: 1, update: { kind: "never" } };
@@ -4267,6 +4434,9 @@ export async function readState(ctx: Context): Promise<State> {
       (v.githubReminderAt === undefined ||
         typeof v.githubReminderAt === "string") &&
       (v.sshHintFor === undefined || typeof v.sshHintFor === "string") &&
+      (v.trusted === undefined ||
+        (isObject(v.trusted) &&
+          Object.values(v.trusted).every((h) => typeof h === "string"))) &&
       (v.fonts === undefined ||
         (isObject(v.fonts) &&
           member(fontWords, v.fonts.kind) &&
@@ -5551,6 +5721,478 @@ async function sshHostRemove(ctx: Context, alias: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Directory profiles: `.snshah.path.ts`, trusted by content hash
+// ---------------------------------------------------------------------------
+
+export type DirStatus =
+  | { kind: "trusted"; hash: string }
+  | { kind: "untrusted"; hash: string }
+  | { kind: "changed"; hash: string }
+  | { kind: "blocked"; reason: string };
+export type DirFile = { file: string; status: DirStatus };
+export type DirLoaded = {
+  file: string;
+  matched: boolean;
+  config: DirectoryContribution;
+};
+export type DirEffective = {
+  files: DirFile[];
+  loaded: DirLoaded[];
+  /** Which file set each alias, variable or PATH entry (the nearest wins). */
+  source: Record<string, string>;
+  aliases: Record<string, AliasValue>;
+  env: Record<string, string>;
+  path: string[];
+};
+
+/** Every `.snshah.path.ts` from `start` up to the root, farthest first. */
+export function dirProfileChain(
+  start: string,
+  isFile: (path: string) => boolean = (p) => existsSync(p),
+): string[] {
+  const found: string[] = [];
+  let dir = resolve(start);
+  for (;;) {
+    const file = join(dir, dirProfileFile);
+    if (isFile(file)) found.unshift(file);
+    const up = dirname(dir);
+    if (up === dir) break;
+    dir = up;
+  }
+  return found;
+}
+
+async function dirFileStatus(
+  ctx: Context,
+  file: string,
+  trusted: Record<string, string> | undefined,
+): Promise<DirFile> {
+  try {
+    const info = await lstat(file);
+    if (!info.isFile())
+      return {
+        file,
+        status: {
+          kind: "blocked",
+          reason: "must be a regular file, not a link",
+        },
+      };
+    // No owner or mode rules: the content hash is the trust, and any edit
+    // (by anyone) makes the file untrusted again.
+    const hash = createHash("sha256")
+      .update(await readFile(file))
+      .digest("hex");
+    const known = trusted?.[await realpath(file)];
+    return {
+      file,
+      status:
+        known === undefined
+          ? { kind: "untrusted", hash }
+          : known === hash
+            ? { kind: "trusted", hash }
+            : { kind: "changed", hash },
+    };
+  } catch (error) {
+    return {
+      file,
+      status: { kind: "blocked", reason: (error as Error).message },
+    };
+  }
+}
+
+const dirAllowedKeys = ["aliases", "env", "path"];
+
+/** Run one trusted file. The bytes that were hashed are the bytes that run. */
+async function importDirProfile(
+  ctx: Context,
+  file: string,
+): Promise<{ selector: Selector; config: DirectoryContribution }> {
+  const staging = await mkdtemp(join(tmpdir(), "snshah-dir-"));
+  try {
+    const copy = join(staging, "profile.ts");
+    await writeFile(copy, await readFile(file), { mode: 0o600 });
+    const module: Record<string, unknown> = await import(
+      pathToFileURL(copy).href
+    );
+    for (const key of Object.keys(module))
+      if (!["selector", "config"].includes(key))
+        fail(key, "is not a directory-profile export (use selector, config)");
+    const selector = module.selector ?? { kind: "always" };
+    validateSelector(selector, "repo");
+    const config = module.config ?? {};
+    if (!isObject(config)) fail("config", "must be an object");
+    for (const key of Object.keys(config))
+      if (!dirAllowedKeys.includes(key))
+        fail(`config.${key}`, "is not allowed here (use aliases, env, path)");
+    validateConfig(config);
+    const base = dirname(file);
+    return {
+      selector,
+      config: {
+        ...(config.aliases ? { aliases: config.aliases } : {}),
+        ...(config.env ? { env: config.env } : {}),
+        ...(config.path
+          ? { path: config.path.map((p) => resolve(base, expandHome(ctx, p))) }
+          : {}),
+      },
+    };
+  } finally {
+    await rm(staging, { recursive: true, force: true });
+  }
+}
+
+/** The trusted files at `start` and above, merged: farthest first, nearest wins. */
+export async function effectiveDirProfile(
+  ctx: Context,
+  start: string,
+  options: { facts?: FactSource } = {},
+): Promise<DirEffective> {
+  const state = await readState(ctx);
+  const files: DirFile[] = [];
+  for (const file of dirProfileChain(start))
+    files.push(await dirFileStatus(ctx, file, state.trusted));
+  const facts = options.facts ?? factSource(ctx);
+  const out: DirEffective = {
+    files,
+    loaded: [],
+    source: {},
+    aliases: {},
+    env: {},
+    path: [],
+  };
+  for (const f of files) {
+    if (f.status.kind !== "trusted") continue;
+    const { selector, config } = await importDirProfile(ctx, f.file);
+    const matched = matches(selector, facts);
+    out.loaded.push({ file: f.file, matched, config });
+    if (!matched) continue;
+    for (const [k, v] of Object.entries(config.aliases ?? {})) {
+      out.aliases[k] = v;
+      out.source[`alias ${k}`] = f.file;
+    }
+    for (const [k, v] of Object.entries(config.env ?? {})) {
+      out.env[k] = v;
+      out.source[`env ${k}`] = f.file;
+    }
+    for (const dir of config.path ?? []) {
+      out.path = [dir, ...out.path.filter((p) => p !== dir)];
+      out.source[`path ${dir}`] = f.file;
+    }
+  }
+  return out;
+}
+
+/** Shell code that applies the effective profile through the hook's helpers. */
+export function renderDirProfile(
+  shell: Shell,
+  effective: DirEffective,
+): string {
+  if (shell === "pwsh")
+    throw new UsageError(
+      "Directory profiles are not available in PowerShell yet.",
+    );
+  const quote = shell === "fish" ? quoteFish : quotePosix;
+  const flavor = shell === "fish" ? "fish" : "posix";
+  const lines: string[] = [];
+  for (const [name, value] of Object.entries(effective.env))
+    lines.push(`__snshah_dir_env ${name} ${quote(value)}`);
+  for (const [name, value] of Object.entries(effective.aliases)) {
+    const text = aliasText(value, flavor);
+    if (text !== undefined)
+      lines.push(`__snshah_dir_alias ${name} ${quote(text)}`);
+  }
+  // The farthest entry goes in first, so the nearest ends up first on PATH.
+  for (const dir of [...effective.path].reverse())
+    lines.push(`__snshah_dir_path ${quote(dir)}`);
+  return lines.join("\n") + (lines.length ? "\n" : "");
+}
+
+/** What the prompt hook runs: print shell code on stdout, notices on stderr. Never fails a shell. */
+async function profileLoad(ctx: Context, shellName: string): Promise<number> {
+  const shell = member(shells, shellName) ? shellName : undefined;
+  if (!shell || shell === "pwsh") return 0;
+  try {
+    const starts = (ctx.env.SNSHAH_DIRFILES ?? "").split("\n").filter(Boolean);
+    const start = starts.length
+      ? dirname(starts[starts.length - 1]!)
+      : process.cwd();
+    const effective = await effectiveDirProfile(ctx, start);
+    const tty =
+      !!process.stderr.isTTY && !ctx.env.NO_COLOR && ctx.env.TERM !== "dumb";
+    const c = (code: string, t: string) =>
+      tty ? `\x1b[${code}m${t}\x1b[0m` : t;
+    for (const f of effective.files) {
+      const where = tilde(ctx, f.file);
+      switch (f.status.kind) {
+        case "trusted":
+          break;
+        case "untrusted":
+        case "changed":
+          process.stderr.write(
+            `${c("1;33", `🔒 snshah: ${where} ${f.status.kind === "changed" ? "changed since you trusted it" : "is not trusted yet"}.`)} ${c("36", "Read it, then run:")} ${c("1;32", "snshah profile allow")}\n`,
+          );
+          break;
+        case "blocked":
+          process.stderr.write(
+            `${c("1;31", `⛔ snshah: ${where} ignored: ${f.status.reason}.`)}\n`,
+          );
+          break;
+        default:
+          assertNever(f.status);
+      }
+    }
+    const used = effective.loaded.filter((l) => l.matched);
+    if (used.length) {
+      const n =
+        Object.keys(effective.aliases).length +
+        Object.keys(effective.env).length +
+        effective.path.length;
+      process.stderr.write(
+        `${c("2", `📂 snshah: ${used.map((l) => tilde(ctx, l.file)).join(", ")} (${n} setting${n === 1 ? "" : "s"}; snshah profile show)`)}\n`,
+      );
+    }
+    process.stdout.write(renderDirProfile(shell, effective));
+  } catch (error) {
+    process.stderr.write(
+      `snshah: directory profile skipped: ${(error as Error).message}\n`,
+    );
+  }
+  return 0;
+}
+
+const dirProfileScaffold = `// Per-directory snshah profile. snshah ignores it until you read it and run:
+//   snshah profile allow
+// Any edit makes it untrusted again. Keep it self-contained (type imports only).
+// It applies while your shell is in this directory or below, and is undone when you leave.
+
+// Optional: limit where it applies (platform, distro, has, env, all, any, not).
+export const selector = { kind: "always" };
+
+export const config = {
+  aliases: {
+    // t: "bun test",
+  },
+  env: {
+    // APP_ENV: "development",
+  },
+  path: [
+    // "node_modules/.bin", // relative to this directory
+  ],
+};
+`;
+
+async function profileInit(ctx: Context): Promise<void> {
+  const file = join(process.cwd(), dirProfileFile);
+  if (await exists(file))
+    return say(
+      `${tilde(ctx, file)} already exists. No changes needed.`,
+      "success",
+    );
+  await writeFile(file, dirProfileScaffold, { mode: 0o644 });
+  say(`Created ${tilde(ctx, file)}.`, "success");
+  console.log("Edit it, then trust it with:  snshah profile allow");
+}
+
+async function dirTarget(
+  ctx: Context,
+  fileArg: string | undefined,
+): Promise<string> {
+  if (fileArg) {
+    const file = resolve(process.cwd(), fileArg);
+    return file.endsWith(dirProfileFile) ||
+      !(await exists(join(file, dirProfileFile)))
+      ? file
+      : join(file, dirProfileFile);
+  }
+  const chain = dirProfileChain(process.cwd());
+  const nearest = chain.at(-1);
+  if (!nearest)
+    throw new UsageError(
+      `No ${dirProfileFile} in ${tilde(ctx, process.cwd())} or above. Create one with snshah profile init.`,
+    );
+  return nearest;
+}
+
+async function profileAllow(
+  ctx: Context,
+  fileArg: string | undefined,
+  options: { yes?: boolean },
+): Promise<void> {
+  const file = await dirTarget(ctx, fileArg);
+  const entry = await dirFileStatus(ctx, file, undefined);
+  if (entry.status.kind === "blocked")
+    throw new UsageError(`${tilde(ctx, file)}: ${entry.status.reason}.`);
+  const state = await readState(ctx);
+  const real = await realpath(file);
+  if (state.trusted?.[real] === entry.status.hash)
+    return say(
+      `${tilde(ctx, file)} is already trusted. No changes needed.`,
+      "success",
+    );
+  console.log(
+    paint(
+      "cyan",
+      `This is ${tilde(ctx, file)}. It will run as code in snshah, and set what is below while you are in its directory:`,
+    ),
+  );
+  console.log("");
+  console.log((await readText(file)) ?? "");
+  if (!options.yes) {
+    if (!process.stdin.isTTY)
+      throw new UsageError(
+        "Read the file above, then re-run with --yes to trust it.",
+      );
+    const clack = await prompts();
+    const ok = await clack.confirm({ message: "Trust this file?" });
+    if (clack.isCancel(ok) || !ok) throw new UsageError("Nothing was changed.");
+  }
+  const hash = entry.status.hash;
+  await patchState(ctx, (st) => ({
+    ...st,
+    trusted: { ...st.trusted, [real]: hash },
+  }));
+  say(
+    `Trusted ${tilde(ctx, file)}. Any edit makes it untrusted again.`,
+    "success",
+  );
+}
+
+async function profileDeny(
+  ctx: Context,
+  fileArg: string | undefined,
+): Promise<void> {
+  const file = await dirTarget(ctx, fileArg);
+  const real = await realpath(file).catch(() => file);
+  const state = await readState(ctx);
+  if (state.trusted?.[real] === undefined)
+    return say(
+      `${tilde(ctx, file)} is not trusted. No changes needed.`,
+      "success",
+    );
+  await patchState(ctx, (st) => {
+    const { [real]: _gone, ...rest } = st.trusted ?? {};
+    return { ...st, trusted: rest };
+  });
+  say(`No longer trusting ${tilde(ctx, file)}.`, "success");
+}
+
+async function profileList(ctx: Context, json: boolean): Promise<void> {
+  const state = await readState(ctx);
+  const files: DirFile[] = [];
+  for (const file of dirProfileChain(process.cwd()))
+    files.push(await dirFileStatus(ctx, file, state.trusted));
+  if (json) return console.log(JSON.stringify(files, null, 2));
+  if (!files.length)
+    return say(
+      `No ${dirProfileFile} in ${tilde(ctx, process.cwd())} or above. Create one with snshah profile init.`,
+      "pending",
+    );
+  const detail: Record<DirStatus["kind"], string> = {
+    trusted: "trusted",
+    untrusted: "not trusted yet (read it, then snshah profile allow)",
+    changed: "changed since you trusted it (snshah profile allow)",
+    blocked: "ignored",
+  };
+  printChecks(
+    files.map((f) => ({
+      check: tilde(ctx, f.file),
+      status:
+        f.status.kind === "trusted"
+          ? ("ok" as const)
+          : f.status.kind === "blocked"
+            ? ("missing" as const)
+            : ("warn" as const),
+      detail:
+        f.status.kind === "blocked"
+          ? `ignored: ${f.status.reason}`
+          : detail[f.status.kind],
+    })),
+  );
+}
+
+async function profileShow(ctx: Context, json: boolean): Promise<void> {
+  const e = await effectiveDirProfile(ctx, process.cwd());
+  if (json)
+    return console.log(
+      JSON.stringify(
+        {
+          files: e.files,
+          aliases: e.aliases,
+          env: e.env,
+          path: e.path,
+          source: e.source,
+        },
+        null,
+        2,
+      ),
+    );
+  const rows: Check[] = [];
+  for (const [k, v] of Object.entries(e.aliases))
+    rows.push({
+      check: `alias ${k}`,
+      status: "ok",
+      detail: `${aliasText(v, "posix") ?? aliasText(v, "pwsh") ?? ""}  (${tilde(ctx, e.source[`alias ${k}`]!)})`,
+    });
+  for (const [k, v] of Object.entries(e.env))
+    rows.push({
+      check: `env ${k}`,
+      status: "ok",
+      detail: `${v}  (${tilde(ctx, e.source[`env ${k}`]!)})`,
+    });
+  for (const dir of e.path)
+    rows.push({
+      check: "path",
+      status: "ok",
+      detail: `${tilde(ctx, dir)}  (${tilde(ctx, e.source[`path ${dir}`]!)})`,
+    });
+  if (!rows.length) {
+    const waiting = e.files.filter((f) => f.status.kind !== "trusted").length;
+    return say(
+      waiting
+        ? `Nothing applies yet: ${waiting} file(s) wait for snshah profile allow.`
+        : `Nothing applies here. Create ${dirProfileFile} with snshah profile init.`,
+      "pending",
+    );
+  }
+  printChecks(rows);
+}
+
+async function profileWhy(ctx: Context, name: string): Promise<void> {
+  const e = await effectiveDirProfile(ctx, process.cwd());
+  const hits = Object.keys(e.source).filter(
+    (k) => k.endsWith(` ${name}`) || k === name,
+  );
+  if (!hits.length)
+    throw new UsageError(`${name} is not set by a directory profile here.`);
+  for (const k of hits)
+    say(`${k} comes from ${tilde(ctx, e.source[k]!)}`, "success");
+}
+
+async function profileCheck(
+  ctx: Context,
+  fileArg: string | undefined,
+): Promise<void> {
+  const file = await dirTarget(ctx, fileArg);
+  const state = await readState(ctx);
+  const entry = await dirFileStatus(ctx, file, state.trusted);
+  if (entry.status.kind === "blocked")
+    throw new UsageError(`${tilde(ctx, file)}: ${entry.status.reason}.`);
+  if (entry.status.kind !== "trusted")
+    throw new UsageError(
+      `${tilde(ctx, file)} is not trusted, and checking it would run it. Read it, then run snshah profile allow.`,
+    );
+  const { config } = await importDirProfile(ctx, file);
+  const n =
+    Object.keys(config.aliases ?? {}).length +
+    Object.keys(config.env ?? {}).length +
+    (config.path?.length ?? 0);
+  say(
+    `${tilde(ctx, file)} is valid (${n} setting${n === 1 ? "" : "s"}).`,
+    "success",
+  );
+}
+
+// ---------------------------------------------------------------------------
 // ux fonts: does the viewer's terminal have a Nerd Font? Terminals can't say,
 // so: your word first, what a client sends over SSH, then local evidence.
 // ---------------------------------------------------------------------------
@@ -5924,7 +6566,11 @@ function printSteps(ctx: Context, steps: readonly Step[], json: boolean): void {
 type CommanderCommand = {
   name(): string;
   commands: CommanderCommand[];
-  command(name: string, opts?: { isDefault?: boolean }): CommanderCommand;
+  command(
+    name: string,
+    opts?: { isDefault?: boolean; hidden?: boolean },
+  ): CommanderCommand;
+  alias(name: string): CommanderCommand;
   description(text: string): CommanderCommand;
   option(
     flags: string,
@@ -6392,6 +7038,59 @@ export async function buildCli(ctx: Context): Promise<CommanderCommand> {
     .argument("<alias>", "short name")
     .action(async (alias: string) => sshHostRemove(ctx, alias));
 
+  const profile = program
+    .command("profile")
+    .description(
+      `Per-directory profiles: ${dirProfileFile} files that set aliases, env and PATH while you are inside`,
+    );
+  profile
+    .command("list", { isDefault: true })
+    .description(
+      "The profile files that apply here, and whether you trust them",
+    )
+    .option("--json", "print JSON")
+    .action(async (o: { json?: boolean }) => profileList(ctx, !!o.json));
+  profile
+    .command("show")
+    .description("What the trusted files set here, and which file set it")
+    .option("--json", "print JSON")
+    .action(async (o: { json?: boolean }) => profileShow(ctx, !!o.json));
+  profile
+    .command("allow")
+    .alias("safe")
+    .description("Read a profile file, then trust it (any edit un-trusts it)")
+    .argument("[file]", "the file or its directory; default the nearest")
+    .option("-y, --yes", "trust without asking (read it first)")
+    .action(async (file: string | undefined, o: { yes?: boolean }) =>
+      profileAllow(ctx, file, o),
+    );
+  profile
+    .command("deny")
+    .description("Stop trusting a profile file")
+    .argument("[file]", "the file or its directory; default the nearest")
+    .action(async (file: string | undefined) => profileDeny(ctx, file));
+  profile
+    .command("init")
+    .description(`Create a ${dirProfileFile} here (never overwrites)`)
+    .action(async () => profileInit(ctx));
+  profile
+    .command("check")
+    .description("Validate a trusted profile file")
+    .argument("[file]", "the file or its directory; default the nearest")
+    .action(async (file: string | undefined) => profileCheck(ctx, file));
+  profile
+    .command("why")
+    .description("Which file sets an alias, variable or PATH entry here")
+    .argument("<name>", "alias, variable or directory")
+    .action(async (name: string) => profileWhy(ctx, name));
+  profile
+    .command("load", { hidden: true })
+    .description("Internal: what the shell hook evaluates")
+    .option("--shell <shell>", "bash, zsh or fish")
+    .action(async (o: { shell?: string }) => {
+      await profileLoad(ctx, o.shell ?? "");
+    });
+
   const ux = program
     .command("ux")
     .description("Terminal comforts: what your terminal can show");
@@ -6500,6 +7199,13 @@ export async function main(argv: string[]): Promise<number> {
       if (argv[2] === "--greet") await greet(ctx, config);
       return 0;
     }
+    if (
+      argv[0] === "profile" &&
+      argv[1] === "load" &&
+      argv[2] === "--shell" &&
+      argv.length === 4
+    )
+      return await profileLoad(ctx, argv[3]!);
     if (argv[0] === "exec") return await execWithSecrets(ctx, argv.slice(1));
     if (!versionAtLeast(Bun.version, minimumBun))
       throw new Error(

@@ -101,6 +101,15 @@ This is not an implementation plan.
 - Q: How does the owner answer? → A: `snshah ux fonts installed` (and
   `missing`, `reset`), kept in the typed `state.json`.
 
+### Session 2026-11-27 (eza and directory profiles)
+
+- Q: `exa`? → A: `eza`, its maintained fork, is a default tool; `exa` is an
+  alias for it. `tree`, `ls`, `ll` and `la` use it with colors and icons.
+  Icons follow `snshah ux fonts` (dropped when fonts are `missing`).
+- Q: Per-directory aliases and overrides? → A: `.snshah.path.ts` files,
+  applied while the shell is in that directory, only after `snshah profile
+allow` (the owner suggested `safe`, kept as an alias).
+
 ## Primary scenario
 
 Shahid sits down at a new or rebuilt machine (any Linux, WSL, a Mac, or a
@@ -298,6 +307,27 @@ run changes nothing.
   yet) the CLI MUST print the exact command for the user's shell and say that
   logging out and in also works.
 
+### eza and directory profiles
+
+- **FR-037**: `eza` MUST be a default tool. When it is on PATH, `ls`, `ll`,
+  `la`, `tree` and `exa` MUST use it with colors, git status and
+  directory grouping, with icons unless the owner said fonts are missing; an
+  alias the owner set in `aliases` MUST NOT be replaced.
+- **FR-038**: The config MUST accept plain `env` variables (never secrets).
+- **FR-039**: In bash, zsh and fish, a prompt hook MUST find
+  `.snshah.path.ts` files in the current directory and its parents, and only
+  when that list changes ask `snshah profile load` for the trusted ones. The
+  profile MUST set only aliases, env and PATH (relative PATH entries resolved
+  against the file's directory), the nearest file winning, and leaving the
+  directory MUST restore what it replaced.
+- **FR-040**: A profile file MUST NOT run until the owner trusts it:
+  `snshah profile allow` shows the file, then records a SHA-256 of its content
+  in `state.json`; any edit makes it untrusted again; the bytes that were
+  hashed are the bytes that run; symlinked files are ignored. An untrusted
+  file MUST cost the shell only a one-line notice.
+- **FR-041**: `snshah profile list|show|allow|deny|init|check|why` MUST be
+  idempotent, and `profile init` MUST never overwrite.
+
 ### Model of record
 
 - **FR-017**: `ontology/workshop.ttl` MUST state the Workshop's version,
@@ -350,22 +380,23 @@ run changes nothing.
 
 ## Traceability
 
-| Requirement | Source |
-| --- | --- |
-| FR-001, FR-002 | Shahid N. Shah, direct statement, 2026-11-27 (repository is public; config never in the repo) |
-| FR-003 | Shahid N. Shah, direct statement, 2026-11-27 ("detect and advise only") |
-| FR-004 to FR-006 | Shahid N. Shah, direct statement, 2026-11-27 ("make sure everything you do is idempotent") |
-| FR-007, FR-008 | Shahid N. Shah, direct statements, 2026-11-27 (platforms; Bun 1.4+) |
-| FR-009 | Shahid N. Shah, direct statement, 2026-11-27 ("be strict `$XDG`") |
-| FR-010 to FR-012 | Shahid N. Shah, direct statements, 2026-11-27 (`shell` emit; bash, zsh, fish, pwsh; Oh My Posh) |
-| FR-013 | Shahid N. Shah, direct statement, 2026-11-27 (secrets clarification) |
-| FR-014 | Shahid N. Shah, direct statement, 2026-11-27 (`$WORKSPACES_HOME`) |
-| FR-015, FR-016 | Shahid N. Shah, direct statements, 2026-11-27 (keep agent defaults; add `snshah update`) |
-| FR-017 | Shahid N. Shah, direct statement, 2026-11-27 (add an ontology to this repository) |
-| FR-018, FR-019, FR-021 | Shahid N. Shah, direct statement, 2026-11-27 (profile.d, type-safe merge, command hooks with env passthrough) |
-| FR-020, FR-022 | Shahid N. Shah, direct statement, 2026-11-27 (environment selectors first, fingerprint when needed, hostnames allowed); private-only rule proposed by Claude |
-| FR-023 | Shahid N. Shah, decision, 2026-11-27 ("Yes, pinned and checksummed") |
-| FR-036 | Shahid N. Shah, direct statement, 2026-11-27 (`snshah update` should re-source the profile, or explain how) |
-| FR-033 to FR-035 | Shahid N. Shah, direct statement, 2026-11-27 (Nerd Fonts in Windows Terminal; `snshah ux fonts`) |
-| FR-027 to FR-032 | Shahid N. Shah, direct statements, 2026-11-27 (mise, tools, GitHub sign-in, `snshah ssh`) |
-| FR-024 to FR-026 | Shahid N. Shah, direct statements, 2026-11-27 (Debian 13 acceptance run) |
+| Requirement            | Source                                                                                                                                                       |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| FR-001, FR-002         | Shahid N. Shah, direct statement, 2026-11-27 (repository is public; config never in the repo)                                                                |
+| FR-003                 | Shahid N. Shah, direct statement, 2026-11-27 ("detect and advise only")                                                                                      |
+| FR-004 to FR-006       | Shahid N. Shah, direct statement, 2026-11-27 ("make sure everything you do is idempotent")                                                                   |
+| FR-007, FR-008         | Shahid N. Shah, direct statements, 2026-11-27 (platforms; Bun 1.4+)                                                                                          |
+| FR-009                 | Shahid N. Shah, direct statement, 2026-11-27 ("be strict `$XDG`")                                                                                            |
+| FR-010 to FR-012       | Shahid N. Shah, direct statements, 2026-11-27 (`shell` emit; bash, zsh, fish, pwsh; Oh My Posh)                                                              |
+| FR-013                 | Shahid N. Shah, direct statement, 2026-11-27 (secrets clarification)                                                                                         |
+| FR-014                 | Shahid N. Shah, direct statement, 2026-11-27 (`$WORKSPACES_HOME`)                                                                                            |
+| FR-015, FR-016         | Shahid N. Shah, direct statements, 2026-11-27 (keep agent defaults; add `snshah update`)                                                                     |
+| FR-017                 | Shahid N. Shah, direct statement, 2026-11-27 (add an ontology to this repository)                                                                            |
+| FR-018, FR-019, FR-021 | Shahid N. Shah, direct statement, 2026-11-27 (profile.d, type-safe merge, command hooks with env passthrough)                                                |
+| FR-020, FR-022         | Shahid N. Shah, direct statement, 2026-11-27 (environment selectors first, fingerprint when needed, hostnames allowed); private-only rule proposed by Claude |
+| FR-023                 | Shahid N. Shah, decision, 2026-11-27 ("Yes, pinned and checksummed")                                                                                         |
+| FR-037 to FR-041       | Shahid N. Shah, direct statement, 2026-11-27 (`exa` by default with `tree`; `.snshah.path.ts` per-directory profiles; `snshah profile safe`)                 |
+| FR-036                 | Shahid N. Shah, direct statement, 2026-11-27 (`snshah update` should re-source the profile, or explain how)                                                  |
+| FR-033 to FR-035       | Shahid N. Shah, direct statement, 2026-11-27 (Nerd Fonts in Windows Terminal; `snshah ux fonts`)                                                             |
+| FR-027 to FR-032       | Shahid N. Shah, direct statements, 2026-11-27 (mise, tools, GitHub sign-in, `snshah ssh`)                                                                    |
+| FR-024 to FR-026       | Shahid N. Shah, direct statements, 2026-11-27 (Debian 13 acceptance run)                                                                                     |

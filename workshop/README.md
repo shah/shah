@@ -80,8 +80,8 @@ installs mise if it is missing, writes the tool list to
 `$XDG_CONFIG_HOME/mise/conf.d/snshah.toml` (your own `config.toml` wins), and
 runs `mise install`. It fails loudly if a tool is still missing.
 
-Default tools: `gh`, `ripgrep`, `fd`, `bat`, `fzf`, `jq`, `yq`, `delta` and
-`direnv`. `snshah shell` activates mise and hooks direnv, so a `.envrc` in
+Default tools: `gh`, `ripgrep`, `fd`, `bat`, `fzf`, `jq`, `yq`, `delta`,
+`direnv` and `eza`. `snshah shell` activates mise and hooks direnv, so a `.envrc` in
 a project just works (`direnv allow` once). Change it in your private config:
 
 ```ts
@@ -94,6 +94,15 @@ export default {
 `bwrap` and `socat` (needed by Claude Code's sandbox) are system packages, so
 `snshah doctor` advises them for your distribution instead. mise and direnv
 are not yet tested on native Windows.
+
+### `eza`: `ls` and `tree` with colors and icons
+
+`eza` is the maintained fork of `exa`, so `exa` is an alias for it. When it is
+installed, `ls`, `ll`, `la` and `tree` use it with colors, git status, folders
+first and icons (`tree` skips what `.gitignore` skips; add `-L 2` to limit the
+depth). Icons need a [Nerd Font](#prompt-icons-nerd-fonts): say
+`snshah ux fonts missing` and they drop out. An alias you set yourself in
+`aliases` is never replaced, and `tools: { eza: false }` turns it all off.
 
 ### GitHub sign-in
 
@@ -224,6 +233,39 @@ export const hooks = [
 - `snshah whoami` prints the facts selectors match against.
   `snshah plan --explain` shows which profiles match and which layer set
   each value. `snshah plan --as facts.json` plans as if on another machine.
+
+## Per-directory profiles: `.snshah.path.ts`
+
+Drop a `.snshah.path.ts` in a project (or any directory) to set aliases,
+environment variables and PATH entries **while your shell is in that
+directory or below**. Leaving puts back what it replaced. Nearer files beat
+farther ones.
+
+```ts
+export const selector = { kind: "always" }; // optional: platform, distro, has, env, all, any, not
+export const config = {
+  aliases: { t: "bun test" },
+  env: { APP_ENV: "development" },
+  path: ["node_modules/.bin"], // relative to this file's directory
+};
+```
+
+It is code, so snshah ignores it until you trust it, as direnv does:
+
+| Command                                         | What it does                                                  |
+| ----------------------------------------------- | ------------------------------------------------------------- |
+| `snshah profile init`                           | Create a starter file here (never overwrites).                |
+| `snshah profile list`                           | The files that apply here, and whether each is trusted.       |
+| `snshah profile allow` (alias `safe`) `[--yes]` | Show the file, then trust its SHA-256. Any edit un-trusts it. |
+| `snshah profile deny`                           | Stop trusting it.                                             |
+| `snshah profile show` / `why <name>`            | What applies here, and which file set it.                     |
+| `snshah profile check`                          | Validate a trusted file.                                      |
+
+Untrusted or changed files cost your shell one notice line and nothing else.
+A file may set only `aliases`, `env` and `path`, no commands or secrets, and
+must be self-contained (type imports only). Works in bash, zsh and fish;
+PowerShell does not load them yet (`snshah profile list` still works there).
+The hook looks for the file once per directory change, so it is cheap.
 
 ## Private config
 

@@ -164,6 +164,10 @@ const mise = values(toolkit, `${WS}installs`).find(
 );
 if (!mise || one(mise, `${WS}pinnedVersion`) !== ws.miseRelease.version)
   problems.push(`mise: ontology vs snshah.ts ${ws.miseRelease.version}`);
+if (one(toolkit, `${WS}directoryProfileFile`) !== ws.dirProfileFile)
+  problems.push(
+    `directoryProfileFile: ontology vs snshah.ts ${ws.dirProfileFile}`,
+  );
 same(
   "default tools",
   values(toolkit, `${WS}defaultTool`),
