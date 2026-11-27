@@ -4,13 +4,13 @@
 #   curl -fsSL https://raw.githubusercontent.com/shah/shah/main/workshop/bootstrap.sh | sh
 #   sh workshop/bootstrap.sh              # from a checkout of github.com/shah/shah
 #
-# Safe to re-run. It makes sure Bun 1.4+ is present (a pinned release,
-# checked by SHA-256, installed under ~/.bun without sudo), pins one
-# shah/shah commit, clones shah/shah into $WORKSPACES_HOME (when git is
-# present), and runs `snshah apply`. A second run reports "No changes
+# Safe to re-run. It needs git (it stops with the install command when git
+# is missing), makes sure Bun 1.4+ is present (a pinned release, checked by
+# SHA-256, installed under ~/.bun without sudo), clones shah/shah to
+# $WORKSPACES_HOME/github.com/shah/shah (or fast-forwards it), and runs
+# `snshah apply` from that checkout. A second run reports "No changes
 # needed." Set SNSHAH_REF to a branch, tag or commit to try something other
-# than main, or SNSHAH_CLONE=0 to skip the checkout. Arguments are passed to
-# `snshah apply`.
+# than main. Arguments are passed to `snshah apply`.
 set -eu
 
 BUN_VERSION=1.4.4
@@ -157,74 +157,70 @@ ensure_bun() {
   say "installed Bun $("$BUN" --version) at $BUN"
 }
 
-resolve_revision() { # REF -> 40-hex commit
-  case $1 in
-    [0-9a-f]*) if [ "${#1}" -eq 40 ] && ! printf '%s' "$1" | grep -q '[^0-9a-f]'; then printf '%s\n' "$1"; return 0; fi ;;
-  esac
-  sha=
-  if have git; then
-    sha=$(git ls-remote "https://github.com/$OWNER/$REPO.git" "refs/heads/$1" "refs/tags/$1" 2>/dev/null | head -n 1 | cut -f1)
+workspaces_root() { # $WORKSPACES_HOME, else ~/Work on Omarchy, else ~/workspaces
+  if [ -n "${WORKSPACES_HOME-}" ]; then printf '%s\n' "$WORKSPACES_HOME"; return; fi
+  if have omarchy || [ -d "$(xdg XDG_DATA_HOME .local/share)/omarchy" ]; then
+    printf '%s/Work\n' "$home"
+  else
+    printf '%s/workspaces\n' "$home"
   fi
-  if [ -z "$sha" ]; then
-    answer=$(mktemp "${TMPDIR:-/tmp}/snshah-ref-XXXXXX")
-    fetch "https://api.github.com/repos/$OWNER/$REPO/commits/$1" "$answer" "Accept: application/vnd.github.sha" || true
-    sha=$(cat "$answer" 2>/dev/null || true)
-    rm -f "$answer"
-  fi
-  case $sha in
-    '' | *[!0-9a-f]*) die "could not resolve $OWNER/$REPO@$1" ;;
-  esac
-  [ "${#sha}" -eq 40 ] || die "could not resolve $OWNER/$REPO@$1"
-  printf '%s\n' "$sha"
 }
 
-clone_self() { # SNSHAH_TS -> checkout path of this repository, or nothing
-  [ "${SNSHAH_CLONE:-1}" != 0 ] && have git || return 0
-  if ! "$BUN" --no-env-file "$1" git clone "$REPO" >&2; then
-    say "could not clone $OWNER/$REPO into the workspaces root; continuing without it"
+ensure_git() {
+  have git && return 0
+  if [ "$(uname -s)" = Darwin ]; then
+    die "needs git. Install it with: xcode-select --install, then re-run"
+  fi
+  die "needs git. Install it with: $(install_hint git), then re-run"
+}
+
+ensure_checkout() { # -> sets CHECKOUT to a clone of shah/shah, fast-forwarded
+  url=${SNSHAH_URL:-https://github.com/$OWNER/$REPO.git}
+  ref=${SNSHAH_REF:-}
+  CHECKOUT=$(workspaces_root)/github.com/$OWNER/$REPO
+  if [ ! -e "$CHECKOUT" ]; then
+    mkdir -p "$(dirname "$CHECKOUT")"
+    say "cloning $OWNER/$REPO into $CHECKOUT"
+    git clone --quiet "$url" "$CHECKOUT" || die "could not clone $url"
+  else
+    [ -d "$CHECKOUT/.git" ] || die "$CHECKOUT exists but is not a git checkout; move it away and re-run"
+    origin=$(git -C "$CHECKOUT" remote get-url origin 2>/dev/null || true)
+    case $origin in
+      "$url" | */"$OWNER/$REPO" | */"$OWNER/$REPO.git" | *:"$OWNER/$REPO" | *:"$OWNER/$REPO.git") ;;
+      *) die "$CHECKOUT is a checkout of something other than $OWNER/$REPO; move it away and re-run" ;;
+    esac
+  fi
+  if [ -n "$ref" ]; then
+    git -C "$CHECKOUT" fetch --quiet origin "$ref" || die "could not fetch $ref from $url"
+    git -C "$CHECKOUT" checkout --quiet --detach FETCH_HEAD
     return 0
   fi
-  "$BUN" --no-env-file "$1" git path "$REPO" 2>/dev/null || true
+  # No ref asked for: follow main, but never disturb work in progress.
+  branch=$(git -C "$CHECKOUT" symbolic-ref --quiet --short HEAD 2>/dev/null || true)
+  if [ "$branch" != main ]; then
+    say "$CHECKOUT is not on main (${branch:-detached}); using it as it is"
+  elif [ -n "$(git -C "$CHECKOUT" status --porcelain)" ]; then
+    say "$CHECKOUT has local changes; using it as it is"
+  else
+    git -C "$CHECKOUT" fetch --quiet origin main || die "could not fetch main from $url"
+    git -C "$CHECKOUT" merge --quiet --ff-only FETCH_HEAD ||
+      say "$CHECKOUT has diverged from origin/main; using it as it is"
+  fi
 }
 
 main() {
+  ensure_git
   ensure_bun
   # From a checkout: run the snshah.ts next to this file.
   if [ -f "$0" ]; then
     here=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
     if [ -f "$here/snshah.ts" ]; then
-      "$BUN" --no-env-file "$here/snshah.ts" apply --yes "$@"
-      clone_self "$here/snshah.ts" >/dev/null
-      return 0
+      exec "$BUN" --no-env-file "$here/snshah.ts" apply --yes "$@"
     fi
   fi
-  # Piped from the network: fetch exactly one commit, cached by its hash.
-  have tar || die "needs tar"
-  ref=${SNSHAH_REF:-main}
-  revision=$(resolve_revision "$ref")
-  mkdir -p "$cache_dir"
-  archive=$cache_dir/$REPO-$revision.tar.gz
-  if [ ! -s "$archive" ]; then
-    say "downloading $OWNER/$REPO@$(printf '%.12s' "$revision")"
-    fetch "https://codeload.github.com/$OWNER/$REPO/tar.gz/$revision" "$archive.part"
-    mv -f "$archive.part" "$archive"
-  fi
-  scratch=$(mktemp -d "${TMPDIR:-/tmp}/snshah-src-XXXXXX")
-  trap 'rm -rf -- "$scratch"' EXIT INT TERM
-  if ! tar -xzf "$archive" -C "$scratch" "$REPO-$revision/$DIRECTORY"; then
-    rm -f "$archive"
-    die "could not unpack the download; removed it from the cache, re-run to try again"
-  fi
-  snshah_ts=$scratch/$REPO-$revision/$DIRECTORY/snshah.ts
-  # Install from the shah/shah checkout in $WORKSPACES_HOME when it is at
-  # exactly this commit and clean; otherwise from the verified download.
-  checkout=$(clone_self "$snshah_ts")
-  if [ -n "$checkout" ] && [ -f "$checkout/$DIRECTORY/snshah.ts" ] &&
-    [ "$(git -C "$checkout" rev-parse HEAD 2>/dev/null)" = "$revision" ] &&
-    [ -z "$(git -C "$checkout" status --porcelain 2>/dev/null)" ]; then
-    snshah_ts=$checkout/$DIRECTORY/snshah.ts
-  fi
-  "$BUN" --no-env-file "$snshah_ts" apply --yes --revision "$revision" "$@"
+  # Piped from the network: the checkout is the source.
+  ensure_checkout
+  exec "$BUN" --no-env-file "$CHECKOUT/$DIRECTORY/snshah.ts" apply --yes "$@"
 }
 
 main "$@"

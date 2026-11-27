@@ -3,14 +3,14 @@
 #   irm https://raw.githubusercontent.com/shah/shah/main/workshop/bootstrap.ps1 | iex
 #   .\workshop\bootstrap.ps1             # from a checkout of github.com/shah/shah
 #
-# Safe to re-run. It makes sure Bun 1.4+ is present (a pinned release,
-# checked by SHA-256, installed under ~\.bun without admin rights), adds
-# ~\.bun\bin and ~\.local\bin to your user PATH once, pins one shah/shah
-# commit, clones shah/shah into $env:WORKSPACES_HOME (when git is present),
-# and runs `snshah apply`. A second run reports "No changes needed." Set
-# $env:SNSHAH_REF to a branch, tag or commit to try something other than
-# main, or $env:SNSHAH_CLONE = '0' to skip the checkout. Arguments are passed
-# to `snshah apply`.
+# Safe to re-run. It needs git (it stops with the winget command when git is
+# missing), makes sure Bun 1.4+ is present (a pinned release, checked by
+# SHA-256, installed under ~\.bun without admin rights), adds ~\.bun\bin and
+# ~\.local\bin to your user PATH once, clones shah/shah to
+# $env:WORKSPACES_HOME\github.com\shah\shah (default ~\workspaces), or
+# fast-forwards it, and runs `snshah apply` from that checkout. A second run
+# reports "No changes needed." Set $env:SNSHAH_REF to a branch, tag or commit
+# to try something other than main. Arguments are passed to `snshah apply`.
 #
 # Everything runs inside one script block, so `irm | iex` never changes your
 # session's strict mode or error preference, and never exits your shell.
@@ -121,25 +121,58 @@
     }
   }
 
-  function Resolve-Revision([string]$Ref) {
-    if ($Ref -match '^[0-9a-f]{40}$') { return $Ref }
-    if (Get-Command git -ErrorAction SilentlyContinue) {
-      $line = & git ls-remote "https://github.com/$Owner/$Repo.git" "refs/heads/$Ref" "refs/tags/$Ref" 2>$null | Select-Object -First 1
-      if ($line -and ($line -split '\s+')[0] -match '^[0-9a-f]{40}$') { return ($line -split '\s+')[0] }
-    }
-    $sha = (Invoke-RestMethod -UseBasicParsing -Uri "https://api.github.com/repos/$Owner/$Repo/commits/$Ref" -Headers @{ Accept = 'application/vnd.github.sha'; 'User-Agent' = 'snshah' } | Out-String).Trim()
-    if ($sha -notmatch '^[0-9a-f]{40}$') { throw "Could not resolve $Owner/$Repo@$Ref." }
-    return $sha
+  function Invoke-Git {
+    # Native stderr must not become a terminating error under -Stop (Windows PowerShell 5.1).
+    $saved = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+    try { $out = & git @args 2>&1 | ForEach-Object { "$_" } } finally { $ErrorActionPreference = $saved }
+    $script:GitOutput = ($out | Out-String).Trim()
+    return ($LASTEXITCODE -eq 0)
   }
 
-  # Clone this repository into the workspaces root; returns its path or $null.
-  function Clone-Self([string] $Script) {
-    if ($env:SNSHAH_CLONE -eq '0' -or -not (Get-Command git -ErrorAction SilentlyContinue)) { return $null }
-    & $bun --no-env-file $Script git clone $Repo | ForEach-Object { [Console]::Error.WriteLine($_) }
-    if ($LASTEXITCODE -ne 0) { Say "could not clone $Owner/$Repo into the workspaces root; continuing without it"; return $null }
-    $path = & $bun --no-env-file $Script git path $Repo 2>$null
-    if ($LASTEXITCODE -eq 0 -and $path) { return ($path | Select-Object -Last 1).Trim() }
-    return $null
+  function Get-WorkspacesRoot {
+    if ($env:WORKSPACES_HOME) { return $env:WORKSPACES_HOME }
+    $omarchy = Join-Path (Get-XdgBase 'XDG_DATA_HOME' '.local/share') 'omarchy'
+    if (-not $OnWindows -and ((Get-Command omarchy -ErrorAction SilentlyContinue) -or (Test-Path -LiteralPath $omarchy))) { return (Join-Path $HomeDir 'Work') }
+    return (Join-Path $HomeDir 'workspaces')
+  }
+
+  # Clone shah/shah into the workspaces root, or fast-forward it; returns its path.
+  function Update-Checkout {
+    $url = if ($env:SNSHAH_URL) { $env:SNSHAH_URL } else { "https://github.com/$Owner/$Repo.git" }
+    $ref = $env:SNSHAH_REF
+    $checkout = Join-Path (Join-Path (Join-Path (Get-WorkspacesRoot) 'github.com') $Owner) $Repo
+    if (-not (Test-Path -LiteralPath $checkout)) {
+      New-Item -ItemType Directory -Force -Path (Split-Path -Parent $checkout) | Out-Null
+      Say "cloning $Owner/$Repo into $checkout"
+      if (-not (Invoke-Git clone --quiet $url $checkout)) { throw "Could not clone ${url}: $GitOutput" }
+    } else {
+      if (-not (Test-Path -LiteralPath (Join-Path $checkout '.git'))) { throw "$checkout exists but is not a git checkout; move it away and re-run." }
+      $null = Invoke-Git -C $checkout remote get-url origin
+      $origin = $GitOutput
+      if ($origin -ne $url -and $origin -notmatch "[/:]$Owner/$Repo(\.git)?$") { throw "$checkout is a checkout of something other than $Owner/$Repo; move it away and re-run." }
+    }
+    if ($ref) {
+      if (-not (Invoke-Git -C $checkout fetch --quiet origin $ref)) { throw "Could not fetch $ref from ${url}: $GitOutput" }
+      if (-not (Invoke-Git -C $checkout checkout --quiet --detach FETCH_HEAD)) { throw "Could not check out ${ref}: $GitOutput" }
+      return $checkout
+    }
+    # No ref asked for: follow main, but never disturb work in progress.
+    $null = Invoke-Git -C $checkout symbolic-ref --quiet --short HEAD
+    $branch = $GitOutput
+    $null = Invoke-Git -C $checkout status --porcelain
+    $dirty = $GitOutput
+    if ($branch -ne 'main') { Say "$checkout is not on main ($(if ($branch) { $branch } else { 'detached' })); using it as it is" }
+    elseif ($dirty) { Say "$checkout has local changes; using it as it is" }
+    else {
+      if (-not (Invoke-Git -C $checkout fetch --quiet origin main)) { throw "Could not fetch main from ${url}: $GitOutput" }
+      if (-not (Invoke-Git -C $checkout merge --quiet --ff-only FETCH_HEAD)) { Say "$checkout has diverged from origin/main; using it as it is" }
+    }
+    return $checkout
+  }
+
+  if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+    $hint = if ($OnWindows) { 'winget install --id Git.Git -e' } elseif ($IsMacOS) { 'xcode-select --install' } else { 'your package manager (package git)' }
+    throw "snshah bootstrap needs git. Install it with: $hint, then re-run."
   }
 
   $bun = Install-Bun
@@ -148,38 +181,10 @@
 
   $here = if ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { $null }
   if ($here -and (Test-Path -LiteralPath (Join-Path $here 'snshah.ts'))) {
-    & $bun --no-env-file (Join-Path $here 'snshah.ts') apply --yes @args
-    if ($LASTEXITCODE -ne 0) { throw "snshah apply failed (exit $LASTEXITCODE)." }
-    $null = Clone-Self (Join-Path $here 'snshah.ts')
-    $global:LASTEXITCODE = 0
+    $script = Join-Path $here 'snshah.ts'
   } else {
-    if (-not (Get-Command tar -ErrorAction SilentlyContinue)) { throw 'tar is missing (it ships with Windows 10 and later).' }
-    $ref = if ($env:SNSHAH_REF) { $env:SNSHAH_REF } else { 'main' }
-    $revision = Resolve-Revision $ref
-    New-Item -ItemType Directory -Force -Path $CacheDir | Out-Null
-    $archive = Join-Path $CacheDir "$Repo-$revision.tar.gz"
-    if (-not (Test-Path -LiteralPath $archive) -or (Get-Item -LiteralPath $archive).Length -eq 0) {
-      Say "downloading $Owner/$Repo@$($revision.Substring(0, 12))"
-      Invoke-WebRequest -UseBasicParsing -Uri "https://codeload.github.com/$Owner/$Repo/tar.gz/$revision" -OutFile "$archive.part"
-      Move-Item -Force "$archive.part" $archive
-    }
-    $scratch = Join-Path ([IO.Path]::GetTempPath()) ("snshah-src-" + [guid]::NewGuid())
-    New-Item -ItemType Directory -Force -Path $scratch | Out-Null
-    try {
-      & tar -xzf $archive -C $scratch "$Repo-$revision/$Directory"
-      if ($LASTEXITCODE -ne 0) { Remove-Item -Force $archive; throw 'Could not unpack the download; removed it from the cache. Re-run to try again.' }
-      $script = Join-Path $scratch "$Repo-$revision/$Directory/snshah.ts"
-      # Install from the checkout when it is clean and at exactly this commit.
-      $checkout = Clone-Self $script
-      if ($checkout -and (Test-Path -LiteralPath (Join-Path $checkout "$Directory/snshah.ts")) -and
-          ((& git -C $checkout rev-parse HEAD 2>$null) -eq $revision) -and
-          -not (& git -C $checkout status --porcelain 2>$null)) {
-        $script = Join-Path $checkout "$Directory/snshah.ts"
-      }
-      & $bun --no-env-file $script apply --yes --revision $revision @args
-    } finally {
-      Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $scratch
-    }
+    $script = Join-Path (Update-Checkout) "$Directory/snshah.ts"
   }
+  & $bun --no-env-file $script apply --yes @args
   if ($LASTEXITCODE -ne 0) { throw "snshah apply failed (exit $LASTEXITCODE)." }
 } @args

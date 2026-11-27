@@ -15,7 +15,7 @@ ws:snshah a ws:Toolkit ;
     doap:programming-language "TypeScript" ;
     dcterms:creator "Shahid Shah" ;
     eid:path "workshop/snshah.ts" ;
-    ws:version "0.5.2" ;
+    ws:version "0.6.0" ;
     ws:idempotent true ;
     ws:runtime ws:bun ;
     ws:upstream "shah/shah@main" ;
@@ -108,7 +108,7 @@ ws:cmd-ux-fonts-installed a ws:Command ; ws:name "ux fonts installed" ; rdfs:com
 ws:cmd-ux-fonts-missing a ws:Command ; ws:name "ux fonts missing" ; rdfs:comment "Record that your terminal has no Nerd Font." .
 ws:cmd-ux-fonts-reset a ws:Command ; ws:name "ux fonts reset" ; rdfs:comment "Forget your answer; doctor shows unknown." .
 ws:cmd-ux-fonts-install a ws:Command ; ws:name "ux fonts install" ; rdfs:comment "Show, or with --run do, oh-my-posh font install Meslo." .
-ws:cmd-update a ws:Command ; ws:name "update" ; rdfs:comment "Pin one upstream commit, preview, then apply." .
+ws:cmd-update a ws:Command ; ws:name "update" ; rdfs:comment "Fetch the install checkout, preview the plan from a temporary worktree, fast-forward it, then apply from it." .
 ws:cmd-test a ws:Command ; ws:name "test" ; rdfs:comment "Self-test in a temporary HOME." .
 
 # ---------- Controlled values ----------

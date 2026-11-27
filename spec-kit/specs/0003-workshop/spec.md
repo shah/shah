@@ -219,9 +219,15 @@ run changes nothing.
   to `~/workspaces`, or `~/Work` on Omarchy.
 - **FR-015**: Claude Code and Codex user-level defaults MAY be filled when
   those tools are present, and MUST NOT override any value the user set.
-- **FR-016**: `snshah update` MUST pin one commit of this repository,
-  preview its changes, and replace the CLI only after the rest of the
-  apply succeeds.
+- **FR-016**: The install source MUST be a git checkout of this repository
+  (default `$WORKSPACES_HOME/github.com/shah/shah`), and `git` MUST be
+  required with no fallback: the bootstraps stop with the install command
+  when it is missing. `snshah update` MUST fetch that checkout, preview the
+  candidate's plan from a temporary worktree, fast-forward only, and apply
+  from the checkout. It MUST refuse, changing nothing, when the checkout is
+  dirty, detached or diverged. The installed CLI is a copy written by
+  `apply`, with a receipt naming the checkout and its commit. There is no
+  migration or compatibility code for earlier install methods.
 
 ### Profiles (profile.d)
 

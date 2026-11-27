@@ -16,7 +16,13 @@ Rules for a person or an AI agent changing anything in `workshop/`.
 
 - Keep behavior in `snshah.ts` and the self-test in `snshah.selftest.ts`.
   `bootstrap.sh` (POSIX `sh`) and `bootstrap.ps1` (Windows PowerShell 5.1
-  and PowerShell 7) stay thin: get Bun, pin one commit, run `apply`.
+  and PowerShell 7) stay thin: require git, get Bun, clone or fast-forward
+  the shah/shah checkout, run `apply` from it.
+- The checkout is the source and git is required: no tarball download, no
+  fallback, no migration or backward-compatibility code for earlier install
+  methods. `update` is fetch, preview from a worktree, `merge --ff-only`,
+  `apply`, and refuses on a dirty, detached or diverged checkout. The
+  installed CLI is a copy; there is no `dev on|off` symlink mode.
 - Model choices as tagged unions (`kind` fields) and handle them with
   exhaustive `switch` statements ending in `assertNever`.
 - Every command must be idempotent. `plan` computes only the steps that

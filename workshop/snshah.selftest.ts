@@ -14,7 +14,7 @@ import {
   stat,
   writeFile,
 } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { cpSync, existsSync } from "node:fs";
 import { generateKeyPairSync } from "node:crypto";
 import { tmpdir } from "node:os";
 import { delimiter, dirname, join } from "node:path";
@@ -136,8 +136,6 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
       // One download cache for every temporary HOME, so the pinned Oh My
       // Posh build is fetched (and checksum-verified) at most once per run.
       XDG_CACHE_HOME: join(root, "cache"),
-      // Local bootstraps skip cloning shah/shah from GitHub; --remote runs do it.
-      SNSHAH_CLONE: "0",
       // Shell greetings (doctor, update check) are tested on their own below.
       SNSHAH_GREET: "0",
     };
@@ -909,16 +907,238 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
       );
     }
 
+    // The checkout is the source: a local bare "origin" stands in for GitHub.
+    const fx = join(root, "fixture");
+    const origin = join(fx, "origin.git");
+    const seed = join(fx, "seed");
+    await mkdir(seed, { recursive: true });
+    sh(["git", "init", "--bare", "--quiet", "-b", "main", origin]);
+    cpSync(workshop, join(seed, "workshop"), {
+      recursive: true,
+      filter: (src) => !src.includes("node_modules"),
+    });
+    const seedGit = (...args: string[]) => sh(["git", "-C", seed, ...args]);
+    seedGit("init", "--quiet", "-b", "main");
+    seedGit("add", "-A");
+    seedGit("commit", "--quiet", "-m", "seed");
+    seedGit("push", "--quiet", origin, "main");
+    const git = (dir: string, ...args: string[]) =>
+      sh(["git", "-C", dir, ...args]).out.trim();
+    const seedHead = () => seedGit("rev-parse", "HEAD").out.trim();
+    const bootSh = join(workshop, "bootstrap.sh");
+    const fromOrigin = (home: string): Record<string, string> => ({
+      ...baseEnv(home),
+      SNSHAH_URL: origin,
+    });
+    const pipedBootstrap = (e: Record<string, string>) =>
+      sh(["sh", "-c", `sh < "${bootSh}"`], root, e);
+    const checkoutOf = (home: string) =>
+      join(home, "workspaces", "github.com", "shah", "shah");
+    const receiptOf = async (home: string) =>
+      JSON.parse(
+        await readFile(
+          join(home, ".local", "state", "snshah", "installed.auto.json"),
+          "utf8",
+        ),
+      ) as { revision: string; checkout: string };
+
+    // Bootstrap: git is required, then clone, install from the checkout.
+    {
+      const noGit = join(root, "no-git-bin");
+      await mkdir(noGit);
+      for (const tool of ["sh", "uname", "dirname", "cat", "grep"]) {
+        const found = Bun.which(tool);
+        if (found) await symlink(found, join(noGit, tool));
+      }
+      const gitHome = join(root, "nogit-home");
+      await mkdir(gitHome);
+      const g = sh(["sh", "-c", `sh < "${bootSh}"`], root, {
+        ...fromOrigin(gitHome),
+        PATH: noGit,
+      });
+      check(
+        "bootstrap.sh stops without git and says how to install it",
+        g.code !== 0 &&
+          g.err.includes("needs git") &&
+          g.err.includes("Install it with:") &&
+          !existsSync(join(gitHome, ".bun")),
+        g.out + g.err,
+      );
+
+      const bootHome = join(root, "boot-fx-home");
+      await mkdir(bootHome);
+      const e = fromOrigin(bootHome);
+      const r1 = pipedBootstrap(e);
+      const checkout = checkoutOf(bootHome);
+      check(
+        "piped bootstrap.sh clones shah/shah into the workspaces root and installs",
+        r1.code === 0 &&
+          existsSync(join(checkout, "workshop", "snshah.ts")) &&
+          existsSync(join(bootHome, ".local", "bin", "snshah")),
+        r1.out + r1.err,
+      );
+      const rc = await receiptOf(bootHome).catch(() => undefined);
+      check(
+        "the receipt names the checkout and its commit",
+        rc?.checkout === checkout && rc.revision === seedHead(),
+        JSON.stringify(rc),
+      );
+      const r2 = pipedBootstrap(e);
+      check(
+        "piped bootstrap.sh again reports no changes",
+        r2.code === 0 && r2.out.includes("No changes needed."),
+        r2.out + r2.err,
+      );
+      const wrong = join(root, "wrong-origin-home");
+      await mkdir(join(checkoutOf(wrong), ".."), { recursive: true });
+      sh(["git", "init", "--quiet", checkoutOf(wrong)]);
+      sh([
+        "git",
+        "-C",
+        checkoutOf(wrong),
+        "remote",
+        "add",
+        "origin",
+        "https://example.invalid/other/repo.git",
+      ]);
+      const w = pipedBootstrap(fromOrigin(wrong));
+      check(
+        "bootstrap.sh refuses a checkout of some other repository",
+        w.code !== 0 && w.err.includes("something other than shah/shah"),
+        w.err,
+      );
+      const omar = join(root, "omarchy-home");
+      await mkdir(omar);
+      const om = pipedBootstrap({
+        ...fromOrigin(omar),
+        WORKSPACES_HOME: join(omar, "Work"),
+      });
+      check(
+        "bootstrap.sh honours $WORKSPACES_HOME",
+        om.code === 0 &&
+          existsSync(
+            join(
+              omar,
+              "Work",
+              "github.com",
+              "shah",
+              "shah",
+              "workshop",
+              "snshah.ts",
+            ),
+          ),
+        om.out + om.err,
+      );
+    }
+
+    // snshah update: fetch, preview, fast-forward, apply; refuses to disturb work.
+    {
+      const upHome = join(root, "update-home");
+      await mkdir(upHome);
+      const ue = fromOrigin(upHome);
+      pipedBootstrap(ue);
+      const checkout = checkoutOf(upHome);
+      const launcher = join(upHome, ".local", "bin", "snshah");
+      const same = sh([launcher, "update", "--yes"], root, ue);
+      check(
+        "update with nothing new says so",
+        same.code === 0 && same.out.includes("Already up to date"),
+        same.out + same.err,
+      );
+      // A new commit upstream: a new profile.d file.
+      await writeFile(
+        join(seed, "workshop", "profile.d", "99-fixture.ts"),
+        'import type { Contribution, Selector } from "../snshah.ts";\nexport const selector = { kind: "always" } satisfies Selector;\nexport const config = { env: { SNSHAH_FIXTURE: "1" } } satisfies Contribution;\n',
+      );
+      seedGit("add", "-A");
+      seedGit("commit", "--quiet", "-m", "second");
+      seedGit("push", "--quiet", origin, "main");
+      const available = sh([launcher, "update", "--check"], root, ue);
+      check(
+        "update --check sees the new upstream commit",
+        available.code === 0 && available.out.includes("update is available"),
+        available.out + available.err,
+      );
+      const stale = await receiptOf(upHome);
+      check(
+        "update --check changes nothing in the checkout",
+        git(checkout, "rev-parse", "HEAD") === stale.revision,
+      );
+
+      // Refusals leave everything as it was.
+      await writeFile(join(checkout, "workshop", "README.md"), "edited\n", {
+        flag: "a",
+      });
+      const dirty = sh([launcher, "update", "--yes"], root, ue);
+      check(
+        "update refuses a checkout with uncommitted changes",
+        dirty.code !== 0 && dirty.err.includes("uncommitted changes"),
+        dirty.out + dirty.err,
+      );
+      sh(["git", "-C", checkout, "checkout", "--quiet", "--", "."]);
+      sh(["git", "-C", checkout, "checkout", "--quiet", "--detach"]);
+      const detached = sh([launcher, "update", "--yes"], root, ue);
+      check(
+        "update refuses a detached checkout",
+        detached.code !== 0 && detached.err.includes("detached"),
+        detached.out + detached.err,
+      );
+      sh(["git", "-C", checkout, "checkout", "--quiet", "main"]);
+      await writeFile(join(checkout, "local.txt"), "mine\n");
+      sh(["git", "-C", checkout, "add", "local.txt"]);
+      sh(["git", "-C", checkout, "commit", "--quiet", "-m", "local"]);
+      const diverged = sh([launcher, "update", "--yes"], root, ue);
+      check(
+        "update refuses a diverged checkout",
+        diverged.code !== 0 && diverged.err.includes("can't fast-forward"),
+        diverged.out + diverged.err,
+      );
+      sh(["git", "-C", checkout, "reset", "--quiet", "--hard", stale.revision]);
+      check(
+        "refusals changed nothing",
+        git(checkout, "rev-parse", "HEAD") === stale.revision,
+      );
+
+      const go = sh([launcher, "update", "--yes"], root, ue);
+      const after = await receiptOf(upHome);
+      check(
+        "update fast-forwards the checkout and applies it",
+        go.code === 0 &&
+          after.revision === seedHead() &&
+          git(checkout, "rev-parse", "HEAD") === seedHead() &&
+          existsSync(join(checkout, "workshop", "profile.d", "99-fixture.ts")),
+        go.out + go.err,
+      );
+      const again = sh([launcher, "update", "--yes"], root, ue);
+      check(
+        "update again reports no changes",
+        again.code === 0 && again.out.includes("Already up to date"),
+        again.out + again.err,
+      );
+      const bare = join(root, "bare-home");
+      await mkdir(bare);
+      const bareRun = sh(
+        [bun, "--no-env-file", script, "update", "--check"],
+        root,
+        baseEnv(bare),
+      );
+      check(
+        "update without a checkout explains how to install",
+        bareRun.code !== 0 &&
+          /not installed from a git checkout/.test(bareRun.out + bareRun.err),
+        bareRun.out + bareRun.err,
+      );
+    }
+
     // Shell greeting: doctor on first use per version, update check hourly.
     {
       const greetHome = join(root, "greet-home");
       await mkdir(greetHome);
-      // A full commit hash resolves without the network.
-      const pinned = "0123456789abcdef0123456789abcdef01234567";
+      pipedBootstrap(fromOrigin(greetHome));
+      const pinned = (await receiptOf(greetHome)).revision;
       const ge = {
-        ...baseEnv(greetHome),
+        ...fromOrigin(greetHome),
         SNSHAH_GREET: "1",
-        SNSHAH_REF: pinned,
       };
       const statePath = join(
         greetHome,
@@ -932,7 +1152,7 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
       check(
         "first greeted shell runs doctor (on stderr only)",
         g1.code === 0 &&
-          g1.err.includes("checkouts and updates") &&
+          g1.err.includes("installs from, and updates") &&
           g1.out === plain.out,
         g1.out + g1.err,
       );
@@ -960,14 +1180,14 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
       check(
         "second greeted shell skips doctor and the fresh update check",
         g2.code === 0 &&
-          !g2.err.includes("checkouts and updates") &&
+          !g2.err.includes("installs from, and updates") &&
           g2.out === plain.out,
         g2.err,
       );
       const c = cli(["update", "--check"], undefined, ge);
       check(
-        "update --check reports without downloading",
-        c.code === 0 && c.out.includes("update is available"),
+        "update --check asks the checkout's origin and reports",
+        c.code === 0 && c.out.includes("Up to date"),
         c.out + c.err,
       );
       await writeFile(statePath, "{ not json");
@@ -1102,7 +1322,6 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
       const ge = {
         ...baseEnv(ghHome),
         SNSHAH_GREET: "1",
-        SNSHAH_REF: "0123456789abcdef0123456789abcdef01234567",
       };
       cli(["apply", "--yes"], undefined, ge);
       const first = cli(["shell", "bash", "--greet"], undefined, ge);
@@ -1130,7 +1349,6 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
         ...baseEnv(signed),
         SNSHAH_GREET: "1",
         GH_TOKEN: "x",
-        SNSHAH_REF: "0123456789abcdef0123456789abcdef01234567",
       };
       const c = cli(["shell", "bash", "--greet"], undefined, se);
       check(
@@ -1444,7 +1662,6 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
       const hintEnv = {
         ...baseEnv(hintHome),
         SNSHAH_GREET: "1",
-        SNSHAH_REF: "0123456789abcdef0123456789abcdef01234567",
         SSH_CONNECTION: "192.0.2.10 50000 192.0.2.20 22",
         USER: "snshah",
       };
@@ -2272,7 +2489,6 @@ export const hooks = [
         const e = {
           ...baseEnv(psRemoteHome),
           SNSHAH_REF: remote,
-          SNSHAH_CLONE: "1",
         };
         const iex = ["pwsh", "-NoProfile", "-Command", `irm '${url}' | iex`];
         const q1 = sh(iex, root, e);
@@ -2297,7 +2513,6 @@ export const hooks = [
       const remoteEnv = {
         ...baseEnv(remoteHome),
         SNSHAH_REF: remote,
-        SNSHAH_CLONE: "1",
       };
       const url = `https://raw.githubusercontent.com/shah/shah/${remote}/workshop/bootstrap.sh`;
       const fetchBoot = async () => {
@@ -2320,7 +2535,13 @@ export const hooks = [
         r2.out + r2.err,
       );
       const up = sh(
-        [join(remoteHome, ".local", "bin", "snshah"), "update", "--check"],
+        [
+          join(remoteHome, ".local", "bin", "snshah"),
+          "update",
+          "--check",
+          "--ref",
+          remote,
+        ],
         root,
         remoteEnv,
       );

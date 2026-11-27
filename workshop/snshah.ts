@@ -161,7 +161,7 @@ type Covers<T extends readonly string[], U extends string> = [
   ? true
   : ["missing", Exclude<U, T[number]>];
 
-export const cliVersion = "0.5.2";
+export const cliVersion = "0.6.0";
 export const minimumBun = "1.4.0";
 /** The Oh My Posh release snshah installs when none is on PATH, by Bun-style target. */
 export const ohMyPosh = {
@@ -2152,7 +2152,7 @@ function wrapperScripts(
 
 export async function plan(
   ctx: Context,
-  options: { revision?: string; effective?: Effective } = {},
+  options: { effective?: Effective } = {},
 ): Promise<Step[]> {
   const effective = options.effective ?? (await loadEffective(ctx));
   const { config } = effective;
@@ -2376,12 +2376,16 @@ export async function plan(
 
   steps.push(...(await planAgentDefaults(ctx, config)));
 
-  if (options.revision) {
+  // Run from a git checkout, record which one and at what commit, so
+  // `snshah update` knows where to pull from.
+  const checkout = sourceCheckout();
+  if (checkout) {
     const receipt =
       JSON.stringify(
         {
           version: cliVersion,
-          revision: options.revision,
+          revision: checkout.revision,
+          checkout: checkout.path,
           source: `${upstream.owner}/${upstream.repo}`,
         },
         null,
@@ -3517,7 +3521,7 @@ type Tool = {
 const tools: Tool[] = [
   {
     name: "git",
-    purpose: "checkouts and updates",
+    purpose: "the checkout snshah installs from, and updates",
     required: true,
     advice: {
       apt: "git",
@@ -3528,20 +3532,6 @@ const tools: Tool[] = [
       brew: "git",
       winget: "Git.Git",
       omarchy: "git",
-    },
-  },
-  {
-    name: "tar",
-    purpose: "snshah update",
-    required: true,
-    advice: {
-      apt: "tar",
-      dnf: "tar",
-      pacman: "tar",
-      apk: "tar",
-      zypper: "tar",
-      brew: "gnu-tar",
-      omarchy: "tar",
     },
   },
   {
@@ -4212,125 +4202,192 @@ function printNext(next: readonly NextStep[]): void {
 // update: pinned to one upstream commit, applied only after a preview
 // ---------------------------------------------------------------------------
 
-async function resolveRevision(ref: string): Promise<string> {
-  if (/^[0-9a-f]{40}$/.test(ref)) return ref;
-  const remote = `https://github.com/${upstream.owner}/${upstream.repo}.git`;
-  const listed = capture([
+/** The git checkout this running snshah.ts lives in, or nothing when it runs from the installed copy. */
+export function sourceCheckout():
+  { path: string; revision: string } | undefined {
+  const top = capture([
     "git",
-    "ls-remote",
-    "--exit-code",
-    remote,
-    `refs/heads/${ref}`,
-    `refs/tags/${ref}`,
+    "-C",
+    import.meta.dir,
+    "rev-parse",
+    "--show-toplevel",
   ]);
-  const fromGit = listed?.split(/\s+/)[0];
-  if (fromGit && /^[0-9a-f]{40}$/.test(fromGit)) return fromGit;
-  const response = await fetch(
-    `https://api.github.com/repos/${upstream.owner}/${upstream.repo}/commits/${encodeURIComponent(ref)}`,
-    {
-      headers: { Accept: "application/vnd.github.sha", "User-Agent": "snshah" },
-    },
-  );
-  const sha = (await response.text()).trim();
-  if (!response.ok || !/^[0-9a-f]{40}$/.test(sha))
-    throw new Error(
-      `Could not resolve ${upstream.owner}/${upstream.repo}@${ref}.`,
-    );
-  return sha;
+  if (!top) return undefined;
+  // The installed copy can sit inside some other repository (a dotfiles repo
+  // in $HOME, say); only a checkout whose workshop/ is this very file counts.
+  if (resolve(top, upstream.directory, "snshah.ts") !== import.meta.path)
+    return undefined;
+  const revision = capture(["git", "-C", top, "rev-parse", "HEAD"]);
+  return revision && /^[0-9a-f]{40}$/.test(revision)
+    ? { path: resolve(top), revision }
+    : undefined;
 }
 
-async function installedRevision(ctx: Context): Promise<string | undefined> {
+type Receipt = { revision: string; checkout: string };
+
+async function readReceipt(ctx: Context): Promise<Receipt | undefined> {
   const text = await readText(ctx.receipt);
   if (!text) return undefined;
   try {
     const parsed: unknown = JSON.parse(text);
-    return isObject(parsed) && typeof parsed.revision === "string"
-      ? parsed.revision
+    return isObject(parsed) &&
+      typeof parsed.revision === "string" &&
+      typeof parsed.checkout === "string"
+      ? { revision: parsed.revision, checkout: parsed.checkout }
       : undefined;
   } catch {
     return undefined;
   }
 }
 
+async function installedRevision(ctx: Context): Promise<string | undefined> {
+  return (await readReceipt(ctx))?.revision;
+}
+
+const notFromCheckout =
+  "snshah was not installed from a git checkout, so there is nothing to update. Run the bootstrap again (see the README).";
+
+function git(path: string, ...args: string[]): string | undefined {
+  return capture(["git", "-C", path, ...args]);
+}
+
+/** The commit `ref` points to on the checkout's origin. Never changes anything. */
+function remoteRevision(checkout: string, ref: string): string {
+  const listed = git(
+    checkout,
+    "ls-remote",
+    "--exit-code",
+    "origin",
+    `refs/heads/${ref}`,
+    `refs/tags/${ref}`,
+  );
+  const sha = listed?.split(/\s+/)[0];
+  if (!sha || !/^[0-9a-f]{40}$/.test(sha))
+    throw new Error(`Could not find ${ref} on origin of ${checkout}.`);
+  return sha;
+}
+
 async function update(
   ctx: Context,
-  options: { check: boolean; yes: boolean; ref?: string },
+  options: { yes: boolean; ref?: string },
 ): Promise<number> {
-  const ref = options.ref ?? ctx.env.SNSHAH_REF ?? upstream.ref;
-  const revision = await resolveRevision(ref);
-  const current = await installedRevision(ctx);
+  const receipt = await readReceipt(ctx);
+  if (!receipt || !existsSync(join(receipt.checkout, ".git")))
+    throw new UsageError(notFromCheckout);
+  const checkout = receipt.checkout;
+  const branch = git(checkout, "symbolic-ref", "--quiet", "--short", "HEAD");
+  const ref = options.ref ?? branch ?? upstream.ref;
+  if (branch && ref !== branch)
+    throw new UsageError(
+      `${tilde(ctx, checkout)} is on ${branch}, not ${ref}. Switch first: git -C ${tilde(ctx, checkout)} switch ${ref}`,
+    );
+  if (
+    run(["git", "-C", checkout, "fetch", "--quiet", "origin", ref], {
+      quiet: true,
+    }) !== 0
+  )
+    throw new Error(
+      `git fetch of ${ref} from origin failed in ${tilde(ctx, checkout)}.`,
+    );
+  const candidate = git(checkout, "rev-parse", "FETCH_HEAD")!;
+  const head = git(checkout, "rev-parse", "HEAD")!;
   say(
-    `Installed: ${current ? current.slice(0, 12) : "unknown"} (v${cliVersion}). Available on ${ref}: ${revision.slice(0, 12)}.`,
+    `Installed: ${receipt.revision.slice(0, 12)} (v${cliVersion}). Available on ${ref}: ${candidate.slice(0, 12)}.`,
     "action",
   );
-  if (current === revision) {
+  if (receipt.revision === candidate && head === candidate) {
     say("Already up to date. No changes needed.", "success");
     return 0;
   }
-  await mkdir(ctx.cacheDir, { recursive: true });
-  const archive = join(ctx.cacheDir, `${upstream.repo}-${revision}.tar.gz`);
-  if (!(await exists(archive))) {
-    const response = await fetch(
-      `https://codeload.github.com/${upstream.owner}/${upstream.repo}/tar.gz/${revision}`,
-    );
-    if (!response.ok)
-      throw new Error(`Download failed: HTTP ${response.status}`);
-    await writeAtomic(
-      archive,
-      new Uint8Array(await response.arrayBuffer()),
-      0o644,
-    );
-  }
-  const staging = await mkdtemp(join(tmpdir(), "snshah-update-"));
-  try {
-    const member = `${upstream.repo}-${revision}/${upstream.directory}`;
-    if (
-      run(["tar", "-xzf", archive, "-C", staging, member], { quiet: true }) !==
-      0
-    ) {
-      await rm(archive, { force: true });
-      throw new Error(
-        "Could not extract the downloaded revision; the cached archive was removed. Re-run snshah update.",
+  const advance = head !== candidate;
+  if (advance) {
+    if (!branch)
+      throw new UsageError(
+        `${tilde(ctx, checkout)} is on a detached commit. Switch to a branch first: git -C ${tilde(ctx, checkout)} switch ${ref}`,
       );
+    if (git(checkout, "status", "--porcelain"))
+      throw new UsageError(
+        `${tilde(ctx, checkout)} has uncommitted changes, so snshah will not move it. Commit or stash them, then re-run.`,
+      );
+    if (
+      run(
+        ["git", "-C", checkout, "merge-base", "--is-ancestor", head, candidate],
+        { quiet: true },
+      ) !== 0
+    )
+      throw new UsageError(
+        `${tilde(ctx, checkout)} has commits that are not on origin/${ref}, so it can't fast-forward. Rebase or merge it yourself.`,
+      );
+  }
+  const bun = process.execPath;
+  const staging = advance
+    ? await mkdtemp(join(tmpdir(), "snshah-update-"))
+    : undefined;
+  try {
+    let candidateScript = join(checkout, upstream.directory, "snshah.ts");
+    if (staging) {
+      // Preview the candidate from a throwaway worktree; the checkout stays put.
+      if (
+        run(
+          [
+            "git",
+            "-C",
+            checkout,
+            "worktree",
+            "add",
+            "--detach",
+            "--quiet",
+            staging,
+            candidate,
+          ],
+          { quiet: true },
+        ) !== 0
+      )
+        throw new Error(
+          "Could not prepare the candidate for a preview; nothing was changed.",
+        );
+      candidateScript = join(staging, upstream.directory, "snshah.ts");
     }
-    const candidate = join(staging, member, "snshah.ts");
-    const bun = process.execPath;
     say("Preview of the candidate's changes:", "action");
-    if (run([bun, "--no-env-file", candidate, "plan"], { env: ctx.env }) !== 0)
+    if (
+      run([bun, "--no-env-file", candidateScript, "plan"], { env: ctx.env }) !==
+      0
+    )
       throw new Error("The candidate could not plan; nothing was changed.");
-    if (options.check) return 0;
     if (!options.yes) {
       if (!process.stdin.isTTY)
         throw new UsageError("Re-run with --yes to apply without a prompt.");
       const clack = await prompts();
       const ok = await clack.confirm({
-        message: `Apply ${revision.slice(0, 12)}?`,
+        message: `Apply ${candidate.slice(0, 12)}?`,
       });
       if (clack.isCancel(ok) || !ok) return 1;
     }
-    const code = run(
-      [
-        bun,
-        "--no-env-file",
-        candidate,
-        "apply",
-        "--yes",
-        "--revision",
-        revision,
-      ],
-      { env: ctx.env },
-    );
-    // Keep this repository's own checkout current too, when it is cloned.
-    if (code === 0)
-      try {
-        await gitUpdate(ctx, upstream.repo, false);
-      } catch (error) {
-        say((error as Error).message, "pending");
-      }
-    return code;
   } finally {
-    await rm(staging, { recursive: true, force: true });
+    if (staging) {
+      run(["git", "-C", checkout, "worktree", "remove", "--force", staging], {
+        quiet: true,
+      });
+      await rm(staging, { recursive: true, force: true });
+    }
   }
+  if (
+    advance &&
+    run(["git", "-C", checkout, "merge", "--ff-only", "--quiet", candidate], {
+      quiet: true,
+    }) !== 0
+  )
+    throw new Error(`Could not fast-forward ${tilde(ctx, checkout)}.`);
+  const script = join(checkout, upstream.directory, "snshah.ts");
+  const code = run([bun, "--no-env-file", script, "apply", "--yes"], {
+    env: ctx.env,
+  });
+  if (code !== 0)
+    say(
+      `The checkout is at ${candidate.slice(0, 12)} but apply failed. Fix the problem, then run: ${bun} --no-env-file ${tilde(ctx, script)} apply --yes`,
+      "error",
+    );
+  return code;
 }
 
 // ---------------------------------------------------------------------------
@@ -4497,22 +4554,28 @@ async function writeState(ctx: Context, state: State): Promise<void> {
   );
 }
 
-/** Resolve the upstream ref, record the answer, and report it. Never downloads. */
+/** Ask the checkout's origin for the ref, record the answer, and report it. Never changes the checkout. */
 async function checkForUpdate(
   ctx: Context,
   refOption: string | undefined,
   quiet: boolean,
 ): Promise<number> {
-  const ref = refOption ?? ctx.env.SNSHAH_REF ?? upstream.ref;
   const at = new Date().toISOString();
-  const installed = await installedRevision(ctx);
+  const receipt = await readReceipt(ctx);
+  const installed = receipt?.revision;
+  const branch = receipt
+    ? git(receipt.checkout, "symbolic-ref", "--quiet", "--short", "HEAD")
+    : undefined;
+  const ref = refOption ?? branch ?? upstream.ref;
   let update: UpdateCheck;
   try {
+    if (!receipt || !existsSync(join(receipt.checkout, ".git")))
+      throw new Error(notFromCheckout);
     update = {
       kind: "checked",
       at,
       ref,
-      latest: await resolveRevision(ref),
+      latest: remoteRevision(receipt.checkout, ref),
       ...(installed ? { installed } : {}),
     };
   } catch (error) {
@@ -6814,7 +6877,6 @@ export async function buildCli(ctx: Context): Promise<CommanderCommand> {
     .command("plan")
     .description("Show what apply would change (read-only)")
     .option("--json", "print JSON")
-    .option("--revision <sha>", "include an install receipt for this commit")
     .option(
       "--explain",
       "show which profile.d files match and what they override",
@@ -6823,26 +6885,15 @@ export async function buildCli(ctx: Context): Promise<CommanderCommand> {
       "--as <facts.json>",
       "evaluate profiles as another machine (see whoami --json)",
     )
-    .action(
-      async (o: {
-        json?: boolean;
-        revision?: string;
-        explain?: boolean;
-        as?: string;
-      }) => {
-        const c = o.as
-          ? makeContext({ ...ctx.env, SNSHAH_FACTS: resolve(o.as) })
-          : ctx;
-        const effective = await loadEffective(c);
-        if (o.explain) printExplain(c, effective, !!o.json);
-        if (!(o.explain && o.json))
-          printSteps(
-            c,
-            await plan(c, { revision: o.revision, effective }),
-            !!o.json,
-          );
-      },
-    );
+    .action(async (o: { json?: boolean; explain?: boolean; as?: string }) => {
+      const c = o.as
+        ? makeContext({ ...ctx.env, SNSHAH_FACTS: resolve(o.as) })
+        : ctx;
+      const effective = await loadEffective(c);
+      if (o.explain) printExplain(c, effective, !!o.json);
+      if (!(o.explain && o.json))
+        printSteps(c, await plan(c, { effective }), !!o.json);
+    });
 
   program
     .command("whoami")
@@ -6871,10 +6922,9 @@ export async function buildCli(ctx: Context): Promise<CommanderCommand> {
     )
     .option("--json", "print JSON")
     .option("-y, --yes", "do not ask for confirmation")
-    .option("--revision <sha>", "record the upstream commit being installed")
-    .action(async (o: { json?: boolean; yes?: boolean; revision?: string }) => {
+    .action(async (o: { json?: boolean; yes?: boolean }) => {
       await withLock(ctx, async () => {
-        const steps = await plan(ctx, { revision: o.revision });
+        const steps = await plan(ctx);
         if (!o.json) printSteps(ctx, steps, false);
         if (steps.length && !o.yes && process.stdin.isTTY && !o.json) {
           const clack = await prompts();
@@ -7348,7 +7398,7 @@ export async function buildCli(ctx: Context): Promise<CommanderCommand> {
   program
     .command("update")
     .description(
-      `Update from ${upstream.owner}/${upstream.repo}, pinned to one commit, after a preview`,
+      `Pull ${upstream.owner}/${upstream.repo} in its checkout (fast-forward only), preview the plan, then apply`,
     )
     .option(
       "--check",
@@ -7356,7 +7406,10 @@ export async function buildCli(ctx: Context): Promise<CommanderCommand> {
     )
     .option("--quiet", "with --check: print nothing, just record the result")
     .option("-y, --yes", "apply without a prompt")
-    .option("--ref <ref>", `branch, tag or commit (default ${upstream.ref})`)
+    .option(
+      "--ref <ref>",
+      "branch to fast-forward (default: the checkout's current branch)",
+    )
     .action(
       async (o: {
         check?: boolean;
@@ -7368,11 +7421,7 @@ export async function buildCli(ctx: Context): Promise<CommanderCommand> {
           process.exitCode = await checkForUpdate(ctx, o.ref, !!o.quiet);
           return;
         }
-        process.exitCode = await update(ctx, {
-          check: false,
-          yes: !!o.yes,
-          ref: o.ref,
-        });
+        process.exitCode = await update(ctx, { yes: !!o.yes, ref: o.ref });
       },
     );
 

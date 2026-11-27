@@ -28,22 +28,24 @@ irm https://raw.githubusercontent.com/shah/shah/main/workshop/bootstrap.ps1 | ie
 
 From a checkout, run `sh workshop/bootstrap.sh` or `.\workshop\bootstrap.ps1`.
 
-The bootstrap needs `curl` or `wget`, `tar`, and `unzip` (macOS and Linux)
-or the tools that ship with Windows. If one is missing it prints the install
-command for your distribution (for example
-`sudo apt-get update && sudo apt-get install -y unzip` on Debian, or
-`su -c '…'` when you have no `sudo`). It:
+The bootstrap needs `git` (required, no fallback), `curl` or `wget`, and
+`unzip` (macOS and Linux) or the tools that ship with Windows. If one is
+missing it prints the install command for your distribution (for example
+`sudo apt-get update && sudo apt-get install -y git` on Debian, `su -c '…'`
+when you have no `sudo`, `winget install --id Git.Git -e` on Windows,
+`xcode-select --install` on macOS). It:
 
 1. Uses Bun 1.4 or newer if you have it. Otherwise it downloads the pinned
    Bun 1.4.4 release for your OS and CPU, checks its SHA-256, and installs
    it to `~/.bun`.
-2. Resolves `main` (or `$SNSHAH_REF`) to one commit and downloads only that
-   commit.
-3. When `git` is present, clones shah/shah to
-   `$WORKSPACES_HOME/github.com/shah/shah` (skip with `SNSHAH_CLONE=0`).
-   If that checkout is clean and at the same commit, it installs from it.
-4. Runs `snshah apply`, which ends by listing any missing tools with the
-   install command for your distribution and package manager.
+2. Clones shah/shah to `$WORKSPACES_HOME/github.com/shah/shah` (`~/Work` on
+   Omarchy, else `~/workspaces`), or fast-forwards it when it is clean and
+   on `main`. `$SNSHAH_REF` checks out a branch, tag or commit instead. It
+   refuses a directory there that is some other repository.
+3. Runs `snshah apply` from that checkout, which copies the CLI into
+   `~/.local/share/snshah`, records a receipt (checkout path and commit),
+   and ends by listing any missing tools with the install command for your
+   distribution and package manager.
 
 Open a new shell afterwards. The first interactive shell runs
 `snshah doctor` once. snshah never installs system packages; the only
@@ -336,23 +338,28 @@ the bootstrap and `snshah git clone shah` put it in
 
 ## Commands
 
-| Command                                                   | What it does                                                                               |
-| --------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `snshah plan [--json] [--explain] [--as FACTS]`           | Show what `apply` would change. Read-only.                                                 |
-| `snshah whoami [--json]`                                  | Print the facts profile selectors match against.                                           |
-| `snshah apply [--yes] [--json]`                           | Bring this machine to the desired state.                                                   |
-| `snshah doctor [--json]`                                  | Check tools and print install commands for this distribution and package manager.          |
-| `snshah shell <shell> [--greet]`                          | Print init code for bash, zsh, fish or pwsh.                                               |
-| `snshah exec <command> [args]`                            | Run a command with its command-scoped secrets.                                             |
-| `snshah config path\|check\|edit\|set-secret`             | Manage the private config.                                                                 |
-| `snshah git root\|add\|list\|path\|clone\|update\|remove` | Manage checkouts.                                                                          |
-| `snshah ssh <subcommand>`                                 | SSH keys, key copying and hosts (see above).                                               |
-| `snshah update [--check [--quiet]] [--yes] [--ref REF]`   | Preview, then apply, one pinned upstream commit. `--check` only says whether one is newer. |
-| `snshah test [--remote REF]`                              | Self-test in a temporary HOME.                                                             |
+| Command                                                   | What it does                                                                                |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `snshah plan [--json] [--explain] [--as FACTS]`           | Show what `apply` would change. Read-only.                                                  |
+| `snshah whoami [--json]`                                  | Print the facts profile selectors match against.                                            |
+| `snshah apply [--yes] [--json]`                           | Bring this machine to the desired state.                                                    |
+| `snshah doctor [--json]`                                  | Check tools and print install commands for this distribution and package manager.           |
+| `snshah shell <shell> [--greet]`                          | Print init code for bash, zsh, fish or pwsh.                                                |
+| `snshah exec <command> [args]`                            | Run a command with its command-scoped secrets.                                              |
+| `snshah config path\|check\|edit\|set-secret`             | Manage the private config.                                                                  |
+| `snshah git root\|add\|list\|path\|clone\|update\|remove` | Manage checkouts.                                                                           |
+| `snshah ssh <subcommand>`                                 | SSH keys, key copying and hosts (see above).                                                |
+| `snshah update [--check [--quiet]] [--yes] [--ref REF]`   | Fetch the checkout, preview, fast-forward, apply. `--check` only says whether one is newer. |
+| `snshah test [--remote REF]`                              | Self-test in a temporary HOME.                                                              |
 
-`snshah update` resolves `main` to a commit, shows that candidate's plan,
-asks, and applies it. The new CLI replaces the old one only after the rest
-of the apply succeeds.
+`snshah update` runs `git fetch` in the install checkout, shows the plan the
+new commit would make (from a temporary worktree), asks, fast-forwards the
+checkout, and applies from it. The new CLI replaces the old one only after
+the rest of the apply succeeds. It refuses and says why when the checkout
+has uncommitted changes, is detached, is on another branch, or has diverged
+from origin. `update --check` only asks origin. The installed CLI is a copy,
+not a symlink, so a half-finished edit in the checkout never breaks your
+shell; it changes when you run `snshah apply` or `snshah update`.
 
 **Picking up changes in the shell you are in.** A program can't change its
 parent shell, so in bash, zsh and fish `snshah` is a small shell function
