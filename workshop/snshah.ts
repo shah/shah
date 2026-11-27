@@ -161,7 +161,7 @@ type Covers<T extends readonly string[], U extends string> = [
   ? true
   : ["missing", Exclude<U, T[number]>];
 
-export const cliVersion = "0.7.0";
+export const cliVersion = "0.7.1";
 export const minimumBun = "1.4.0";
 /** The Oh My Posh release snshah installs when none is on PATH, by Bun-style target. */
 export const ohMyPosh = {
@@ -4325,6 +4325,11 @@ async function uninstall(
   );
   console.log("Left in place on purpose:");
   for (const line of left) console.log(`  - ${line}`);
+  if (options.yes)
+    say(
+      "This shell still has snshah's prompt hooks and will print errors until you run:  exec $SHELL -l",
+      "pending",
+    );
   return 0;
 }
 
