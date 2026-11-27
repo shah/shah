@@ -136,7 +136,7 @@ type Covers<T extends readonly string[], U extends string> = [
   ? true
   : ["missing", Exclude<U, T[number]>];
 
-export const cliVersion = "0.2.0";
+export const cliVersion = "0.2.1";
 export const minimumBun = "1.4.0";
 /** The Oh My Posh release snshah installs when none is on PATH, by Bun-style target. */
 export const ohMyPosh = {
@@ -835,7 +835,10 @@ const defaultAliases: Record<string, AliasValue> = {
 const defaultConfig: WorkshopConfig = {
   aliases: defaultAliases,
   repositories: [
-    { name: upstream.repo, source: `${upstream.owner}/${upstream.repo}` },
+    {
+      name: upstream.repo,
+      source: `https://github.com/${upstream.owner}/${upstream.repo}.git`,
+    },
   ],
   prompt: { kind: "oh-my-posh" },
   agents: { claude: { kind: "defaults" }, codex: { kind: "defaults" } },
@@ -2709,7 +2712,16 @@ async function gitAdd(
     throw new UsageError(`Invalid repository name: ${name}. Use --name.`);
   const existing = (merged.repositories ?? []).find((r) => r.name === name);
   if (existing) {
-    if (existing.source !== normalized)
+    const urlOf = (source: string) => {
+      try {
+        return parseGitSource(source).url;
+      } catch {
+        return source;
+      }
+    };
+    const same =
+      existing.source === normalized || urlOf(existing.source) === parsed.url;
+    if (!same)
       throw new UsageError(
         `The name ${name} is already used by ${existing.source}. Use --name.`,
       );
@@ -2756,8 +2768,8 @@ async function gitClone(
     }
     await mkdir(dirname(path), { recursive: true });
     say(`${repo.name}: cloning into ${tilde(ctx, path)}`, "action");
-    if (run(["git", "clone", "--quiet", "--", repo.source, path]) !== 0)
-      failed++;
+    const url = parseGitSource(repo.source).url;
+    if (run(["git", "clone", "--quiet", "--", url, path]) !== 0) failed++;
   }
   if (failed) throw new Error(`${failed} checkout(s) need attention.`);
 }

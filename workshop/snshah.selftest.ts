@@ -1093,8 +1093,21 @@ export const hooks = [
       );
       check(
         "update --check right after install is up to date",
-        up.code === 0 && up.out.includes("Already up to date"),
+        up.code === 0 && up.out.includes("Up to date"),
         up.out + up.err,
+      );
+      const checkout = join(
+        remoteHome,
+        "workspaces",
+        "github.com",
+        "shah",
+        "shah",
+      );
+      check(
+        `bootstrap.sh from GitHub (${remote}) clones shah/shah into the workspaces root`,
+        existsSync(join(checkout, "workshop", "snshah.ts")) &&
+          sh(["git", "-C", checkout, "status", "--porcelain"]).out === "",
+        r1.out + r1.err,
       );
     }
 
