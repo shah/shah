@@ -50,6 +50,9 @@ Rules for a person or an AI agent changing anything in `workshop/`.
 5. After pushing a branch, `snshah test --remote <branch>` installs it from
    GitHub with `bootstrap.sh`, twice.
 
-The Windows bootstrap and the zsh, fish and pwsh init code are checked by
-the self-test only as text unless those shells are installed. Test them on
+When bash, zsh, fish or pwsh is installed, the self-test starts it
+interactively in the temporary HOME and checks that its startup entry
+loads the helpers, exports and secret wrapper. With `pwsh` it also runs
+`bootstrap.ps1` twice (and with `--remote`, `irm | iex` twice). Native
+Windows paths (`snshah.cmd`, user PATH, Windows PowerShell 5.1) still need
 a real Windows 11 machine when they change.

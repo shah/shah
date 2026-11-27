@@ -45,7 +45,7 @@ import {
 // when the two disagree, so change both together.
 // ---------------------------------------------------------------------------
 
-export const cliVersion = "0.1.0";
+export const cliVersion = "0.1.1";
 export const minimumBun = "1.4.0";
 export const dependencies = {
   commander: "12.1.0",

@@ -347,31 +347,63 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
         bash: ["bash", "-n"],
         zsh: ["zsh", "-n"],
         fish: ["fish", "--no-execute"],
-        pwsh: undefined,
+        pwsh: [
+          "pwsh",
+          "-NoProfile",
+          "-Command",
+          "$e = $null; [void][System.Management.Automation.Language.Parser]::ParseFile($env:SNSHAH_PARSE, [ref]$null, [ref]$e); if ($e) { $e | ForEach-Object Message; exit 1 }",
+        ],
       };
       const checker = syntax[shell];
       if (checker && Bun.which(checker[0]!)) {
         const path = join(root, `init.${shell}`);
         await writeFile(path, a.out);
-        const r = sh([...checker, path]);
+        const r =
+          shell === "pwsh"
+            ? sh(checker, root, { ...env, SNSHAH_PARSE: path })
+            : sh([...checker, path]);
         check(`shell ${shell}: syntax check`, r.code === 0, r.err);
       }
     }
     check("unknown shell is a usage error", cli(["shell", "tcsh"]).code === 2);
 
-    if (Bun.which("bash")) {
-      const live = sh([
+    // Each real shell, started interactively in the temporary HOME, loads its
+    // one startup entry and gets the helpers, exports and secret wrapper.
+    const probe = "console.log(process.env.DEMO_CMD_TOKEN)";
+    const live: Record<string, string[]> = {
+      bash: [
         "bash",
         "-ic",
-        'type -t mkcd; type -t gs; echo "WS=$WORKSPACES_HOME"; echo "TOKEN=$DEMO_SHELL_TOKEN"',
-      ]);
+        `echo "MKCD=$(type -t mkcd)"; echo "GS=$(type -t gs)"; echo "WS=$WORKSPACES_HOME"; echo "TOKEN=$DEMO_SHELL_TOKEN"; echo "CMD=$(bun -e '${probe}')"`,
+      ],
+      zsh: [
+        "zsh",
+        "-ic",
+        `echo "MKCD=\${$(whence -w mkcd)#*: }"; echo "GS=\${$(whence -w gs)#*: }"; echo "WS=$WORKSPACES_HOME"; echo "TOKEN=$DEMO_SHELL_TOKEN"; echo "CMD=$(bun -e '${probe}')"`,
+      ],
+      fish: [
+        "fish",
+        "-ic",
+        `echo MKCD=(type -t mkcd); echo GS=(type -t gs); echo WS=$WORKSPACES_HOME; echo TOKEN=$DEMO_SHELL_TOKEN; echo CMD=(bun -e '${probe}')`,
+      ],
+      pwsh: [
+        "pwsh",
+        "-NoLogo",
+        "-Command",
+        `"MKCD=" + (Get-Command mkcd).CommandType; "GS=" + (Get-Command gs).CommandType; "WS=" + $env:WORKSPACES_HOME; "TOKEN=" + $env:DEMO_SHELL_TOKEN; "CMD=" + (bun -e '${probe}')`,
+      ],
+    };
+    for (const [shell, argv] of Object.entries(live)) {
+      if (!Bun.which(argv[0]!)) continue;
+      const r = sh(argv);
       check(
-        "interactive bash loads the block end to end",
-        live.out.includes("function") &&
-          live.out.includes("alias") &&
-          live.out.includes(`WS=${join(home, "workspaces")}`) &&
-          live.out.includes("TOKEN=shell-secret-value"),
-        live.out + live.err,
+        `interactive ${shell} loads its startup entry end to end`,
+        /MKCD=function/i.test(r.out) &&
+          /GS=(alias|function)/i.test(r.out) &&
+          r.out.includes(`WS=${join(home, "workspaces")}`) &&
+          r.out.includes("TOKEN=shell-secret-value") &&
+          r.out.includes("CMD=cmd-secret-value"),
+        r.out + r.err,
       );
     }
 
@@ -487,6 +519,45 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
         viaLauncher.code === 0 && viaLauncher.out.trim() === "[]",
         viaLauncher.out + viaLauncher.err,
       );
+    }
+
+    // bootstrap.ps1 from this checkout, twice, in a fresh HOME (PowerShell 7 on any OS).
+    if (Bun.which("pwsh")) {
+      const psHome = join(root, "ps-home");
+      await mkdir(psHome);
+      const psEnv = baseEnv(psHome);
+      const ps1 = join(workshop, "bootstrap.ps1");
+      const p1 = sh(["pwsh", "-NoProfile", "-File", ps1], root, psEnv);
+      check(
+        "bootstrap.ps1 (local) installs",
+        p1.code === 0 && existsSync(join(psHome, ".local", "bin", "snshah")),
+        p1.out + p1.err,
+      );
+      const p2 = sh(["pwsh", "-NoProfile", "-File", ps1], root, psEnv);
+      check(
+        "bootstrap.ps1 (local) again reports no changes",
+        p2.code === 0 && p2.out.includes("No changes needed."),
+        p2.out + p2.err,
+      );
+      if (remote) {
+        const url = `https://raw.githubusercontent.com/shah/shah/${remote}/workshop/bootstrap.ps1`;
+        const psRemoteHome = join(root, "ps-remote-home");
+        await mkdir(psRemoteHome);
+        const e = { ...baseEnv(psRemoteHome), SNSHAH_REF: remote };
+        const iex = ["pwsh", "-NoProfile", "-Command", `irm '${url}' | iex`];
+        const q1 = sh(iex, root, e);
+        check(
+          `bootstrap.ps1 via irm | iex (${remote}) installs`,
+          q1.code === 0,
+          q1.out + q1.err,
+        );
+        const q2 = sh(iex, root, e);
+        check(
+          `bootstrap.ps1 via irm | iex (${remote}) again reports no changes`,
+          q2.code === 0 && q2.out.includes("No changes needed."),
+          q2.out + q2.err,
+        );
+      }
     }
 
     // Optional: install from GitHub at a ref, twice, then update --check.

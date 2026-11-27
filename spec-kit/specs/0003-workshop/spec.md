@@ -96,9 +96,10 @@ run changes nothing.
   says so.
 - The private config has the wrong mode or owner: every command that reads
   it refuses until it is fixed.
-- Windows 11 bootstrap and the zsh, fish and pwsh init code have not yet
-  been exercised on real machines. [NEEDS CLARIFICATION: first run on a
-  Windows 11 PC and on zsh, fish and pwsh shells.]
+- bash, zsh, fish and PowerShell 7 are exercised by the self-test, and
+  `bootstrap.ps1` runs twice under PowerShell 7 on Linux. Native Windows
+  behavior has not yet been exercised. [NEEDS CLARIFICATION: first run on
+  a Windows 11 PC.]
 
 ## Requirements
 
@@ -191,8 +192,7 @@ run changes nothing.
 
 ## Open questions
 
-- [NEEDS CLARIFICATION: first run on a Windows 11 PC and on zsh, fish and
-  pwsh shells.]
+- [NEEDS CLARIFICATION: first run on a Windows 11 PC.]
 
 ## Review & acceptance checklist
 
