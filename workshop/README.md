@@ -107,6 +107,24 @@ Do it before `git clone` or `git push` over HTTPS quietly fails. `snshah
 doctor` shows whether you are signed in, and your shell reminds you once a
 day until you are.
 
+## Prompt icons: Nerd Fonts
+
+The prompt draws icons from a [Nerd Font](https://www.nerdfonts.com). If your
+terminal shows boxes or `?` where they belong, it is using a font without
+them. A program can't ask a terminal which font it has, so `snshah doctor`
+shows **unknown** until you say otherwise, or it finds evidence on its own
+(Windows' font list and Windows Terminal's settings, also from WSL; `fc-list`
+and the font folders on Linux and macOS).
+
+| Command                                 | What it does                                                                  |
+| --------------------------------------- | ----------------------------------------------------------------------------- |
+| `snshah ux fonts`                       | Show the state and how snshah knows.                                          |
+| `snshah ux fonts installed` / `missing` | Record what you see. `reset` forgets it.                                      |
+| `snshah ux fonts install [--run]`       | Show (or run) `oh-my-posh font install Meslo`; then pick it in your terminal. |
+
+Run `installed` on the machine whose terminal you look at. Its shell then
+sends `LC_SNSHAH_FONTS` over SSH, so servers you log in to know too.
+
 ## SSH helpers
 
 | Command                                       | What it does                                                                   |

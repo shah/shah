@@ -113,7 +113,7 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
     for (const [k, v] of Object.entries(process.env)) {
       if (v === undefined) continue;
       if (
-        /^(XDG_|WORKSPACES_HOME$|CLAUDE_CONFIG_DIR$|CODEX_HOME$|ZDOTDIR$|SNSHAH_|BUN_INSTALL$|MISE_|GH_|GITHUB_TOKEN$|SSH_CONNECTION$|SSH_CLIENT$|SSH_USER_AUTH$|LC_SNSHAH_OS$|LC_TERMINAL$)/.test(
+        /^(XDG_|WORKSPACES_HOME$|CLAUDE_CONFIG_DIR$|CODEX_HOME$|ZDOTDIR$|SNSHAH_|BUN_INSTALL$|MISE_|GH_|GITHUB_TOKEN$|SSH_CONNECTION$|SSH_CLIENT$|SSH_USER_AUTH$|LC_SNSHAH_OS$|LC_SNSHAH_FONTS$|LC_TERMINAL$)/.test(
           k,
         )
       )
@@ -1132,6 +1132,132 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
           st.out.includes("with a password") &&
           st.out.includes("snshah ssh copy"),
         st.out + st.err,
+      );
+    }
+
+    // ux fonts: your word, what an SSH client sends, and local evidence.
+    {
+      check(
+        "Nerd Font names are recognized",
+        mod.isNerdFontName("MesloLGS NF Regular (TrueType)") &&
+          mod.isNerdFontName("CaskaydiaCove Nerd Font Mono") &&
+          !mod.isNerdFontName("Cascadia Code") &&
+          !mod.isNerdFontName("Consolas"),
+      );
+      check(
+        "terminalFace reads Windows Terminal settings, comments and all",
+        mod.terminalFace(
+          '{ // fonts\n "profiles": { "defaults": { "font": { "face": "MesloLGS NF" } } } }',
+        ) === "MesloLGS NF" &&
+          mod.terminalFace(
+            '{"profiles":{"defaults":{"fontFace":"Consolas"}}}',
+          ) === "Consolas" &&
+          mod.terminalFace("{}") === undefined,
+      );
+      const win = (fonts: string[], settings: string) =>
+        mod.windowsFontEvidence(JSON.stringify({ fonts, settings })).kind;
+      check(
+        "Windows evidence: none, wrong face, right face, unreadable",
+        win(["Consolas (TrueType)"], "") === "no" &&
+          win(["MesloLGS NF Regular (TrueType)"], '{"face":"Consolas"}') ===
+            "no" &&
+          win(["MesloLGS NF Regular (TrueType)"], '{"face":"MesloLGS NF"}') ===
+            "yes" &&
+          win(["MesloLGS NF Regular (TrueType)"], "") === "yes" &&
+          mod.windowsFontEvidence("garbage").kind === "unknown",
+      );
+      const fh = join(root, "fonts-home");
+      await mkdir(fh);
+      const fe = baseEnv(fh);
+      const f0 = cli(["ux", "fonts"], undefined, fe);
+      check(
+        "ux fonts starts as no or unknown, never installed",
+        f0.code === 0 && !f0.out.includes("Nerd Font: installed"),
+        f0.out + f0.err,
+      );
+      const sshEnv = {
+        ...fe,
+        SSH_CONNECTION: "203.0.113.9 50000 192.0.2.1 22",
+      };
+      const d0 = cli(["doctor", "--json"], undefined, sshEnv);
+      const fontRow = (r: Result) =>
+        (
+          JSON.parse(r.out).checks as {
+            check: string;
+            status: string;
+            detail: string;
+          }[]
+        ).find((c) => c.check === "fonts");
+      check(
+        "over SSH with no answer, doctor says fonts are unknown",
+        fontRow(d0)?.detail.startsWith("Nerd Font unknown") === true,
+        d0.out,
+      );
+      check(
+        "an SSH client's LC_SNSHAH_FONTS is believed",
+        fontRow(
+          cli(["doctor", "--json"], undefined, {
+            ...sshEnv,
+            LC_SNSHAH_FONTS: "installed",
+          }),
+        )?.status === "ok",
+      );
+      const s1 = cli(["ux", "fonts", "installed"], undefined, fe);
+      check(
+        "ux fonts installed records it",
+        s1.code === 0 && s1.out.includes("Recorded"),
+        s1.out + s1.err,
+      );
+      const s2 = cli(["ux", "fonts", "installed"], undefined, fe);
+      check(
+        "ux fonts installed again changes nothing",
+        s2.out.includes("No changes needed"),
+        s2.out,
+      );
+      check(
+        "doctor then shows fonts ok, because you said so",
+        fontRow(cli(["doctor", "--json"], undefined, fe))?.status === "ok",
+      );
+      const st = JSON.parse(
+        await readFile(join(fh, ".local/state/snshah/state.json"), "utf8"),
+      );
+      check(
+        "state.json holds the typed answer",
+        st.fonts?.kind === "installed" && st.version === 1,
+        JSON.stringify(st),
+      );
+      const sh1 = cli(["shell", "bash"], undefined, fe);
+      check(
+        "shell init exports LC_SNSHAH_FONTS only after you said so",
+        sh1.out.includes("LC_SNSHAH_FONTS") &&
+          !cli(
+            ["shell", "bash"],
+            undefined,
+            baseEnv(join(root, "fonts-home-2")),
+          ).out.includes("LC_SNSHAH_FONTS"),
+      );
+      const m = cli(["ux", "fonts", "missing"], undefined, fe);
+      check(
+        "ux fonts missing flips it and doctor warns with the install command",
+        m.code === 0 &&
+          fontRow(cli(["doctor", "--json"], undefined, fe))?.status ===
+            "warn" &&
+          cli(["doctor"], undefined, fe).out.includes(
+            "oh-my-posh font install",
+          ),
+      );
+      const r1 = cli(["ux", "fonts", "reset"], undefined, fe);
+      const r2 = cli(["ux", "fonts", "reset"], undefined, fe);
+      check(
+        "ux fonts reset forgets, and twice is a no-op",
+        r1.code === 0 && r2.out.includes("No changes needed"),
+        r1.out + r2.out,
+      );
+      check(
+        "ux fonts install prints the command without doing anything",
+        cli(["ux", "fonts", "install"], undefined, fe).out.includes(
+          "oh-my-posh font install Meslo",
+        ),
       );
     }
 

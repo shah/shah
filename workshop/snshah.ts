@@ -148,7 +148,7 @@ type Covers<T extends readonly string[], U extends string> = [
   ? true
   : ["missing", Exclude<U, T[number]>];
 
-export const cliVersion = "0.3.0";
+export const cliVersion = "0.4.0";
 export const minimumBun = "1.4.0";
 /** The Oh My Posh release snshah installs when none is on PATH, by Bun-style target. */
 export const ohMyPosh = {
@@ -336,6 +336,11 @@ export const commandNames = [
   "ssh host add",
   "ssh host list",
   "ssh host remove",
+  "ux fonts status",
+  "ux fonts installed",
+  "ux fonts missing",
+  "ux fonts reset",
+  "ux fonts install",
   "update",
   "test",
 ] as const;
@@ -2724,6 +2729,7 @@ export function shellOps(
   ctx: Context,
   config: WorkshopConfig,
   shell: Shell,
+  fonts?: FontWord,
 ): ShellOp[] {
   const ops: ShellOp[] = [];
   const bunBin = join(ctx.env.BUN_INSTALL || join(ctx.home, ".bun"), "bin");
@@ -2749,6 +2755,9 @@ export function shellOps(
           ? "windows"
           : "linux",
   });
+  // Your own answer to `snshah ux fonts`, sent the same way so servers can see it.
+  if (fonts)
+    ops.push({ kind: "env-default", name: "LC_SNSHAH_FONTS", value: fonts });
   for (const secret of config.secrets ?? [])
     if (secret.scope === "shell")
       ops.push({ kind: "env", name: secret.variable, value: secret.value });
@@ -3854,6 +3863,17 @@ async function doctor(ctx: Context): Promise<{
     }
   }
 
+  {
+    const state = await readState(ctx);
+    const found = detectFonts(ctx, state.fonts?.kind);
+    checks.push({
+      check: "fonts",
+      status: found.kind === "yes" ? "ok" : "warn",
+      detail: `Nerd Font ${{ yes: "installed", no: "missing", unknown: "unknown" }[found.kind]}: ${found.why}`,
+    });
+    next.push(...fontsNext(found));
+  }
+
   const advice: string[] = [];
   const hasSudo = isWindows || !!Bun.which("sudo", { PATH: envPath });
   const viaManager = missing
@@ -4037,6 +4057,8 @@ export type State = {
   githubReminderAt?: string;
   /** The SSH connection whose password-login hint already showed. */
   sshHintFor?: string;
+  /** What the owner said about Nerd Fonts in the terminal they look at. */
+  fonts?: { kind: FontWord; at: string };
   update: UpdateCheck;
 };
 const emptyState: State = { version: 1, update: { kind: "never" } };
@@ -4077,6 +4099,10 @@ export async function readState(ctx: Context): Promise<State> {
       (v.githubReminderAt === undefined ||
         typeof v.githubReminderAt === "string") &&
       (v.sshHintFor === undefined || typeof v.sshHintFor === "string") &&
+      (v.fonts === undefined ||
+        (isObject(v.fonts) &&
+          member(fontWords, v.fonts.kind) &&
+          typeof v.fonts.at === "string")) &&
       isUpdateCheck(v.update)
     )
       return v as State;
@@ -4633,7 +4659,7 @@ export function hostBlock(
     ...(identity
       ? [`    IdentityFile ${identity}`, "    IdentitiesOnly yes"]
       : []),
-    "    SendEnv LC_SNSHAH_OS",
+    "    SendEnv LC_SNSHAH_OS LC_SNSHAH_FONTS",
     end,
   ].join("\n");
 }
@@ -5298,6 +5324,234 @@ async function sshHostRemove(ctx: Context, alias: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// ux fonts: does the viewer's terminal have a Nerd Font? Terminals can't say,
+// so: your word first, what a client sends over SSH, then local evidence.
+// ---------------------------------------------------------------------------
+
+export const fontWords = ["installed", "missing"] as const;
+export type FontWord = (typeof fontWords)[number];
+export type FontEvidence =
+  | { kind: "yes"; why: string }
+  | { kind: "no"; why: string }
+  | { kind: "unknown"; why: string };
+
+/** Nerd Font family names: "MesloLGS NF", "CaskaydiaCove Nerd Font Mono", ... */
+export function isNerdFontName(name: string): boolean {
+  return /nerd|\bNF[MP]?\b|caskaydia|meslolgs/i.test(name);
+}
+
+/** The font face Windows Terminal's settings.json chooses by default (comments allowed in that file). */
+export function terminalFace(settings: string): string | undefined {
+  const found =
+    /"face"\s*:\s*"([^"]+)"/.exec(settings) ??
+    /"fontFace"\s*:\s*"([^"]+)"/.exec(settings);
+  return found?.[1];
+}
+
+const windowsFontScript = String.raw`
+$ErrorActionPreference = 'SilentlyContinue'
+$names = foreach ($p in 'HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Fonts','HKLM:\Software\Microsoft\Windows NT\CurrentVersion\Fonts') { if (Test-Path $p) { (Get-Item $p).Property } }
+$settings = ''
+foreach ($d in 'Microsoft.WindowsTerminal_8wekyb3d8bbwe','Microsoft.WindowsTerminalPreview_8wekyb3d8bbwe') {
+  $f = Join-Path $env:LOCALAPPDATA "Packages\$d\LocalState\settings.json"
+  if (Test-Path $f) { $settings = Get-Content -Raw $f; break }
+}
+@{ fonts = @($names); settings = $settings } | ConvertTo-Json -Compress
+`;
+
+/** Windows evidence from the registry's font list and Windows Terminal's settings. */
+export function windowsFontEvidence(json: string): FontEvidence {
+  let data: unknown;
+  try {
+    data = JSON.parse(json);
+  } catch {
+    return { kind: "unknown", why: "could not read the Windows font list" };
+  }
+  if (!isObject(data) || !Array.isArray(data.fonts))
+    return { kind: "unknown", why: "could not read the Windows font list" };
+  const installed = data.fonts.filter(
+    (f): f is string => typeof f === "string" && isNerdFontName(f),
+  );
+  const face =
+    typeof data.settings === "string" ? terminalFace(data.settings) : undefined;
+  if (!installed.length)
+    return { kind: "no", why: "no Nerd Font is installed in Windows" };
+  const family = installed[0]!.replace(/\s*\((TrueType|OpenType)\)$/i, "");
+  if (face && !isNerdFontName(face))
+    return {
+      kind: "no",
+      why: `${family} is installed, but Windows Terminal uses "${face}"`,
+    };
+  return {
+    kind: "yes",
+    why: face
+      ? `${family} is installed and Windows Terminal uses "${face}"`
+      : `${family} is installed (set it as your terminal's font)`,
+  };
+}
+
+function fontFileEvidence(ctx: Context): FontEvidence {
+  const names: string[] = [];
+  const fc = capture(["fc-list", ":", "family"], { env: ctx.env });
+  if (fc) names.push(...fc.split("\n"));
+  const dirs =
+    ctx.platform === "macos"
+      ? [join(ctx.home, "Library", "Fonts"), "/Library/Fonts"]
+      : [
+          join(
+            xdg(ctx.env, ctx.home, "XDG_DATA_HOME", ".local/share"),
+            "fonts",
+          ),
+          join(ctx.home, ".fonts"),
+        ];
+  for (const dir of dirs)
+    try {
+      names.push(...readdirSync(dir));
+    } catch {
+      /* no such folder */
+    }
+  const hit = names.find(isNerdFontName);
+  return hit
+    ? {
+        kind: "yes",
+        why: `${hit.trim()} is installed (set it as your terminal's font)`,
+      }
+    : { kind: "no", why: "no Nerd Font is installed on this machine" };
+}
+
+/** Best evidence about the viewer's fonts. Never installs anything. */
+export function detectFonts(ctx: Context, saved?: FontWord): FontEvidence {
+  const ssh = !!(ctx.env.SSH_CONNECTION ?? ctx.env.SSH_CLIENT);
+  const sent = ctx.env.LC_SNSHAH_FONTS?.toLowerCase();
+  if (ssh) {
+    if (sent === "installed")
+      return {
+        kind: "yes",
+        why: "your client says it has one (LC_SNSHAH_FONTS)",
+      };
+    if (sent === "missing")
+      return {
+        kind: "no",
+        why: "your client says it has none (LC_SNSHAH_FONTS)",
+      };
+    if (saved)
+      return {
+        kind: saved === "installed" ? "yes" : "no",
+        why: `you set it to ${saved} on this machine`,
+      };
+    return {
+      kind: "unknown",
+      why: "over SSH the server can't see your terminal; run `snshah ux fonts installed` on your own machine",
+    };
+  }
+  if (saved)
+    return {
+      kind: saved === "installed" ? "yes" : "no",
+      why: `you said so (snshah ux fonts ${saved})`,
+    };
+  if (ctx.platform === "windows" || ctx.platform === "wsl") {
+    const script = windowsFontScript;
+    const out = capture(
+      ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script],
+      { env: ctx.env },
+    );
+    return out
+      ? windowsFontEvidence(out)
+      : { kind: "unknown", why: "could not ask Windows about fonts" };
+  }
+  return fontFileEvidence(ctx);
+}
+
+async function fontsStatus(ctx: Context): Promise<void> {
+  const state = await readState(ctx);
+  const found = detectFonts(ctx, state.fonts?.kind);
+  const label = { yes: "installed", no: "missing", unknown: "unknown" }[
+    found.kind
+  ];
+  say(
+    `Nerd Font: ${label}. ${found.why}.`,
+    found.kind === "yes" ? "success" : "pending",
+  );
+  if (found.kind !== "yes") printNext(fontsNext(found));
+}
+
+function fontsNext(found: FontEvidence): NextStep[] {
+  return found.kind === "unknown"
+    ? [
+        {
+          title:
+            "When your terminal draws the prompt icons correctly, tell snshah once:",
+          command: "snshah ux fonts installed",
+        },
+        {
+          title: "If it shows boxes or ?, install one:",
+          command: fontInstallCommand,
+        },
+      ]
+    : found.kind === "no"
+      ? [
+          {
+            title: "Install a Nerd Font, then pick it as your terminal's font:",
+            command: fontInstallCommand,
+          },
+        ]
+      : [];
+}
+
+const fontInstallCommand = "oh-my-posh font install Meslo";
+
+async function fontsSet(ctx: Context, word: FontWord | "reset"): Promise<void> {
+  const state = await readState(ctx);
+  const same = word === "reset" ? !state.fonts : state.fonts?.kind === word;
+  if (same)
+    return say(
+      `Fonts already ${word === "reset" ? "unknown" : word}. No changes needed.`,
+      "success",
+    );
+  const { fonts: _old, ...rest } = state;
+  await writeState(
+    ctx,
+    word === "reset"
+      ? rest
+      : { ...rest, fonts: { kind: word, at: new Date().toISOString() } },
+  );
+  say(
+    word === "reset"
+      ? "Forgot your answer; doctor shows fonts as unknown again."
+      : `Recorded: Nerd Font ${word}. New shells tell servers you ssh into (LC_SNSHAH_FONTS).`,
+    "success",
+  );
+}
+
+async function fontsInstall(ctx: Context, run: boolean): Promise<void> {
+  const posh =
+    Bun.which("oh-my-posh", { PATH: ctx.env.PATH ?? "" }) ??
+    (existsSync(ctx.poshBinary) ? ctx.poshBinary : null);
+  if (!run || !posh) {
+    say(
+      "Install a Nerd Font in your account (run this on the machine whose terminal you look at):",
+      "action",
+    );
+    console.log(`  ${fontInstallCommand}`);
+    if (run)
+      say("oh-my-posh is not installed yet; run snshah apply first.", "error");
+  } else {
+    say("Installing Meslo Nerd Font with oh-my-posh...", "action");
+    const result = Bun.spawnSync([posh, "font", "install", "Meslo"], {
+      stdout: 2,
+      stderr: 2,
+      stdin: "inherit",
+    });
+    if (result.exitCode !== 0)
+      throw new Error("oh-my-posh font install failed");
+  }
+  console.log(
+    "Then choose it as the font in your terminal (Windows Terminal: Settings > Profiles > Defaults > Appearance > Font face), and run:",
+  );
+  console.log("  snshah ux fonts installed");
+}
+
+// ---------------------------------------------------------------------------
 // Output helpers (chalk and clack load lazily; shell/exec never load them)
 // ---------------------------------------------------------------------------
 
@@ -5913,6 +6167,36 @@ export async function buildCli(ctx: Context): Promise<CommanderCommand> {
     .argument("<alias>", "short name")
     .action(async (alias: string) => sshHostRemove(ctx, alias));
 
+  const ux = program
+    .command("ux")
+    .description("Terminal comforts: what your terminal can show");
+  const fonts = ux
+    .command("fonts")
+    .description(
+      "Does your terminal have a Nerd Font? (prompt icons need one)",
+    );
+  fonts
+    .command("status", { isDefault: true })
+    .description("Show what snshah knows and how it knows")
+    .action(async () => fontsStatus(ctx));
+  fonts
+    .command("installed")
+    .description("Record that your terminal shows the icons correctly")
+    .action(async () => fontsSet(ctx, "installed"));
+  fonts
+    .command("missing")
+    .description("Record that your terminal has no Nerd Font")
+    .action(async () => fontsSet(ctx, "missing"));
+  fonts
+    .command("reset")
+    .description("Forget your answer; doctor shows unknown")
+    .action(async () => fontsSet(ctx, "reset"));
+  fonts
+    .command("install")
+    .description("Show (or with --run, do) the Nerd Font install")
+    .option("--run", "run oh-my-posh font install Meslo now")
+    .action(async (o: { run?: boolean }) => fontsInstall(ctx, !!o.run));
+
   program
     .command("update")
     .description(
@@ -5984,8 +6268,9 @@ export async function main(argv: string[]): Promise<number> {
       (argv.length === 2 || (argv.length === 3 && argv[2] === "--greet"))
     ) {
       const { config } = await loadEffective(ctx);
+      const fonts = (await readState(ctx)).fonts?.kind;
       process.stdout.write(
-        renderShell(argv[1], shellOps(ctx, config, argv[1])),
+        renderShell(argv[1], shellOps(ctx, config, argv[1], fonts)),
       );
       if (argv[2] === "--greet") await greet(ctx, config);
       return 0;

@@ -92,6 +92,15 @@ This is not an implementation plan.
   covers common cases. A password login gets a colored hint using the same
   text as `snshah ssh copy`.
 
+### Session 2026-11-27 (Nerd Fonts)
+
+- Q: Prompt icons show as boxes in Windows Terminal; can `doctor` tell? →
+  A: A terminal can't report its fonts, so `doctor` shows the owner's answer
+  first, then what an SSH client sends, then local evidence (Windows registry
+  and Windows Terminal settings, `fc-list`, font folders), else `unknown`.
+- Q: How does the owner answer? → A: `snshah ux fonts installed` (and
+  `missing`, `reset`), kept in the typed `state.json`.
+
 ## Primary scenario
 
 Shahid sits down at a new or rebuilt machine (any Linux, WSL, a Mac, or a
@@ -269,6 +278,16 @@ run changes nothing.
   show a colored hint once per connection with the output of
   `snshah ssh copy`; `SNSHAH_SSH_HINT=0` MUST silence it.
 
+### Fonts
+
+- **FR-033**: `snshah doctor` MUST show a Nerd Font row that is `unknown`
+  until evidence or the owner's answer exists, and MUST NOT guess `installed`.
+- **FR-034**: `snshah ux fonts [status|installed|missing|reset|install]` MUST
+  keep the owner's answer in `state.json` idempotently; `install` MUST only
+  show the command unless `--run` is given.
+- **FR-035**: Over SSH the owner's client MUST be able to send its answer in
+  `LC_SNSHAH_FONTS`, which wins over anything the server can see.
+
 ### Model of record
 
 - **FR-017**: `ontology/workshop.ttl` MUST state the Workshop's version,
@@ -336,5 +355,6 @@ run changes nothing.
 | FR-018, FR-019, FR-021 | Shahid N. Shah, direct statement, 2026-11-27 (profile.d, type-safe merge, command hooks with env passthrough) |
 | FR-020, FR-022 | Shahid N. Shah, direct statement, 2026-11-27 (environment selectors first, fingerprint when needed, hostnames allowed); private-only rule proposed by Claude |
 | FR-023 | Shahid N. Shah, decision, 2026-11-27 ("Yes, pinned and checksummed") |
+| FR-033 to FR-035 | Shahid N. Shah, direct statement, 2026-11-27 (Nerd Fonts in Windows Terminal; `snshah ux fonts`) |
 | FR-027 to FR-032 | Shahid N. Shah, direct statements, 2026-11-27 (mise, tools, GitHub sign-in, `snshah ssh`) |
 | FR-024 to FR-026 | Shahid N. Shah, direct statements, 2026-11-27 (Debian 13 acceptance run) |
