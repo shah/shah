@@ -345,6 +345,12 @@ run changes nothing.
   entries and web apps only through managed blocks, files of its own and
   idempotent `omarchy webapp install` hooks, and MUST NOT hold work accounts,
   tenants or private URLs. The default browser stays a private choice.
+- **FR-069**: `zoxide` MUST be a default tool. Where it is installed, the
+  shell init MUST load `zoxide init <shell>` (bash, zsh, fish, pwsh) giving `z`
+  and `zi`, plus a `cdz` alias for `z` that never replaces one you set, and
+  MUST NOT replace `cd`. An agent's shell MUST NOT get it. `snshah apply` MUST
+  teach zoxide the existing registered checkouts once, so a second apply
+  changes nothing.
 - **FR-057**: `list`, `status` and `folder` MUST take `--json`; `schedule
   <name> <30m|6h|1d|off>` MUST write and enable a systemd user timer that runs
   `snshah efss pull`, idempotently; `remove` MUST forget the sign-in and
@@ -531,6 +537,7 @@ run changes nothing.
 | FR-018, FR-019, FR-021 | Shahid N. Shah, direct statement, 2026-11-27 (profile.d, type-safe merge, command hooks with env passthrough)                                                |
 | FR-020, FR-022         | Shahid N. Shah, direct statement, 2026-11-27 (environment selectors first, fingerprint when needed, hostnames allowed); private-only rule proposed by Claude |
 | FR-023                 | Shahid N. Shah, decision, 2026-11-27 ("Yes, pinned and checksummed")                                                                                         |
+| FR-069                 | Shahid N. Shah, direct statement, 2026-11-27 (use zoxide; do not override `cd`; add `cdz`) |
 | FR-066 to FR-068       | Shahid N. Shah, direct statement, 2026-11-27 (anything Omarchy-specific from shah/workshop goes to an `omarchy-workstation` profile in shah/shah) |
 | FR-061 to FR-065       | Shahid N. Shah, direct statements, 2026-11-27 (headless features move into the core or into service-detecting profiles; ideas studied from shah/workshop: sign-in hints, agent sessions, the age vault, the private config workspace) |
 | FR-058 to FR-060       | Shahid N. Shah, direct statement, 2026-11-27 (`smbd` and `nfs` handled through print and audit, contributed by a service-detecting profile) |

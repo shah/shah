@@ -168,7 +168,7 @@ type Covers<T extends readonly string[], U extends string> = [
   ? true
   : ["missing", Exclude<U, T[number]>];
 
-export const cliVersion = "0.14.0";
+export const cliVersion = "0.15.0";
 export const minimumBun = "1.4.0";
 /** The Oh My Posh release snshah installs when none is on PATH, by Bun-style target. */
 export const ohMyPosh = {
@@ -266,6 +266,7 @@ export const defaultTools = {
   delta: "latest",
   direnv: "latest",
   eza: "latest",
+  zoxide: "latest",
 } as const satisfies Record<string, string>;
 export const dependencies = {
   commander: "12.1.0",
@@ -2856,7 +2857,43 @@ export async function plan(
         "snshah launcher",
       )),
     );
-  return [...before, ...steps, ...after, ...cli, ...tools.late];
+  // Teach zoxide where your registered checkouts are, so z finds them at once.
+  const seed: Step[] = [];
+  if (
+    config.tools?.zoxide !== false &&
+    (toolManagerOn(config) ||
+      Bun.which("zoxide", { PATH: ctx.env.PATH ?? "" })) &&
+    !runningUnderAgent(ctx.env)
+  ) {
+    const zoxide =
+      Bun.which("zoxide", {
+        PATH: [ctx.miseShims, ctx.env.PATH ?? ""].join(delimiter),
+      }) ?? join(ctx.miseShims, isWindows ? "zoxide.exe" : "zoxide");
+    for (const repo of config.repositories ?? []) {
+      const path = repoPath(ctx, config, repo);
+      if (!existsSync(path)) continue;
+      // Skipped once zoxide already knows the folder, so a second apply changes nothing.
+      const known =
+        existsSync(zoxide) &&
+        Bun.spawnSync([zoxide, "query", "--exact", path], {
+          env: { ...ctx.env } as Record<string, string>,
+          stdin: "ignore",
+          stdout: "ignore",
+          stderr: "ignore",
+        }).exitCode === 0;
+      if (known) continue;
+      seed.push({
+        kind: "command",
+        phase: "after-apply",
+        run: [zoxide, "add", path],
+        unless: [zoxide, "query", "--exact", path],
+        env: commandEnv(ctx.env, undefined, [], "zoxide"),
+        path: "",
+        label: `zoxide: remember ${tilde(ctx, path)}`,
+      });
+    }
+  }
+  return [...before, ...steps, ...after, ...cli, ...tools.late, ...seed];
 }
 
 // ---------------------------------------------------------------------------
@@ -3158,6 +3195,7 @@ export type ShellOp =
   | { kind: "wrap"; command: string; wrapper: string }
   | { kind: "mise"; binary: string }
   | { kind: "direnv" }
+  | { kind: "zoxide" }
   | { kind: "prompt"; theme: string; binary: string };
 
 /** Variables that agents set in the shells they start. SNSHAH_AGENT=1 or 0 overrides the guess. */
@@ -3258,6 +3296,9 @@ export function shellOps(
       binary: ctx.poshBinary,
     });
   }
+  // zoxide's `z`, `zi` and `cdz`; `cd` itself is left alone. Not for agents: a
+  // jumping cd makes their runs unpredictable.
+  if (config.tools?.zoxide !== false && !agent) ops.push({ kind: "zoxide" });
   // After the prompt, so its init can't replace the hook that follows your directory.
   ops.push({ kind: "dirhook" });
   return ops;
@@ -3420,6 +3461,10 @@ function renderPosix(shell: "bash" | "zsh", op: ShellOp): string[] {
       return [
         `if command -v direnv >/dev/null 2>&1 && ! type _direnv_hook >/dev/null 2>&1; then eval "$(direnv hook ${shell})"; fi`,
       ];
+    case "zoxide":
+      return [
+        `if command -v zoxide >/dev/null 2>&1 && ! type __zoxide_z >/dev/null 2>&1; then eval "$(zoxide init ${shell})"; ${defined("cdz")} || alias cdz=z; fi`,
+      ];
     case "prompt":
       return [
         // Prefer an oh-my-posh on PATH; fall back to the copy snshah installed.
@@ -3481,6 +3526,10 @@ function renderFish(op: ShellOp): string[] {
     case "direnv":
       return [
         `if command -sq direnv; and not functions -q __direnv_export_eval; direnv hook fish | source; end`,
+      ];
+    case "zoxide":
+      return [
+        `if command -sq zoxide; and not functions -q __zoxide_z; zoxide init fish | source; functions -q cdz; or alias cdz z; end`,
       ];
     case "prompt":
       return [
@@ -3549,6 +3598,10 @@ function renderPwsh(op: ShellOp): string[] {
     case "mise":
       return [
         `if (-not $env:MISE_SHELL) { $__snshahMise = (Get-Command mise -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1).Source; if (-not $__snshahMise -and (Test-Path -LiteralPath ${quotePwsh(op.binary)})) { $__snshahMise = ${quotePwsh(op.binary)} }; if ($__snshahMise) { (& $__snshahMise activate pwsh) -join "\`n" | Invoke-Expression }; Remove-Variable __snshahMise -ErrorAction SilentlyContinue }`,
+      ];
+    case "zoxide":
+      return [
+        `if ((Get-Command zoxide -CommandType Application -ErrorAction SilentlyContinue) -and -not $global:__snshahZoxide) { $global:__snshahZoxide = $true; (& zoxide init powershell) -join "\`n" | Invoke-Expression; if (${undefinedCommand("cdz")}) { Set-Alias -Name cdz -Value z -Scope Global } }`,
       ];
     case "direnv":
       return [
@@ -4090,6 +4143,22 @@ const tools: Tool[] = [
       brew: "fd",
       winget: "sharkdp.fd",
       omarchy: "fd",
+    },
+  },
+  {
+    name: "zoxide",
+    mise: "zoxide",
+    purpose: "z and zi: jump to the directories you use most",
+    required: false,
+    advice: {
+      apt: "zoxide",
+      dnf: "zoxide",
+      pacman: "zoxide",
+      apk: "zoxide",
+      zypper: "zoxide",
+      brew: "zoxide",
+      winget: "ajeetdsouza.zoxide",
+      omarchy: "zoxide",
     },
   },
   {

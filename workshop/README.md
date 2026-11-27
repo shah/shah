@@ -125,6 +125,16 @@ Do it before `git clone` or `git push` over HTTPS quietly fails. `snshah
 doctor` shows whether you are signed in, and your shell reminds you once a
 day until you are.
 
+## Jumping around: `z`, `zi`, `cdz`
+
+`zoxide` is a default tool. In every shell (not an agent's) `z fleet` jumps to
+the directory matching "fleet" that you use most and most recently, `zi`
+picks one interactively with `fzf`, and `cdz` is the same as `z`. `cd` itself
+is left alone. `snshah apply` tells zoxide about your registered checkouts
+(`snshah git list`) so they are found before you have visited them. For a
+directory you've never been in, use `fzf`'s `Alt-C`. Turn it off with
+`tools: { zoxide: false }`.
+
 ## Agents, local models and backups
 
 - `snshah agent status` lists the agent CLIs (`claude`, `codex`) you have.

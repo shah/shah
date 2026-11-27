@@ -1779,6 +1779,69 @@ export const recommends = [{ tool: "bad tool", why: "x" }];
       await rm(join(pdir, "80-suggest.ts"));
     }
 
+    // zoxide: z, zi and cdz in every shell; cd untouched; seeded from checkouts.
+    if (process.platform !== "win32") {
+      const zh = join(root, "zoxide-home");
+      const bin = join(zh, "stubs");
+      await mkdir(bin, { recursive: true });
+      const log = join(zh, "zoxide.log");
+      const db = join(zh, "known");
+      await writeFile(
+        join(bin, "zoxide"),
+        `#!/bin/sh
+echo "zoxide $*" >> "${log}"
+case "$1" in
+  add) echo "$2" >> "${db}" ;;
+  query) grep -qxF "$3" "${db}" 2>/dev/null || exit 1 ;;
+esac
+exit 0
+`,
+        { mode: 0o755 },
+      );
+      const bare = baseEnv(zh);
+      const ze = { ...bare, PATH: `${bin}${delimiter}${bare.PATH ?? ""}` };
+      for (const shell of ["bash", "zsh", "fish", "pwsh"]) {
+        const out = cli(["shell", shell], undefined, ze).out;
+        check(
+          `shell ${shell}: zoxide init and cdz, with cd left alone`,
+          out.includes("zoxide init") &&
+            out.includes("cdz") &&
+            !/alias cd=|function cd\b|--cmd cd/.test(out),
+          out.slice(0, 200),
+        );
+      }
+      const agentOut = cli(["shell", "bash"], undefined, {
+        ...ze,
+        CLAUDECODE: "1",
+      }).out;
+      check(
+        "an agent's shell gets no zoxide",
+        !agentOut.includes("zoxide init"),
+      );
+      const checkout = join(zh, "work", "mine");
+      await mkdir(checkout, { recursive: true });
+      await mkdir(join(zh, ".config", "snshah"), { recursive: true });
+      await writeFile(
+        join(zh, ".config", "snshah", "snshah.conf.ts"),
+        `export default { repositories: [{ name: "mine", source: "${checkout}", path: "${checkout}" }] };\n`,
+        { mode: 0o600 },
+      );
+      const seeded = cli(["apply", "--yes"], undefined, ze);
+      check(
+        "apply teaches zoxide the registered checkouts",
+        seeded.code === 0 &&
+          existsSync(db) &&
+          (await readFile(db, "utf8")).includes(checkout),
+        seeded.out + seeded.err,
+      );
+      const again = cli(["apply", "--yes"], undefined, ze);
+      check(
+        "and a second apply changes nothing",
+        again.out.includes("No changes needed"),
+        again.out + again.err,
+      );
+    }
+
     // wt: worktrees next to the repository; prune only what is safe.
     {
       const wh = join(root, "wt-home");
