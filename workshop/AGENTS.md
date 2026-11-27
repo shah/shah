@@ -50,12 +50,14 @@ Rules for a person or an AI agent changing anything in `workshop/`.
   `SHASUMS256.txt` and the ontology's mise version. The self-test uses a stub
   `mise`, so the first real run on a machine is the true test of installs.
 - The `snshah ssh` commands never run `sshd` changes: `harden` only prints.
-- `.snshah.path.ts` runs only after `snshah profile allow` records its
-  SHA-256 in `state.json`; the CLI imports a copy of the bytes it hashed.
-  Keep the file limited to `aliases`, `env` and `path`. The shell hook
-  (`renderDirHookPosix`, `renderDirHookFish`) must stay cheap: it may only
-  `[ -f ]` up the tree and call `snshah profile load` when the list changes.
-  `profile load` must never fail a shell.
+- `.snshah.profile.ts` runs only after `snshah profile allow` records its
+  SHA-256 in `state.json`, and then with NO limits on purpose (the owner's
+  decision): do not add sandboxing, key allow-lists beyond what
+  `snshah apply` owns, or ownership and mode rules. Keep the 🚨 danger text in
+  `allow`, the help and the README. The shell hook (`renderDirHookPosix`,
+  `renderDirHookFish`) must stay cheap: it may only `[ -f ]` up the tree and
+  call `snshah profile load` when the list changes. `profile load` must never
+  fail a shell, and the file's own stdout must go to stderr.
 - Pin npm dependencies (`commander`, `chalk`, `@clack/prompts`) by exact
   version in `snshah.ts`. `snshah shell` and `snshah exec` must not load
   them.

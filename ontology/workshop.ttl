@@ -15,7 +15,7 @@ ws:snshah a ws:Toolkit ;
     doap:programming-language "TypeScript" ;
     dcterms:creator "Shahid Shah" ;
     eid:path "workshop/snshah.ts" ;
-    ws:version "0.5.0" ;
+    ws:version "0.5.1" ;
     ws:idempotent true ;
     ws:runtime ws:bun ;
     ws:upstream "shah/shah@main" ;
@@ -43,7 +43,7 @@ ws:snshah a ws:Toolkit ;
     ws:installs ws:bin-oh-my-posh , ws:bin-mise ;
     ws:toolManager ws:bin-mise ;
     ws:defaultTool "gh" , "ripgrep" , "fd" , "bat" , "fzf" , "jq" , "yq" , "delta" , "direnv" , "eza" ;
-    ws:directoryProfileFile ".snshah.path.ts" ;
+    ws:directoryProfileFile ".snshah.profile.ts" ;
     ws:clientOsVariable "LC_SNSHAH_OS" ;
     ws:sshHintSilencedBy "SNSHAH_SSH_HINT" ;
     ws:advisesWith ws:pm-apt , ws:pm-dnf , ws:pm-pacman , ws:pm-apk , ws:pm-zypper , ws:pm-brew , ws:pm-winget , ws:pm-omarchy ;
@@ -94,11 +94,11 @@ ws:cmd-ssh-harden a ws:Command ; ws:name "ssh harden" ; rdfs:comment "Advice onl
 ws:cmd-ssh-host-add a ws:Command ; ws:name "ssh host add" ; rdfs:comment "Write one marked Host block to ~/.ssh/config." .
 ws:cmd-ssh-host-list a ws:Command ; ws:name "ssh host list" ; rdfs:comment "List the Host blocks snshah wrote." .
 ws:cmd-ssh-host-remove a ws:Command ; ws:name "ssh host remove" ; rdfs:comment "Remove one Host block snshah wrote." .
-ws:cmd-profile-list a ws:Command ; ws:name "profile list" ; rdfs:comment "The .snshah.path.ts files that apply here and whether you trust them. The default profile command." .
+ws:cmd-profile-list a ws:Command ; ws:name "profile list" ; rdfs:comment "The .snshah.profile.ts files that apply here and whether you trust them. The default profile command." .
 ws:cmd-profile-show a ws:Command ; ws:name "profile show" ; rdfs:comment "What the trusted directory profiles set here, and which file set it." .
 ws:cmd-profile-allow a ws:Command ; ws:name "profile allow" ; rdfs:comment "Read a directory profile, then trust its content hash. Alias: safe." .
 ws:cmd-profile-deny a ws:Command ; ws:name "profile deny" ; rdfs:comment "Stop trusting a directory profile." .
-ws:cmd-profile-init a ws:Command ; ws:name "profile init" ; rdfs:comment "Create a .snshah.path.ts in this directory; never overwrites." .
+ws:cmd-profile-init a ws:Command ; ws:name "profile init" ; rdfs:comment "Create a .snshah.profile.ts in this directory; never overwrites." .
 ws:cmd-profile-check a ws:Command ; ws:name "profile check" ; rdfs:comment "Validate a trusted directory profile." .
 ws:cmd-profile-why a ws:Command ; ws:name "profile why" ; rdfs:comment "Which directory profile sets an alias, variable or PATH entry." .
 ws:cmd-profile-load a ws:Command ; ws:name "profile load" ; rdfs:comment "Internal: the shell code the prompt hook evaluates for the trusted profiles." .

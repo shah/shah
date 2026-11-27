@@ -87,11 +87,16 @@ export type WorkshopConfig = {
 };
 /** What a profile.d file may contribute. Secrets stay in the private config. */
 export type Contribution = Omit<WorkshopConfig, "secrets">;
-/** What a `.snshah.path.ts` file may set while your shell is inside its directory. */
+/** What a `.snshah.profile.ts` file may set while your shell is inside its directory. */
 export type DirectoryContribution = Pick<
   WorkshopConfig,
   "path" | "aliases" | "env"
->;
+> & {
+  /** Shell code to run when you enter the directory (after env, aliases and PATH). */
+  onEnter?: AliasValue;
+  /** Shell code to run when you leave it (before the rest is put back). */
+  onLeave?: AliasValue;
+};
 /** Which machines a profile applies to. Environment first; identity last. */
 export type Selector =
   | { kind: "always" }
@@ -155,7 +160,7 @@ type Covers<T extends readonly string[], U extends string> = [
   ? true
   : ["missing", Exclude<U, T[number]>];
 
-export const cliVersion = "0.5.0";
+export const cliVersion = "0.5.1";
 export const minimumBun = "1.4.0";
 /** The Oh My Posh release snshah installs when none is on PATH, by Bun-style target. */
 export const ohMyPosh = {
@@ -2839,10 +2844,10 @@ export function ezaCommands(icons: boolean): Record<string, string> {
   };
 }
 
-export const dirProfileFile = ".snshah.path.ts";
+export const dirProfileFile = ".snshah.profile.ts";
 
 /**
- * Per-directory profiles: a prompt hook finds `.snshah.path.ts` files above
+ * Per-directory profiles: a prompt hook finds `.snshah.profile.ts` files above
  * your directory and, only when that list changes, asks `snshah profile load`
  * for the trusted ones. The helpers record what they replace so leaving the
  * directory puts it back.
@@ -2870,6 +2875,8 @@ $__snshah_dir_undo"; fi; export "$1=$2"; }`,
     `__snshah_dir_unpath() { __snshah_t=":$PATH:"; __snshah_t=\${__snshah_t//":$1:"/:}; __snshah_t=\${__snshah_t#:}; PATH=\${__snshah_t%:}; export PATH; }`,
     `__snshah_dir_path() { case ":$PATH:" in *":$1:"*) return 0 ;; esac; PATH="$1:$PATH"; export PATH; __snshah_dir_undo="__snshah_dir_unpath $(__snshah_q "$1")
 $__snshah_dir_undo"; }`,
+    `__snshah_dir_leave() { __snshah_dir_undo="$1
+$__snshah_dir_undo"; }`,
     `__snshah_dir_reset() { if [ -n "$__snshah_dir_undo" ]; then eval "$__snshah_dir_undo"; fi; __snshah_dir_undo=''; }`,
     `__snshah_dir_hook() { [ "$PWD" = "\${__snshah_dir_pwd-}" ] && return 0; __snshah_dir_pwd=$PWD; __snshah_d=$PWD; __snshah_f=''; while :; do if [ -f "$__snshah_d/${dirProfileFile}" ]; then __snshah_f="$__snshah_d/${dirProfileFile}\${__snshah_f:+
 $__snshah_f}"; fi; [ "$__snshah_d" = / ] && break; __snshah_d=\${__snshah_d%/*}; [ -n "$__snshah_d" ] || __snshah_d=/; done; [ "$__snshah_f" = "\${__snshah_dir_sig-}" ] && return 0; __snshah_dir_reset; __snshah_dir_sig=$__snshah_f; if [ -n "$__snshah_f" ]; then eval "$(SNSHAH_DIRFILES="$__snshah_f" command snshah profile load --shell ${shell})"; fi; return 0; }`,
@@ -2883,6 +2890,7 @@ function renderDirHookFish(): string[] {
     `function __snshah_dir_alias; if functions -q $argv[1]; functions -c $argv[1] __snshah_prev_$argv[1]; set -ga __snshah_dir_undo "functions -e $argv[1]; functions -c __snshah_prev_$argv[1] $argv[1]; functions -e __snshah_prev_$argv[1]"; else; set -ga __snshah_dir_undo "functions -e $argv[1]"; end; alias $argv[1] $argv[2]; end`,
     `function __snshah_dir_env; if set -q $argv[1]; set -ga __snshah_dir_undo "set -gx $argv[1] "(string escape -- "$$argv[1]"); else; set -ga __snshah_dir_undo "set -e $argv[1]"; end; set -gx $argv[1] $argv[2]; end`,
     `function __snshah_dir_path; contains -- $argv[1] $PATH; and return 0; set -ga __snshah_dir_undo "set -gx PATH (string match -v -- "(string escape -- $argv[1])" \\$PATH)"; set -gx PATH $argv[1] $PATH; end`,
+    `function __snshah_dir_leave; set -g __snshah_dir_undo $argv[1] $__snshah_dir_undo; end`,
     `function __snshah_dir_reset; for c in $__snshah_dir_undo; eval $c; end; set -g __snshah_dir_undo; end`,
     `function __snshah_dir_hook --on-variable PWD; test "$PWD" = "$__snshah_dir_pwd"; and return 0; set -g __snshah_dir_pwd $PWD; set -l d $PWD; set -l f; while true; if test -f "$d/${dirProfileFile}"; set f "$d/${dirProfileFile}" $f; end; test "$d" = /; and break; set d (path dirname $d); end; test "$f" = "$__snshah_dir_sig"; and return 0; __snshah_dir_reset; set -g __snshah_dir_sig "$f"; if test -n "$f"; env SNSHAH_DIRFILES=(string join \\n -- $f | string collect) snshah profile load --shell fish | source; end; end`,
     `__snshah_dir_hook`,
@@ -4348,7 +4356,7 @@ export type State = {
   sshHintFor?: string;
   /** What the owner said about Nerd Fonts in the terminal they look at. */
   fonts?: { kind: FontWord; at: string };
-  /** `.snshah.path.ts` files the owner trusted: real path to the SHA-256 of what they read. */
+  /** `.snshah.profile.ts` files the owner trusted: real path to the SHA-256 of what they read. */
   trusted?: Record<string, string>;
   update: UpdateCheck;
 };
@@ -5721,7 +5729,7 @@ async function sshHostRemove(ctx: Context, alias: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Directory profiles: `.snshah.path.ts`, trusted by content hash
+// Directory profiles: `.snshah.profile.ts`, trusted by content hash
 // ---------------------------------------------------------------------------
 
 export type DirStatus =
@@ -5743,9 +5751,11 @@ export type DirEffective = {
   aliases: Record<string, AliasValue>;
   env: Record<string, string>;
   path: string[];
+  enter: AliasValue[];
+  leave: AliasValue[];
 };
 
-/** Every `.snshah.path.ts` from `start` up to the root, farthest first. */
+/** Every `.snshah.profile.ts` from `start` up to the root, farthest first. */
 export function dirProfileChain(
   start: string,
   isFile: (path: string) => boolean = (p) => existsSync(p),
@@ -5768,14 +5778,11 @@ async function dirFileStatus(
   trusted: Record<string, string> | undefined,
 ): Promise<DirFile> {
   try {
-    const info = await lstat(file);
+    const info = await stat(file); // links are followed: the content hash is the trust
     if (!info.isFile())
       return {
         file,
-        status: {
-          kind: "blocked",
-          reason: "must be a regular file, not a link",
-        },
+        status: { kind: "blocked", reason: "is not a file" },
       };
     // No owner or mode rules: the content hash is the trust, and any edit
     // (by anyone) makes the file untrusted again.
@@ -5800,45 +5807,76 @@ async function dirFileStatus(
   }
 }
 
-const dirAllowedKeys = ["aliases", "env", "path"];
+/** Why a setting is rejected here: these are applied by `snshah apply`, not by a shell. */
+const machineWideKeys = [
+  "workspacesHome",
+  "prompt",
+  "toolManager",
+  "tools",
+  "agents",
+  "repositories",
+];
 
-/** Run one trusted file. The bytes that were hashed are the bytes that run. */
+function validateShellCode(value: unknown, at: string): void {
+  if (typeof value === "string") return;
+  if (!isObject(value))
+    fail(at, "must be a string or { posix, fish, pwsh } of shell code");
+  for (const [k, v] of Object.entries(value))
+    if (!["posix", "fish", "pwsh"].includes(k) || typeof v !== "string")
+      fail(`${at}.${k}`, "must be posix, fish or pwsh with a string value");
+}
+
+/**
+ * Run one trusted file in place, with no limits: it is your TypeScript, so it
+ * may import anything and do anything you can. The file is hashed again after
+ * it ran, and a file that changed meanwhile is discarded.
+ */
 async function importDirProfile(
   ctx: Context,
   file: string,
+  hash?: string,
 ): Promise<{ selector: Selector; config: DirectoryContribution }> {
-  const staging = await mkdtemp(join(tmpdir(), "snshah-dir-"));
-  try {
-    const copy = join(staging, "profile.ts");
-    await writeFile(copy, await readFile(file), { mode: 0o600 });
-    const module: Record<string, unknown> = await import(
-      pathToFileURL(copy).href
-    );
-    for (const key of Object.keys(module))
-      if (!["selector", "config"].includes(key))
-        fail(key, "is not a directory-profile export (use selector, config)");
-    const selector = module.selector ?? { kind: "always" };
-    validateSelector(selector, "repo");
-    const config = module.config ?? {};
-    if (!isObject(config)) fail("config", "must be an object");
-    for (const key of Object.keys(config))
-      if (!dirAllowedKeys.includes(key))
-        fail(`config.${key}`, "is not allowed here (use aliases, env, path)");
-    validateConfig(config);
-    const base = dirname(file);
-    return {
-      selector,
-      config: {
-        ...(config.aliases ? { aliases: config.aliases } : {}),
-        ...(config.env ? { env: config.env } : {}),
-        ...(config.path
-          ? { path: config.path.map((p) => resolve(base, expandHome(ctx, p))) }
-          : {}),
-      },
-    };
-  } finally {
-    await rm(staging, { recursive: true, force: true });
-  }
+  const module: Record<string, unknown> = await import(
+    `${pathToFileURL(file).href}?${Date.now()}`
+  );
+  if (
+    hash &&
+    createHash("sha256")
+      .update(await readFile(file))
+      .digest("hex") !== hash
+  )
+    throw new Error("the file changed while it was loading; ignored");
+  for (const key of Object.keys(module))
+    if (!["selector", "config"].includes(key))
+      fail(key, "is not a profile export (use selector, config)");
+  const selector = module.selector ?? { kind: "always" };
+  validateSelector(selector, "private"); // yours alone: every selector is allowed
+  const raw = module.config ?? {};
+  if (!isObject(raw)) fail("config", "must be an object");
+  const { onEnter, onLeave, ...rest } = raw;
+  for (const key of Object.keys(rest))
+    if (machineWideKeys.includes(key))
+      fail(
+        `config.${key}`,
+        "is applied by `snshah apply` for the whole machine, so a directory profile can't change it",
+      );
+  if (onEnter !== undefined) validateShellCode(onEnter, "config.onEnter");
+  if (onLeave !== undefined) validateShellCode(onLeave, "config.onLeave");
+  validateConfig({ ...rest });
+  const config = rest as DirectoryContribution;
+  const base = dirname(file);
+  return {
+    selector,
+    config: {
+      ...(config.aliases ? { aliases: config.aliases } : {}),
+      ...(config.env ? { env: config.env } : {}),
+      ...(config.path
+        ? { path: config.path.map((p) => resolve(base, expandHome(ctx, p))) }
+        : {}),
+      ...(onEnter !== undefined ? { onEnter: onEnter as AliasValue } : {}),
+      ...(onLeave !== undefined ? { onLeave: onLeave as AliasValue } : {}),
+    },
+  };
 }
 
 /** The trusted files at `start` and above, merged: farthest first, nearest wins. */
@@ -5859,10 +5897,16 @@ export async function effectiveDirProfile(
     aliases: {},
     env: {},
     path: [],
+    enter: [],
+    leave: [],
   };
   for (const f of files) {
     if (f.status.kind !== "trusted") continue;
-    const { selector, config } = await importDirProfile(ctx, f.file);
+    const { selector, config } = await importDirProfile(
+      ctx,
+      f.file,
+      f.status.hash,
+    );
     const matched = matches(selector, facts);
     out.loaded.push({ file: f.file, matched, config });
     if (!matched) continue;
@@ -5878,6 +5922,8 @@ export async function effectiveDirProfile(
       out.path = [dir, ...out.path.filter((p) => p !== dir)];
       out.source[`path ${dir}`] = f.file;
     }
+    if (config.onEnter !== undefined) out.enter.push(config.onEnter);
+    if (config.onLeave !== undefined) out.leave.push(config.onLeave);
   }
   return out;
 }
@@ -5904,6 +5950,15 @@ export function renderDirProfile(
   // The farthest entry goes in first, so the nearest ends up first on PATH.
   for (const dir of [...effective.path].reverse())
     lines.push(`__snshah_dir_path ${quote(dir)}`);
+  // Your own shell code last: it sees the env, aliases and PATH above.
+  for (const code of effective.enter) {
+    const text = aliasText(code, flavor);
+    if (text !== undefined) lines.push(text);
+  }
+  for (const code of effective.leave) {
+    const text = aliasText(code, flavor);
+    if (text !== undefined) lines.push(`__snshah_dir_leave ${quote(text)}`);
+  }
   return lines.join("\n") + (lines.length ? "\n" : "");
 }
 
@@ -5916,7 +5971,18 @@ async function profileLoad(ctx: Context, shellName: string): Promise<number> {
     const start = starts.length
       ? dirname(starts[starts.length - 1]!)
       : process.cwd();
-    const effective = await effectiveDirProfile(ctx, start);
+    // Your profile is a program and may print; stdout is shell code, so keep it clean.
+    const write = process.stdout.write.bind(process.stdout);
+    const log = console.log;
+    process.stdout.write = process.stderr.write.bind(process.stderr) as never;
+    console.log = console.error;
+    let effective: DirEffective;
+    try {
+      effective = await effectiveDirProfile(ctx, start);
+    } finally {
+      process.stdout.write = write as never;
+      console.log = log;
+    }
     const tty =
       !!process.stderr.isTTY && !ctx.env.NO_COLOR && ctx.env.TERM !== "dumb";
     const c = (code: string, t: string) =>
@@ -5948,7 +6014,7 @@ async function profileLoad(ctx: Context, shellName: string): Promise<number> {
         Object.keys(effective.env).length +
         effective.path.length;
       process.stderr.write(
-        `${c("2", `📂 snshah: ${used.map((l) => tilde(ctx, l.file)).join(", ")} (${n} setting${n === 1 ? "" : "s"}; snshah profile show)`)}\n`,
+        `${c("2", `📂 snshah: ran ${used.map((l) => tilde(ctx, l.file)).join(", ")} ⚠️  trusted, no limits (${n} setting${n === 1 ? "" : "s"}; snshah profile show)`)}\n`,
       );
     }
     process.stdout.write(renderDirProfile(shell, effective));
@@ -5960,12 +6026,14 @@ async function profileLoad(ctx: Context, shellName: string): Promise<number> {
   return 0;
 }
 
-const dirProfileScaffold = `// Per-directory snshah profile. snshah ignores it until you read it and run:
-//   snshah profile allow
-// Any edit makes it untrusted again. Keep it self-contained (type imports only).
-// It applies while your shell is in this directory or below, and is undone when you leave.
+const dirProfileScaffold = `// Per-directory snshah profile.
+// 🚨 DANGER: once you run \`snshah profile allow\`, this file runs with NO LIMITS, as you,
+// every time your shell enters this directory. Any edit makes it untrusted again.
+//
+// It applies while your shell is in this directory or below, and aliases, env and PATH
+// are put back when you leave. It is ordinary TypeScript: import anything, run anything.
 
-// Optional: limit where it applies (platform, distro, has, env, all, any, not).
+// Optional: limit where it applies (platform, distro, has, env, hostname, machine, all, any, not).
 export const selector = { kind: "always" };
 
 export const config = {
@@ -5978,6 +6046,9 @@ export const config = {
   path: [
     // "node_modules/.bin", // relative to this directory
   ],
+  // Shell code to run on entering and leaving (a string, or { posix, fish }):
+  // onEnter: "echo entering",
+  // onLeave: "echo leaving",
 };
 `;
 
@@ -5990,7 +6061,9 @@ async function profileInit(ctx: Context): Promise<void> {
     );
   await writeFile(file, dirProfileScaffold, { mode: 0o644 });
   say(`Created ${tilde(ctx, file)}.`, "success");
-  console.log("Edit it, then trust it with:  snshah profile allow");
+  console.log(
+    "Edit it, then trust it with:  snshah profile allow   (🚨 a trusted file runs with NO limits, as you)",
+  );
 }
 
 async function dirTarget(
@@ -6031,10 +6104,20 @@ async function profileAllow(
     );
   console.log(
     paint(
-      "cyan",
-      `This is ${tilde(ctx, file)}. It will run as code in snshah, and set what is below while you are in its directory:`,
+      "red",
+      paint(
+        "bold",
+        "🚨⚠️  DANGER: this file is a TypeScript program. Once you trust it, it runs with NO LIMITS, as you, every time your shell enters its directory.",
+      ),
     ),
   );
+  console.log(
+    paint(
+      "yellow",
+      "   It can read and change any of your files, run any command, use the network, and see your environment and secrets. Read every line:",
+    ),
+  );
+  console.log(paint("cyan", `   ${tilde(ctx, file)}`));
   console.log("");
   console.log((await readText(file)) ?? "");
   if (!options.yes) {
@@ -6043,7 +6126,9 @@ async function profileAllow(
         "Read the file above, then re-run with --yes to trust it.",
       );
     const clack = await prompts();
-    const ok = await clack.confirm({ message: "Trust this file?" });
+    const ok = await clack.confirm({
+      message: "🚨 Trust it, and let it run with no limits?",
+    });
     if (clack.isCancel(ok) || !ok) throw new UsageError("Nothing was changed.");
   }
   const hash = entry.status.hash;
@@ -6052,7 +6137,7 @@ async function profileAllow(
     trusted: { ...st.trusted, [real]: hash },
   }));
   say(
-    `Trusted ${tilde(ctx, file)}. Any edit makes it untrusted again.`,
+    `⚠️  Trusted ${tilde(ctx, file)}. It runs with NO limits as you; any edit makes it untrusted again.`,
     "success",
   );
 }
@@ -7041,7 +7126,7 @@ export async function buildCli(ctx: Context): Promise<CommanderCommand> {
   const profile = program
     .command("profile")
     .description(
-      `Per-directory profiles: ${dirProfileFile} files that set aliases, env and PATH while you are inside`,
+      `⚠️  Per-directory profiles: ${dirProfileFile} files that set aliases, env, PATH and shell code while you are inside. Once trusted they run with NO limits, as you`,
     );
   profile
     .command("list", { isDefault: true })
@@ -7058,9 +7143,11 @@ export async function buildCli(ctx: Context): Promise<CommanderCommand> {
   profile
     .command("allow")
     .alias("safe")
-    .description("Read a profile file, then trust it (any edit un-trusts it)")
+    .description(
+      "🚨 Read a profile file, then trust it. A trusted file runs with NO limits, as you; any edit un-trusts it",
+    )
     .argument("[file]", "the file or its directory; default the nearest")
-    .option("-y, --yes", "trust without asking (read it first)")
+    .option("-y, --yes", "trust without asking (read the file first!)")
     .action(async (file: string | undefined, o: { yes?: boolean }) =>
       profileAllow(ctx, file, o),
     );

@@ -234,38 +234,50 @@ export const hooks = [
   `snshah plan --explain` shows which profiles match and which layer set
   each value. `snshah plan --as facts.json` plans as if on another machine.
 
-## Per-directory profiles: `.snshah.path.ts`
+## Per-directory profiles: `.snshah.profile.ts`
 
-Drop a `.snshah.path.ts` in a project (or any directory) to set aliases,
-environment variables and PATH entries **while your shell is in that
-directory or below**. Leaving puts back what it replaced. Nearer files beat
-farther ones.
+Drop a `.snshah.profile.ts` in a project (or any directory) to change your
+shell **while you are in that directory or below**. Leaving puts back the
+aliases, variables and PATH it replaced. Nearer files beat farther ones.
 
 ```ts
-export const selector = { kind: "always" }; // optional: platform, distro, has, env, all, any, not
+import { sharedAliases } from "./tools/aliases.ts"; // anything, it is just TypeScript
+
+export const selector = { kind: "always" }; // optional: platform, distro, has, env, hostname, machine, all, any, not
 export const config = {
-  aliases: { t: "bun test" },
+  aliases: { t: "bun test", ...sharedAliases },
   env: { APP_ENV: "development" },
   path: ["node_modules/.bin"], // relative to this file's directory
+  onEnter: { posix: "echo entering", fish: "echo entering" }, // or a plain string
+  onLeave: "echo leaving",
 };
 ```
 
-It is code, so snshah ignores it until you trust it, as direnv does:
+> 🚨 **Danger: a trusted file runs with no limits.** It is a TypeScript
+> program that runs as you every time your shell enters its directory. It can
+> read and change any file, run any command, use the network and see your
+> environment and secrets. snshah puts no sandbox around it. The only
+> protection is that it does not run until you read it and run
+> `snshah profile allow`, and that **any edit makes it untrusted again** (the
+> trust is a SHA-256 of its content, kept in `state.json`).
 
-| Command                                         | What it does                                                  |
-| ----------------------------------------------- | ------------------------------------------------------------- |
-| `snshah profile init`                           | Create a starter file here (never overwrites).                |
-| `snshah profile list`                           | The files that apply here, and whether each is trusted.       |
-| `snshah profile allow` (alias `safe`) `[--yes]` | Show the file, then trust its SHA-256. Any edit un-trusts it. |
-| `snshah profile deny`                           | Stop trusting it.                                             |
-| `snshah profile show` / `why <name>`            | What applies here, and which file set it.                     |
-| `snshah profile check`                          | Validate a trusted file.                                      |
+| Command                                         | What it does                                            |
+| ----------------------------------------------- | ------------------------------------------------------- |
+| `snshah profile init`                           | Create a starter file here (never overwrites).          |
+| `snshah profile list`                           | The files that apply here, and whether each is trusted. |
+| `snshah profile allow` (alias `safe`) `[--yes]` | 🚨 Show the file, then trust it to run with no limits.  |
+| `snshah profile deny`                           | Stop trusting it.                                       |
+| `snshah profile show` / `why <name>`            | What applies here, and which file set it.               |
+| `snshah profile check`                          | Validate a trusted file (this runs it).                 |
 
-Untrusted or changed files cost your shell one notice line and nothing else.
-A file may set only `aliases`, `env` and `path`, no commands or secrets, and
-must be self-contained (type imports only). Works in bash, zsh and fish;
-PowerShell does not load them yet (`snshah profile list` still works there).
-The hook looks for the file once per directory change, so it is cheap.
+An untrusted or changed file costs your shell one notice line and nothing
+else. Only `aliases`, `env`, `path`, `onEnter` and `onLeave` make sense per
+directory: `tools`, `prompt`, `agents` and the like are applied by
+`snshah apply` for the whole machine, so a directory profile that sets them
+is refused with that reason. Anything the file prints goes to stderr so it
+can't corrupt the shell. Works in bash, zsh and fish; PowerShell does not
+load them yet (`snshah profile list` still works there). The hook looks for
+the file once per directory change, so it is cheap.
 
 ## Private config
 

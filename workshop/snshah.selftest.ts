@@ -641,7 +641,7 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
       );
     }
 
-    // Directory profiles: .snshah.path.ts, trusted by content hash.
+    // Directory profiles: .snshah.profile.ts, trusted by content hash.
     {
       const dh = join(root, "dir-home");
       const proj = join(root, "dir-proj");
@@ -651,10 +651,26 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
       await mkdir(join(proj, "bin"));
       const de = { ...baseEnv(dh), PROJ_VAR: "orig" };
       cli(["apply", "--yes"], undefined, de);
-      const file = join(proj, ".snshah.path.ts");
+      const file = join(proj, ".snshah.profile.ts");
+      await writeFile(
+        join(proj, "helper.ts"),
+        'export const greeting = "hi";\n',
+      );
       await writeFile(
         file,
-        'export const selector = { kind: "always" };\nexport const config = { aliases: { pa: "echo pa" }, env: { PROJ_VAR: "yes" }, path: ["bin"] };\n',
+        [
+          'import { greeting } from "./helper.ts";',
+          'console.log("noise on stdout must not reach the shell");',
+          'export const selector = { kind: "any", of: [{ kind: "always" }, { kind: "hostname", is: "nowhere" }] };',
+          "export const config = {",
+          '  aliases: { pa: "echo pa" },',
+          '  env: { PROJ_VAR: "yes", PROJ_GREETING: greeting },',
+          '  path: ["bin"],',
+          '  onEnter: { posix: "ENTERED=1; export ENTERED", fish: "set -gx ENTERED 1" },',
+          '  onLeave: { posix: "unset ENTERED", fish: "set -e ENTERED" },',
+          "};",
+          "",
+        ].join("\n"),
       );
       const inDir = (args: string[], cwd = sub, e = de) =>
         sh(["bun", "--no-env-file", script, ...args], cwd, e);
@@ -682,14 +698,19 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
       );
       const noYes = inDir(["profile", "allow"]);
       check(
-        "profile allow prints the file and refuses without --yes when not interactive",
-        noYes.code !== 0 && noYes.out.includes("PROJ_VAR"),
+        "profile allow warns about NO LIMITS, prints the file, and refuses without --yes when not interactive",
+        noYes.code !== 0 &&
+          noYes.out.includes("NO LIMITS") &&
+          noYes.out.includes("🚨") &&
+          noYes.out.includes("PROJ_VAR"),
         noYes.out + noYes.err,
       );
       const al = inDir(["profile", "safe", "--yes"]);
       check(
         "profile allow (alias safe) trusts the file",
-        al.code === 0 && al.out.includes("Trusted"),
+        al.code === 0 &&
+          al.out.includes("Trusted") &&
+          al.out.includes("NO limits"),
         al.out + al.err,
       );
       check(
@@ -701,13 +722,26 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
         "profile show lists what the file sets and where it came from",
         sh1.out.includes("echo pa") &&
           sh1.out.includes("PROJ_VAR") &&
-          sh1.out.includes(".snshah.path.ts") &&
+          sh1.out.includes(".snshah.profile.ts") &&
           sh1.out.includes(join(proj, "bin")),
         sh1.out + sh1.err,
       );
+      const loaded = sh(
+        ["bun", "--no-env-file", script, "profile", "load", "--shell", "bash"],
+        sub,
+        { ...de, SNSHAH_DIRFILES: file },
+      );
+      check(
+        "a profile that prints does not pollute the shell code on stdout",
+        !loaded.out.includes("noise") &&
+          loaded.out.includes("__snshah_dir_env PROJ_VAR") &&
+          loaded.err.includes("noise on stdout") &&
+          loaded.err.includes("no limits"),
+        loaded.out + loaded.err,
+      );
       check(
         "profile why names the file",
-        inDir(["profile", "why", "pa"]).out.includes(".snshah.path.ts"),
+        inDir(["profile", "why", "pa"]).out.includes(".snshah.profile.ts"),
       );
       check(
         "profile check validates a trusted file",
@@ -717,17 +751,17 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
         bash: [
           "bash",
           "-ic",
-          `alias pa='echo old'; cd "$PROJ"; __snshah_dir_hook; echo "A=$(alias pa 2>&1)"; echo "E=$PROJ_VAR"; echo "P=$PATH"; cd /; __snshah_dir_hook; echo "B=$(alias pa 2>&1)"; echo "E2=$PROJ_VAR"; echo "P2=$PATH"`,
+          `alias pa='echo old'; cd "$PROJ"; __snshah_dir_hook; echo "A=$(alias pa 2>&1)"; echo "E=$PROJ_VAR"; echo "G=$PROJ_GREETING"; echo "N=$ENTERED"; echo "P=$PATH"; cd /; __snshah_dir_hook; echo "B=$(alias pa 2>&1)"; echo "E2=$PROJ_VAR"; echo "N2=\${ENTERED-gone}"; echo "P2=$PATH"`,
         ],
         zsh: [
           "zsh",
           "-ic",
-          `alias pa='echo old'; cd "$PROJ"; __snshah_dir_hook; echo "A=$(alias pa 2>&1)"; echo "E=$PROJ_VAR"; echo "P=$PATH"; cd /; __snshah_dir_hook; echo "B=$(alias pa 2>&1)"; echo "E2=$PROJ_VAR"; echo "P2=$PATH"`,
+          `alias pa='echo old'; cd "$PROJ"; __snshah_dir_hook; echo "A=$(alias pa 2>&1)"; echo "E=$PROJ_VAR"; echo "G=$PROJ_GREETING"; echo "N=$ENTERED"; echo "P=$PATH"; cd /; __snshah_dir_hook; echo "B=$(alias pa 2>&1)"; echo "E2=$PROJ_VAR"; echo "N2=\${ENTERED-gone}"; echo "P2=$PATH"`,
         ],
         fish: [
           "fish",
           "-ic",
-          `alias pa 'echo old'; cd "$PROJ"; __snshah_dir_hook; echo A=(functions pa 2>&1 | string join ' '); echo E=$PROJ_VAR; echo P=$PATH; cd /; __snshah_dir_hook; echo B=(functions pa 2>&1 | string join ' '); echo E2=$PROJ_VAR; echo P2=$PATH`,
+          `alias pa 'echo old'; cd "$PROJ"; __snshah_dir_hook; echo A=(functions pa 2>&1 | string join ' '); echo E=$PROJ_VAR; echo G=$PROJ_GREETING; echo N=$ENTERED; echo P=$PATH; cd /; __snshah_dir_hook; echo B=(functions pa 2>&1 | string join ' '); echo E2=$PROJ_VAR; echo N2=(set -q ENTERED; and echo $ENTERED; or echo gone); echo P2=$PATH`,
         ],
       };
       for (const [shell, argv] of Object.entries(dirLive)) {
@@ -739,6 +773,9 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
           `interactive ${shell}: entering the directory applies the profile and leaving puts things back`,
           line("A").includes("echo pa") &&
             line("E") === "E=yes" &&
+            line("G") === "G=hi" &&
+            line("N") === "N=1" &&
+            line("N2") === "N2=gone" &&
             line("P").includes(join(proj, "bin")) &&
             line("B").includes("echo old") &&
             line("E2") === "E2=orig" &&
@@ -761,20 +798,23 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
           inDir(["profile", "deny"]).out.includes("No longer trusting") &&
           inDir(["profile", "deny"]).out.includes("No changes needed"),
       );
-      await writeFile(file, 'export const config = { shell: "x" };\n');
+      await writeFile(file, 'export const config = { tools: { x: "1" } };\n');
       inDir(["profile", "allow", "--yes"]);
       const badCfg = inDir(["profile", "check"]);
       check(
-        "a profile file may only set aliases, env and path",
-        badCfg.code !== 0 && (badCfg.out + badCfg.err).includes("not allowed"),
+        "machine-wide settings are refused in a directory profile, with the reason",
+        badCfg.code !== 0 &&
+          (badCfg.out + badCfg.err).includes("whole machine"),
         badCfg.out + badCfg.err,
       );
       const linkDir = join(root, "dir-link");
       await mkdir(linkDir);
-      await symlink(file, join(linkDir, ".snshah.path.ts"));
+      await symlink(file, join(linkDir, ".snshah.profile.ts"));
       check(
-        "a symlinked profile file is ignored",
-        inDir(["profile", "list"], linkDir).out.includes("not a link"),
+        "a symlinked profile file is followed; the content hash is the trust",
+        inDir(["profile", "list"], linkDir).out.includes("changed since") ||
+          inDir(["profile", "list"], linkDir).out.includes("not trusted yet") ||
+          inDir(["profile", "list"], linkDir).out.includes("trusted"),
       );
       const fresh = join(root, "dir-fresh");
       await mkdir(fresh);
@@ -784,7 +824,7 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
         "profile init scaffolds once and never overwrites",
         i1.out.includes("Created") &&
           i2.out.includes("No changes needed") &&
-          existsSync(join(fresh, ".snshah.path.ts")),
+          existsSync(join(fresh, ".snshah.profile.ts")),
         i1.out + i2.out,
       );
     }

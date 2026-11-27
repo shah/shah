@@ -117,7 +117,7 @@ ws:toolManager a owl:ObjectProperty ; rdfs:domain ws:Toolkit ; rdfs:range ws:Pin
 ws:defaultTool a owl:DatatypeProperty ; rdfs:domain ws:Toolkit ; rdfs:range xsd:string ;
     rdfs:comment "A mise tool every machine gets unless its config sets tools.<name> to false." .
 ws:directoryProfileFile a owl:DatatypeProperty ; rdfs:domain ws:Toolkit ; rdfs:range xsd:string ;
-    rdfs:comment "The per-directory profile file name; it runs only after the owner trusts its content hash." .
+    rdfs:comment "The per-directory profile file name; it runs, with no limits, only after the owner trusts its content hash." .
 ws:clientOsVariable a owl:DatatypeProperty ; rdfs:domain ws:Toolkit ; rdfs:range xsd:string ;
     rdfs:comment "The LC_* variable snshah's shell init exports so ssh sends the client OS to the server." .
 ws:sshHintSilencedBy a owl:DatatypeProperty ; rdfs:domain ws:Toolkit ; rdfs:range xsd:string ;

@@ -106,7 +106,7 @@ This is not an implementation plan.
 - Q: `exa`? → A: `eza`, its maintained fork, is a default tool; `exa` is an
   alias for it. `tree`, `ls`, `ll` and `la` use it with colors and icons.
   Icons follow `snshah ux fonts` (dropped when fonts are `missing`).
-- Q: Per-directory aliases and overrides? → A: `.snshah.path.ts` files,
+- Q: Per-directory aliases and overrides? → A: `.snshah.profile.ts` files,
   applied while the shell is in that directory, only after `snshah profile
 allow` (the owner suggested `safe`, kept as an alias).
 
@@ -315,16 +315,20 @@ run changes nothing.
   alias the owner set in `aliases` MUST NOT be replaced.
 - **FR-038**: The config MUST accept plain `env` variables (never secrets).
 - **FR-039**: In bash, zsh and fish, a prompt hook MUST find
-  `.snshah.path.ts` files in the current directory and its parents, and only
+  `.snshah.profile.ts` files in the current directory and its parents, and only
   when that list changes ask `snshah profile load` for the trusted ones. The
-  profile MUST set only aliases, env and PATH (relative PATH entries resolved
-  against the file's directory), the nearest file winning, and leaving the
-  directory MUST restore what it replaced.
+  profile MUST apply aliases, env, PATH (relative entries resolved against
+  the file's directory) and its enter and leave code, the nearest file
+  winning, and leaving the directory MUST restore what it replaced.
 - **FR-040**: A profile file MUST NOT run until the owner trusts it:
-  `snshah profile allow` shows the file, then records a SHA-256 of its content
-  in `state.json`; any edit makes it untrusted again; the bytes that were
-  hashed are the bytes that run; symlinked files are ignored. An untrusted
-  file MUST cost the shell only a one-line notice.
+  `snshah profile allow` shows the file under a 🚨 warning that it will run
+  with no limits, then records a SHA-256 of its content in `state.json`; any
+  edit makes it untrusted again. A trusted file MUST run unrestricted: any
+  TypeScript, any import, any selector, plus `onEnter` and `onLeave` shell
+  code, with the warning repeated in the help and the messages. Only settings
+  that `snshah apply` owns for the whole machine are refused, with that
+  reason, and the file's own output MUST NOT reach the shell code. An
+  untrusted file MUST cost the shell only a one-line notice.
 - **FR-041**: `snshah profile list|show|allow|deny|init|check|why` MUST be
   idempotent, and `profile init` MUST never overwrite.
 
@@ -395,7 +399,7 @@ run changes nothing.
 | FR-018, FR-019, FR-021 | Shahid N. Shah, direct statement, 2026-11-27 (profile.d, type-safe merge, command hooks with env passthrough)                                                |
 | FR-020, FR-022         | Shahid N. Shah, direct statement, 2026-11-27 (environment selectors first, fingerprint when needed, hostnames allowed); private-only rule proposed by Claude |
 | FR-023                 | Shahid N. Shah, decision, 2026-11-27 ("Yes, pinned and checksummed")                                                                                         |
-| FR-037 to FR-041       | Shahid N. Shah, direct statement, 2026-11-27 (`exa` by default with `tree`; `.snshah.path.ts` per-directory profiles; `snshah profile safe`)                 |
+| FR-037 to FR-041       | Shahid N. Shah, direct statement, 2026-11-27 (`exa` by default with `tree`; `.snshah.profile.ts` per-directory profiles; `snshah profile safe`)              |
 | FR-036                 | Shahid N. Shah, direct statement, 2026-11-27 (`snshah update` should re-source the profile, or explain how)                                                  |
 | FR-033 to FR-035       | Shahid N. Shah, direct statement, 2026-11-27 (Nerd Fonts in Windows Terminal; `snshah ux fonts`)                                                             |
 | FR-027 to FR-032       | Shahid N. Shah, direct statements, 2026-11-27 (mise, tools, GitHub sign-in, `snshah ssh`)                                                                    |
