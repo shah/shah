@@ -15,7 +15,7 @@ ws:snshah a ws:Toolkit ;
     doap:programming-language "TypeScript" ;
     dcterms:creator "Shahid Shah" ;
     eid:path "workshop/snshah.ts" ;
-    ws:version "0.12.0" ;
+    ws:version "0.13.0" ;
     ws:idempotent true ;
     ws:runtime ws:bun ;
     ws:upstream "shah/shah@main" ;
@@ -42,7 +42,9 @@ ws:snshah a ws:Toolkit ;
         ws:profile-30-wsl ,
         ws:profile-vscode ,
         ws:profile-efss ,
-        ws:profile-share ;
+        ws:profile-share ,
+        ws:profile-ollama ,
+        ws:profile-age ;
     ws:installs ws:bin-oh-my-posh , ws:bin-mise ;
     ws:toolManager ws:bin-mise ;
     ws:defaultTool "gh" , "ripgrep" , "fd" , "bat" , "fzf" , "jq" , "yq" , "delta" , "direnv" , "eza" ;
@@ -56,7 +58,7 @@ ws:snshah a ws:Toolkit ;
     ws:hasCommand ws:cmd-plan , ws:cmd-whoami , ws:cmd-apply , ws:cmd-doctor , ws:cmd-context , ws:cmd-commands , ws:cmd-shell , ws:cmd-exec ,
         ws:cmd-config-path , ws:cmd-config-check , ws:cmd-config-edit , ws:cmd-config-set-secret ,
         ws:cmd-git-root , ws:cmd-git-add , ws:cmd-git-list , ws:cmd-git-path , ws:cmd-git-clone , ws:cmd-git-update , ws:cmd-git-remove ,
-        ws:cmd-ssh-status , ws:cmd-ssh-keys , ws:cmd-ssh-new , ws:cmd-ssh-copy , ws:cmd-ssh-authorize , ws:cmd-ssh-authorized , ws:cmd-ssh-test , ws:cmd-ssh-harden , ws:cmd-ssh-host-add , ws:cmd-ssh-host-list , ws:cmd-ssh-host-remove , ws:cmd-profile-list , ws:cmd-profile-prune , ws:cmd-profile-show , ws:cmd-profile-allow , ws:cmd-profile-deny , ws:cmd-profile-init , ws:cmd-profile-check , ws:cmd-profile-why , ws:cmd-profile-load , ws:cmd-ux-fonts-status , ws:cmd-ux-fonts-installed , ws:cmd-ux-fonts-missing , ws:cmd-ux-fonts-reset , ws:cmd-ux-fonts-install , ws:cmd-wt-new , ws:cmd-wt-ls , ws:cmd-wt-prune , ws:cmd-uninstall , ws:cmd-update , ws:cmd-test .
+        ws:cmd-ssh-status , ws:cmd-ssh-keys , ws:cmd-ssh-new , ws:cmd-ssh-copy , ws:cmd-ssh-authorize , ws:cmd-ssh-authorized , ws:cmd-ssh-test , ws:cmd-ssh-harden , ws:cmd-ssh-host-add , ws:cmd-ssh-host-list , ws:cmd-ssh-host-remove , ws:cmd-profile-list , ws:cmd-profile-prune , ws:cmd-profile-show , ws:cmd-profile-allow , ws:cmd-profile-deny , ws:cmd-profile-init , ws:cmd-profile-check , ws:cmd-profile-why , ws:cmd-profile-load , ws:cmd-ux-fonts-status , ws:cmd-ux-fonts-installed , ws:cmd-ux-fonts-missing , ws:cmd-ux-fonts-reset , ws:cmd-ux-fonts-install , ws:cmd-signin , ws:cmd-agent-status , ws:cmd-agent-start , ws:cmd-wt-new , ws:cmd-wt-ls , ws:cmd-wt-prune , ws:cmd-uninstall , ws:cmd-update , ws:cmd-test .
 
 ws:bun a ws:Runtime ; rdfs:label "Bun" ; ws:minimumVersion "1.4.0" .
 
@@ -114,6 +116,9 @@ ws:cmd-ux-fonts-missing a ws:Command ; ws:name "ux fonts missing" ; rdfs:comment
 ws:cmd-ux-fonts-reset a ws:Command ; ws:name "ux fonts reset" ; rdfs:comment "Forget your answer; doctor shows unknown." .
 ws:cmd-ux-fonts-install a ws:Command ; ws:name "ux fonts install" ; rdfs:comment "Show, or with --run do, oh-my-posh font install Meslo." .
 ws:cmd-update a ws:Command ; ws:name "update" ; rdfs:comment "Fetch the install checkout, preview the plan from a temporary worktree, fast-forward it, then apply from it." .
+ws:cmd-signin a ws:Command ; ws:name "signin" ; rdfs:comment "Who is signed in (GitHub, Codex, Claude, ssh-agent) and the command to sign in. Never sees a secret." .
+ws:cmd-agent-status a ws:Command ; ws:name "agent status" ; rdfs:comment "Which agent CLIs are installed and whether one is driving this shell." .
+ws:cmd-agent-start a ws:Command ; ws:name "agent start" ; rdfs:comment "Create or find a branch worktree and start claude or codex there. Refused when an agent is already driving." .
 ws:cmd-wt-new a ws:Command ; ws:name "wt new" ; rdfs:comment "Create or find the git worktree for a branch at <repo>.wt/<branch>." .
 ws:cmd-wt-ls a ws:Command ; ws:name "wt ls" ; rdfs:comment "List the repository's worktrees with dirty and merged markers." .
 ws:cmd-wt-prune a ws:Command ; ws:name "wt prune" ; rdfs:comment "Remove clean worktrees whose remote branch was deleted. Previews unless --yes." .
@@ -185,6 +190,10 @@ ws:profile-efss a ws:Profile ; ws:name "efss" ; eid:path "workshop/profile.d/efs
     ws:selectorKind ws:selector-has ; ws:providesGroup "efss" ; rdfs:comment "snshah efss: mirror OneDrive, SharePoint, Google Drive, Box, Dropbox, SMB, SFTP and WebDAV through rclone, present where rclone is." .
 ws:profile-share a ws:Profile ; ws:name "share" ; eid:path "workshop/profile.d/share.ts" ;
     ws:selectorKind ws:selector-any ; ws:providesGroup "share" ; rdfs:comment "snshah share: audit Samba and NFS and print safe subnet-scoped configuration, present where smbd or an NFS server is." .
+ws:profile-ollama a ws:Profile ; ws:name "ollama" ; eid:path "workshop/profile.d/ollama.ts" ;
+    ws:selectorKind ws:selector-has ; ws:providesGroup "ollama" ; rdfs:comment "snshah ollama: status and pulls for local models, present where ollama is." .
+ws:profile-age a ws:Profile ; ws:name "age" ; eid:path "workshop/profile.d/age.ts" ;
+    ws:selectorKind ws:selector-has ; ws:providesGroup "vault" ; rdfs:comment "snshah vault: an age passphrase-encrypted backup of the private config, present where age is." .
 
 ws:bin-oh-my-posh a ws:PinnedBinary ; ws:name "oh-my-posh" ; ws:pinnedVersion "33.4.1" ;
     rdfs:comment "Installed under $XDG_DATA_HOME/snshah/bin only when no oh-my-posh is on PATH and the prompt allows it." .

@@ -91,6 +91,9 @@ Rules for a person or an AI agent changing anything in `workshop/`.
   only with `--yes` (never from an agent) and deletes only with `--max-delete`.
 - `snshah share` only reads and prints. Never make it write a service's
   configuration, and keep `print` refusing a subnet that isn't private.
+- `signin`, `vault` and `ollama pull` involve things only the owner can do:
+  never read a token, never accept or store a passphrase, and keep refusing
+  an agent where the owner must type (`vault`, `ollama pull`, `agent start`).
 - Install the CLI files last, so a failed apply keeps the old CLI working.
 
 ## Before every push

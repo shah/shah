@@ -1425,6 +1425,242 @@ exit 0
       );
     }
 
+    // signin, agent, config edit in VS Code, ollama and vault, with stub tools.
+    if (process.platform !== "win32") {
+      const th = join(root, "tools-home");
+      const bin = join(th, "stubs");
+      await mkdir(bin, { recursive: true });
+      const log = join(th, "calls.log");
+      const stub = (name: string, body: string) =>
+        writeFile(join(bin, name), `#!/bin/sh\n${body}\n`, { mode: 0o755 });
+      await stub("codex", `echo "codex $*" >> "${log}"; exit 0`);
+      await stub("claude", `echo "claude in $(pwd -P)" >> "${log}"; exit 0`);
+      await stub(
+        "ollama",
+        `echo "ollama $*" >> "${log}"
+if [ "$1" = list ]; then
+  printf 'NAME             ID      SIZE    MODIFIED\\nllama3.2:latest  abc123  2.0 GB  2 days ago\\n'
+fi
+exit 0`,
+      );
+      await stub("code", `echo "code $*" >> "${log}"; exit 0`);
+      await stub(
+        "age",
+        `echo "age $*" >> "${log}"
+case "$1" in
+  --passphrase) out="$3"; printf 'AGE\\n' > "$out"; cat "$4" >> "$out" ;;
+  --decrypt) tail -n +2 "$2" ;;
+esac
+exit 0`,
+      );
+      const bare = baseEnv(th);
+      const te = {
+        ...bare,
+        PATH: `${bin}${delimiter}${bare.PATH ?? ""}`,
+        GH_TOKEN: "not-a-real-token",
+      };
+      const calls = async () =>
+        existsSync(log) ? await readFile(log, "utf8") : "";
+
+      // signin: reports, never prints a token.
+      const si = cli(["signin", "--json"], undefined, te);
+      const signed =
+        json<
+          Array<{ service: string; signedIn: boolean | null; command: string }>
+        >(si);
+      check(
+        "signin --json reports each service with the command to sign in",
+        !!signed &&
+          signed.some((x) => x.service === "github" && x.signedIn === true) &&
+          signed.some((x) => x.service === "codex" && x.signedIn === true) &&
+          signed.some((x) => x.service === "claude" && x.signedIn === null) &&
+          signed.every((x) => x.command.length > 0) &&
+          !si.out.includes("not-a-real-token"),
+        si.out + si.err,
+      );
+
+      // agent
+      const st = json<{ agents: Array<{ agent: string; installed: boolean }> }>(
+        cli(["agent", "status", "--json"], undefined, te),
+      );
+      check(
+        "agent status lists claude and codex",
+        st?.agents.find((a) => a.agent === "claude")?.installed === true &&
+          st.agents.some((a) => a.agent === "codex"),
+      );
+      check(
+        "agent start refuses an unknown agent",
+        cli(["agent", "start", "gemini", "x"], undefined, te).code === 2,
+      );
+      check(
+        "an agent can't start another agent",
+        cli(["agent", "start", "claude", "x"], undefined, {
+          ...te,
+          CLAUDECODE: "1",
+        }).code === 2,
+      );
+      const origin = join(th, "origin.git");
+      const repo = join(th, "repo");
+      await mkdir(repo, { recursive: true });
+      const g = (cwd: string, ...args: string[]) =>
+        sh(["git", ...args], cwd, te);
+      g(th, "init", "--bare", "--quiet", "-b", "main", origin);
+      g(repo, "init", "--quiet", "-b", "main");
+      await writeFile(join(repo, "a.txt"), "a\n");
+      g(repo, "add", "-A");
+      g(
+        repo,
+        "-c",
+        "user.name=t",
+        "-c",
+        "user.email=t@example.com",
+        "commit",
+        "--quiet",
+        "-m",
+        "first",
+      );
+      const started = sh(
+        [bun, "--no-env-file", script, "agent", "start", "claude", "feat/x"],
+        repo,
+        te,
+      );
+      check(
+        "agent start creates the branch worktree and starts the agent in it",
+        started.code === 0 &&
+          (await calls()).includes(
+            `claude in ${realpathSync(join(th, "repo.wt", "feat-x"))}`,
+          ),
+        started.out + started.err + (await calls()),
+      );
+
+      // config edit in VS Code goes through a workspace that never auto-saves
+      const edit = cli(["config", "edit"], undefined, {
+        ...te,
+        EDITOR: "code",
+      });
+      const workspace = join(
+        mod.makeContext(te).cacheDir,
+        "config.code-workspace",
+      );
+      check(
+        "config edit in VS Code uses a workspace with auto-save and hot exit off",
+        edit.code === 0 &&
+          (await calls()).includes(`code --wait ${workspace}`) &&
+          existsSync(workspace) &&
+          (await readFile(workspace, "utf8")).includes(
+            '"files.autoSave": "off"',
+          ) &&
+          (await readFile(workspace, "utf8")).includes(
+            '"files.hotExit": "off"',
+          ),
+        edit.out + edit.err + (await calls()),
+      );
+
+      // ollama
+      const oll = json<{ running: boolean; models: Array<{ name: string }> }>(
+        cli(["ollama", "status", "--json"], undefined, te),
+      );
+      check(
+        "ollama status lists models",
+        oll?.running === true && oll.models[0]?.name === "llama3.2:latest",
+        JSON.stringify(oll),
+      );
+      const pulled = cli(["ollama", "pull", "qwen2.5-coder:7b"], undefined, te);
+      check(
+        "ollama pull runs ollama pull",
+        pulled.code === 0 &&
+          (await calls()).includes("ollama pull qwen2.5-coder:7b"),
+        pulled.err,
+      );
+      check(
+        "ollama pull refuses a bad name and refuses an agent",
+        cli(["ollama", "pull", "bad name; rm"], undefined, te).code === 2 &&
+          cli(["ollama", "pull", "llama3.2"], undefined, {
+            ...te,
+            CLAUDECODE: "1",
+          }).code === 2,
+      );
+
+      // vault
+      const conf = join(th, ".config", "snshah", "snshah.conf.ts");
+      await mkdir(dirname(conf), { recursive: true });
+      await writeFile(conf, "export default { aliases: { a: 'b' } };\n", {
+        mode: 0o600,
+      });
+      const none = json<{ lastBackup: string | null }>(
+        cli(["vault", "status", "--json"], undefined, te),
+      );
+      check(
+        "vault status says there is no backup yet",
+        none?.lastBackup === null,
+      );
+      const dir = join(th, "snapshots");
+      const b1 = cli(["vault", "backup", "--to", dir], undefined, te);
+      const snaps = existsSync(dir)
+        ? (await import("node:fs")).readdirSync(dir)
+        : [];
+      check(
+        "vault backup encrypts the config with an age passphrase",
+        b1.code === 0 &&
+          snaps.length === 1 &&
+          (await calls()).includes("age --passphrase --output"),
+        b1.out + b1.err,
+      );
+      check(
+        "backing up again with no change does nothing",
+        cli(["vault", "backup", "--to", dir], undefined, te).out.includes(
+          "No changes needed",
+        ),
+      );
+      const snapshot = join(dir, snaps[0] ?? "none");
+      const ver = json<{ opens: boolean; matches: boolean }>(
+        cli(["vault", "verify", snapshot, "--json"], undefined, te),
+      );
+      check(
+        "vault verify opens it and matches the current config",
+        ver?.opens === true && ver.matches === true,
+      );
+      await writeFile(conf, "export default { aliases: { a: 'changed' } };\n", {
+        mode: 0o600,
+      });
+      const changed = json<{ changedSinceBackup: boolean }>(
+        cli(["vault", "status", "--json"], undefined, te),
+      );
+      check(
+        "vault status notices the config changed",
+        changed?.changedSinceBackup === true,
+      );
+      const previewRestore = cli(["vault", "restore", snapshot], undefined, te);
+      check(
+        "vault restore previews and changes nothing without --yes",
+        previewRestore.out.includes("Nothing was changed") &&
+          (await readFile(conf, "utf8")).includes("changed"),
+        previewRestore.out + previewRestore.err,
+      );
+      const doRestore = cli(
+        ["vault", "restore", snapshot, "--yes"],
+        undefined,
+        te,
+      );
+      check(
+        "vault restore --yes brings the snapshot back and keeps the old file",
+        doRestore.code === 0 &&
+          (await readFile(conf, "utf8")).includes("'b'") &&
+          (await readFile(`${conf}.before-restore`, "utf8")).includes(
+            "changed",
+          ) &&
+          ((await stat(conf)).mode & 0o777) === 0o600,
+        doRestore.out + doRestore.err,
+      );
+      check(
+        "vault refuses to run for an agent",
+        cli(["vault", "backup", "--to", dir], undefined, {
+          ...te,
+          CLAUDECODE: "1",
+        }).code === 2,
+      );
+    }
+
     // wt: worktrees next to the repository; prune only what is safe.
     {
       const wh = join(root, "wt-home");

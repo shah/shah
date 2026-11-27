@@ -164,7 +164,7 @@ type Covers<T extends readonly string[], U extends string> = [
   ? true
   : ["missing", Exclude<U, T[number]>];
 
-export const cliVersion = "0.12.0";
+export const cliVersion = "0.13.0";
 export const minimumBun = "1.4.0";
 /** The Oh My Posh release snshah installs when none is on PATH, by Bun-style target. */
 export const ohMyPosh = {
@@ -370,6 +370,9 @@ export const commandNames = [
   "ux fonts missing",
   "ux fonts reset",
   "ux fonts install",
+  "signin",
+  "agent status",
+  "agent start",
   "wt new",
   "wt ls",
   "wt prune",
@@ -479,6 +482,9 @@ export const commandEffects: Record<CommandName, Effect> = {
   "config path": "query",
   "config check": "query",
   "config edit": "change",
+  signin: "query",
+  "agent status": "query",
+  "agent start": "run",
   "config set-secret": "change",
   "git root": "query",
   "git add": "change",
@@ -4803,6 +4809,171 @@ function printAgentContext(c: AgentContext): void {
   for (const problem of c.problems) line("problem", problem);
 }
 
+/** A VS Code workspace for the private config: no auto-save, local history or hot-exit copies of it. */
+export function configWorkspace(ctx: Context): string {
+  return (
+    JSON.stringify(
+      {
+        folders: [{ path: ctx.configDir }],
+        settings: {
+          "files.autoSave": "off",
+          "files.hotExit": "off",
+          "workbench.localHistory.enabled": false,
+          "editor.formatOnSave": false,
+        },
+      },
+      null,
+      2,
+    ) + "\n"
+  );
+}
+
+async function writeConfigWorkspace(ctx: Context): Promise<string> {
+  const path = join(ctx.cacheDir, "config.code-workspace");
+  await writeAtomic(path, configWorkspace(ctx), 0o600);
+  return path;
+}
+
+// ---------------------------------------------------------------------------
+// signin: who is signed in where, and the command to fix what isn't
+// ---------------------------------------------------------------------------
+
+export type SignIn = {
+  service: string;
+  installed: boolean;
+  /** null when snshah can't tell without asking the service. */
+  signedIn: boolean | null;
+  /** The command to paste in your own terminal. Never contains a secret. */
+  command: string;
+};
+
+/** Offline and secret-free: reads exit codes and file presence, never tokens. */
+export function signIns(ctx: Context): SignIn[] {
+  const has = (name: string) => !!Bun.which(name, { PATH: ctx.env.PATH ?? "" });
+  const codex = has("codex");
+  return [
+    {
+      service: "github",
+      installed: has("gh"),
+      signedIn: has("gh") ? githubSignedIn(ctx) : false,
+      command: githubSignIn,
+    },
+    {
+      service: "codex",
+      installed: codex,
+      signedIn: codex
+        ? run(["codex", "login", "status"], { quiet: true, env: ctx.env }) === 0
+        : false,
+      command: "codex login --device-auth",
+    },
+    {
+      service: "claude",
+      installed: has("claude"),
+      signedIn: null,
+      command: "claude   # then /login",
+    },
+    {
+      service: "ssh-agent",
+      installed: has("ssh-add"),
+      signedIn: has("ssh-add")
+        ? capture(["ssh-add", "-l"], { env: ctx.env }) !== undefined
+        : false,
+      command: "ssh-add",
+    },
+  ];
+}
+
+function signin(ctx: Context, json: boolean): void {
+  const list = signIns(ctx);
+  if (json) {
+    console.log(JSON.stringify(list, null, 2));
+    return;
+  }
+  for (const s of list) {
+    if (!s.installed) {
+      say(`${s.service}: not installed`, "pending");
+      continue;
+    }
+    if (s.signedIn === true) say(`${s.service}: signed in`, "success");
+    else if (s.signedIn === null) {
+      say(
+        `${s.service}: installed; snshah can't tell if you're signed in`,
+        "pending",
+      );
+      console.log(`   to sign in: ${s.command}`);
+    } else {
+      say(`${s.service}: not signed in`, "pending");
+      console.log(`   to sign in: ${s.command}`);
+    }
+  }
+  console.log(
+    "Signing in is yours to do: snshah never sees a password, token or code.",
+  );
+}
+
+// ---------------------------------------------------------------------------
+// agent: what agent CLIs are here, and a branch worktree to start one in
+// ---------------------------------------------------------------------------
+
+export const agentNames = ["claude", "codex"] as const;
+
+function agentStatus(ctx: Context, json: boolean): void {
+  const report = agentNames.map((name) => {
+    const binary = Bun.which(name, { PATH: ctx.env.PATH ?? "" });
+    return {
+      agent: name,
+      installed: !!binary,
+      version: binary
+        ? (capture([binary, "--version"], { env: ctx.env })?.split("\n")[0] ??
+          null)
+        : null,
+    };
+  });
+  const running = detectedAgent(ctx.env);
+  if (json) {
+    console.log(JSON.stringify({ running, agents: report }, null, 2));
+    return;
+  }
+  for (const a of report)
+    say(
+      a.installed
+        ? `${a.agent}: ${a.version ?? "installed"}`
+        : `${a.agent}: not installed`,
+      a.installed ? "success" : "pending",
+    );
+  if (running) say("An agent is driving this shell.", "action");
+  console.log(
+    "Start one on its own branch: snshah agent start claude <branch>",
+  );
+}
+
+async function agentStart(
+  ctx: Context,
+  agent: string,
+  branch: string,
+  from: string | undefined,
+): Promise<void> {
+  if (!member(agentNames, agent))
+    throw new UsageError(
+      `Unknown agent ${agent}. Choose ${agentNames.join(" or ")}.`,
+    );
+  if (detectedAgent(ctx.env))
+    throw new UsageError(
+      "An agent is already driving this shell; start the next one from your own terminal.",
+    );
+  const binary = Bun.which(agent, { PATH: ctx.env.PATH ?? "" });
+  if (!binary)
+    throw new UsageError(
+      `${agent} is not installed. See: snshah agent status, and snshah signin for signing in.`,
+    );
+  const { path, created } = ensureWorktree(ctx, branch, from);
+  say(
+    `${created ? "Created" : "Using"} ${tilde(ctx, path)} for ${branch}; starting ${agent}.`,
+    "action",
+  );
+  process.exitCode = run([binary], { cwd: path, env: ctx.env });
+}
+
 // ---------------------------------------------------------------------------
 // wt: git worktrees for parallel work (agents especially), next to the repo
 // ---------------------------------------------------------------------------
@@ -4895,11 +5066,12 @@ export function listWorktrees(root: string): Worktree[] {
   return found;
 }
 
-async function worktreeNew(
+/** The worktree for a branch, created from `from` (or the default branch) when it doesn't exist. */
+function ensureWorktree(
   ctx: Context,
   branch: string,
-  options: { from?: string; json?: boolean },
-): Promise<void> {
+  from?: string,
+): { path: string; created: boolean } {
   const { root, base } = worktreeHome(process.cwd());
   if (
     run(["git", "check-ref-format", "--branch", branch], { quiet: true }) !== 0
@@ -4924,27 +5096,32 @@ async function worktreeNew(
           "-b",
           branch,
           path,
-          options.from ?? defaultRef(root),
+          from ?? defaultRef(root),
         ];
     if (run(["git", "-C", root, ...args], { quiet: true }) !== 0)
       throw new Error(
         `git worktree add failed for ${branch}. Is ${tilde(ctx, path)} in the way?`,
       );
   }
+  return { path, created: !existing };
+}
+
+async function worktreeNew(
+  ctx: Context,
+  branch: string,
+  options: { from?: string; json?: boolean },
+): Promise<void> {
+  const { path, created } = ensureWorktree(ctx, branch, options.from);
   if (options.json) {
     console.log(
-      JSON.stringify(
-        { branch, path: tilde(ctx, path), created: !existing },
-        null,
-        2,
-      ),
+      JSON.stringify({ branch, path: tilde(ctx, path), created }, null, 2),
     );
     return;
   }
   say(
-    existing
-      ? `${branch} already has a worktree. No changes needed.`
-      : `Created worktree for ${branch}.`,
+    created
+      ? `Created worktree for ${branch}.`
+      : `${branch} already has a worktree. No changes needed.`,
     "success",
   );
   console.log(`   cd ${tilde(ctx, path)}`);
@@ -8062,11 +8239,20 @@ export async function buildCli(
       const editor =
         ctx.env.VISUAL || ctx.env.EDITOR || (isWindows ? "notepad" : "vi");
       const parts = editor.split(" ").filter(Boolean);
-      const code = run([
-        ...parts,
-        ...(parts[0] === "code" && !parts.includes("--wait") ? ["--wait"] : []),
-        ctx.configFile,
-      ]);
+      const isCode = /^code(-insiders)?(\.cmd)?$/.test(
+        basename(parts[0] ?? ""),
+      );
+      // In VS Code, open the config through a generated workspace so it is
+      // never auto-saved, kept in local history or backed up by hot exit.
+      const args = isCode
+        ? [
+            ...parts,
+            ...(parts.includes("--wait") ? [] : ["--wait"]),
+            await writeConfigWorkspace(ctx),
+            ctx.configFile,
+          ]
+        : [...parts, ctx.configFile];
+      const code = run(args, { env: ctx.env });
       if (code !== 0) throw new Error(`${editor} exited with ${code}.`);
       await loadEffective(ctx);
       say("Config is valid. Run snshah plan to see any effect.", "success");
@@ -8407,6 +8593,41 @@ export async function buildCli(
     .description("Show (or with --run, do) the Nerd Font install")
     .option("--run", "run oh-my-posh font install Meslo now")
     .action(async (o: { run?: boolean }) => fontsInstall(ctx, !!o.run));
+
+  program
+    .command("signin")
+    .description(
+      "Who is signed in (GitHub, Codex, Claude, ssh-agent) and the command to sign in; never sees a secret",
+    )
+    .option("--json", "print JSON")
+    .action((o: { json?: boolean }) => signin(ctx, !!o.json));
+
+  const agent = program
+    .command("agent")
+    .description(
+      "AI agent CLIs: what is installed, and start one on its own branch",
+    );
+  agent
+    .command("status")
+    .description(
+      "Which agent CLIs are installed, and whether one is driving this shell",
+    )
+    .option("--json", "print JSON")
+    .action((o: { json?: boolean }) => agentStatus(ctx, !!o.json));
+  agent
+    .command("start")
+    .description(
+      "Create or find the worktree for a branch and start the agent there (claude or codex)",
+    )
+    .argument("<agent>", agentNames.join("|"))
+    .argument(
+      "<branch>",
+      "branch name; created from --from when it doesn't exist",
+    )
+    .option("--from <ref>", "start point for a new branch")
+    .action((name: string, branch: string, o: { from?: string }) =>
+      agentStart(ctx, name, branch, o.from),
+    );
 
   const wt = program
     .command("wt")

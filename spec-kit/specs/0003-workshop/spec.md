@@ -313,6 +313,26 @@ run changes nothing.
 - **FR-060**: `share print smb|nfs` MUST require `--path` and a private
   `--subnet` (10/8, 172.16/12, 192.168/16 or fd00::/8), refuse anything wider,
   default to read-only, and print the reload commands for the owner to run.
+- **FR-061**: `snshah signin [--json]` MUST report, for GitHub, Codex,
+  Claude and ssh-agent, whether the tool is installed, whether you are signed
+  in (or `null` when it can't tell), and the command to sign in; it MUST
+  never print or accept a token, password or code.
+- **FR-062**: `snshah agent status [--json]` MUST list the installed agent CLIs;
+  `snshah agent start <claude|codex> <branch>` MUST create or find the
+  branch's worktree and start the agent in it, and MUST refuse when an agent
+  is already driving the shell.
+- **FR-063**: `snshah config edit` in VS Code MUST open the private config
+  through a generated workspace (mode 600, in the cache folder) with
+  auto-save, hot exit and local history off.
+- **FR-064**: Where `ollama` is present (profile `ollama`), `snshah ollama
+  status [--json]` MUST report whether the server answers and its models, and
+  `ollama pull <model>` MUST validate the name and refuse an agent.
+- **FR-065**: Where `age` is present (profile `age`), `snshah vault
+  status|backup|verify|restore` MUST encrypt only `snshah.conf.ts`, with an age
+  passphrase asked on the owner's terminal that snshah never sees or stores;
+  `backup` MUST do nothing when the config is unchanged; `restore` MUST
+  preview unless `--yes`, keep the replaced file as `.before-restore`, and
+  write mode 600; all four MUST refuse an agent where a passphrase is needed.
 - **FR-057**: `list`, `status` and `folder` MUST take `--json`; `schedule
   <name> <30m|6h|1d|off>` MUST write and enable a systemd user timer that runs
   `snshah efss pull`, idempotently; `remove` MUST forget the sign-in and
@@ -499,6 +519,7 @@ run changes nothing.
 | FR-018, FR-019, FR-021 | Shahid N. Shah, direct statement, 2026-11-27 (profile.d, type-safe merge, command hooks with env passthrough)                                                |
 | FR-020, FR-022         | Shahid N. Shah, direct statement, 2026-11-27 (environment selectors first, fingerprint when needed, hostnames allowed); private-only rule proposed by Claude |
 | FR-023                 | Shahid N. Shah, decision, 2026-11-27 ("Yes, pinned and checksummed")                                                                                         |
+| FR-061 to FR-065       | Shahid N. Shah, direct statements, 2026-11-27 (headless features move into the core or into service-detecting profiles; ideas studied from shah/workshop: sign-in hints, agent sessions, the age vault, the private config workspace) |
 | FR-058 to FR-060       | Shahid N. Shah, direct statement, 2026-11-27 (`smbd` and `nfs` handled through print and audit, contributed by a service-detecting profile) |
 | FR-054 to FR-057       | Shahid N. Shah, direct statements, 2026-11-27 (`snshah efss` for OneDrive, SharePoint, Box, GDrive, Dropbox; no FUSE; read or read-write chosen at `connect`) |
 | FR-050 to FR-053       | Shahid N. Shah, direct statements, 2026-11-27 (a `service` selector so a profile contributes commands when its tool is present, "so the core stays lean")    |

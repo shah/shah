@@ -106,6 +106,13 @@ depth). Icons need a [Nerd Font](#prompt-icons-nerd-fonts): say
 `snshah ux fonts missing` and they drop out. An alias you set yourself in
 `aliases` is never replaced, and `tools: { eza: false }` turns it all off.
 
+### Who is signed in: `snshah signin`
+
+`snshah signin` (`--json` too) says whether GitHub, Codex, Claude and your
+ssh-agent are signed in and prints the command to run for each one that
+isn't. It reads exit codes and files, never a token, and the sign-in itself
+is always yours.
+
 ### GitHub sign-in
 
 `gh` is installed, but it can't sign in for you. After your first login run:
@@ -117,6 +124,25 @@ gh auth login --web --git-protocol https && gh auth setup-git
 Do it before `git clone` or `git push` over HTTPS quietly fails. `snshah
 doctor` shows whether you are signed in, and your shell reminds you once a
 day until you are.
+
+## Agents, local models and backups
+
+- `snshah agent status` lists the agent CLIs (`claude`, `codex`) you have.
+  `snshah agent start claude feat/login` creates (or finds) that branch's
+  worktree next to the repository and starts the agent in it, so parallel
+  agents never share a checkout. It won't start an agent from inside an agent.
+- `snshah ollama status | pull <model>` (where `ollama` is on PATH) shows
+  whether the server answers and which models it has, and pulls one. Pulls
+  are for your own terminal.
+- `snshah vault status | backup | verify <file> | restore <file>` (where `age`
+  is on PATH) keeps an age passphrase-encrypted snapshot of `snshah.conf.ts`.
+  age asks for the passphrase on your terminal, so snshah never sees it;
+  `backup` does nothing when the config hasn't changed; `restore` previews
+  until `--yes` and keeps the file it replaces as `.before-restore`. Keep a
+  copy of the snapshot off this machine: the passphrase isn't stored anywhere.
+- `snshah config edit` with VS Code as your editor opens the config through a
+  generated workspace with auto-save, hot exit and local history off, so
+  copies of it don't pile up in editor caches.
 
 ## File sync: `snshah efss`
 
@@ -426,6 +452,10 @@ the bootstrap and `snshah git clone shah` put it in
 | `snshah commands [--json]`                                                | Every command, what it does to the machine, and whether it takes `--json`.                        |
 | `snshah efss connect\|list\|status\|pull\|push\|folder\|schedule\|remove` | Mirror cloud and network folders with rclone (present where rclone is). See File sync.            |
 | `snshah share status\|audit\|print`                                       | Audit Samba and NFS, print safe subnet-scoped config. Present where a file server is.             |
+| `snshah signin [--json]`                                                  | Who is signed in (GitHub, Codex, Claude, ssh-agent) and the command to sign in.                   |
+| `snshah agent status\|start`                                              | Agent CLIs installed; start one on its own branch worktree.                                       |
+| `snshah ollama status\|pull`                                              | Local models. Present where ollama is.                                                            |
+| `snshah vault status\|backup\|verify\|restore`                            | age-encrypted config snapshot. Present where age is.                                              |
 | `snshah vscode [--yes] [--json]`                                          | Fill VS Code settings (fill-only), list extensions. Present where VS Code is (a profile command). |
 | `snshah wt new\|ls\|prune`                                                | Git worktrees next to the repository, one per branch.                                             |
 | `snshah shell <shell> [--greet]`                                          | Print init code for bash, zsh, fish or pwsh.                                                      |
