@@ -53,6 +53,13 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
       GIT_CONFIG_NOSYSTEM: "1",
       GIT_CONFIG_GLOBAL: join(root, "gitconfig"),
       GIT_TERMINAL_PROMPT: "0",
+      // One download cache for every temporary HOME, so the pinned Oh My
+      // Posh build is fetched (and checksum-verified) at most once per run.
+      XDG_CACHE_HOME: join(root, "cache"),
+      // Local bootstraps skip cloning shah/shah from GitHub; --remote runs do it.
+      SNSHAH_CLONE: "0",
+      // Shell greetings (doctor, update check) are tested on their own below.
+      SNSHAH_GREET: "0",
     };
   };
   await writeFile(
@@ -156,8 +163,35 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
       ].every((l) => first?.some((s) => s.label === l)),
     );
 
+    // Reuse a verified Oh My Posh download from the real cache, if there is one.
+    const target = mod.poshTarget();
+    const poshOnPath = !!Bun.which("oh-my-posh", { PATH: env.PATH ?? "" });
+    if (target) {
+      const asset = mod.ohMyPosh.assets[target];
+      const name = `oh-my-posh-${mod.ohMyPosh.version}-${asset.file}`;
+      const real = join(mod.makeContext(process.env).cacheDir, name);
+      const shared = join(root, "cache", "snshah", name);
+      if (existsSync(real) && !existsSync(shared)) {
+        await mkdir(dirname(shared), { recursive: true });
+        await writeFile(shared, await readFile(real));
+      }
+    }
+    check(
+      "fresh plan installs pinned Oh My Posh when none is on PATH",
+      poshOnPath || !target || !!first?.some((s) => s.kind === "download"),
+    );
+
     const apply1 = cli(["apply", "--yes"]);
     check("apply succeeds", apply1.code === 0, apply1.err + apply1.out);
+    if (target && !poshOnPath) {
+      const posh = mod.makeContext(env).poshBinary;
+      const v = sh([posh, "version"]);
+      check(
+        "installed Oh My Posh runs and is the pinned version",
+        v.code === 0 && v.out.trim() === mod.ohMyPosh.version,
+        v.out + v.err,
+      );
+    }
     const apply2 = cli(["apply", "--yes"]);
     check(
       "second apply reports no changes",
@@ -407,6 +441,81 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
       );
     }
 
+    // Shell greeting: doctor on first use per version, update check hourly.
+    {
+      const greetHome = join(root, "greet-home");
+      await mkdir(greetHome);
+      // A full commit hash resolves without the network.
+      const pinned = "0123456789abcdef0123456789abcdef01234567";
+      const ge = {
+        ...baseEnv(greetHome),
+        SNSHAH_GREET: "1",
+        SNSHAH_REF: pinned,
+      };
+      const statePath = join(
+        greetHome,
+        ".local",
+        "state",
+        "snshah",
+        "state.json",
+      );
+      const plain = cli(["shell", "bash"], undefined, ge);
+      const g1 = cli(["shell", "bash", "--greet"], undefined, ge);
+      check(
+        "first greeted shell runs doctor (on stderr only)",
+        g1.code === 0 &&
+          g1.err.includes("snshah doctor") &&
+          g1.out === plain.out,
+        g1.out + g1.err,
+      );
+      let state: {
+        doctorRanFor?: string;
+        update?: { kind: string; latest?: string };
+      } = {};
+      for (let i = 0; i < 100; i++) {
+        try {
+          state = JSON.parse(await readFile(statePath, "utf8"));
+        } catch {
+          /* not written yet */
+        }
+        if (state.update?.kind === "checked") break;
+        await Bun.sleep(100);
+      }
+      check(
+        "background update check records its answer in state.json",
+        state.doctorRanFor === mod.cliVersion &&
+          state.update?.kind === "checked" &&
+          state.update.latest === pinned,
+        JSON.stringify(state),
+      );
+      const g2 = cli(["shell", "bash", "--greet"], undefined, ge);
+      check(
+        "second greeted shell skips doctor and the fresh update check",
+        g2.code === 0 &&
+          !g2.err.includes("snshah doctor") &&
+          g2.out === plain.out,
+        g2.err,
+      );
+      const c = cli(["update", "--check"], undefined, ge);
+      check(
+        "update --check reports without downloading",
+        c.code === 0 && c.out.includes("update is available"),
+        c.out + c.err,
+      );
+      await writeFile(statePath, "{ not json");
+      const g3 = cli(["shell", "bash", "--greet"], undefined, ge);
+      check(
+        "a corrupt state.json never breaks a shell",
+        g3.code === 0 && g3.out === plain.out,
+        g3.err,
+      );
+      const off = cli(["shell", "bash", "--greet"], undefined, {
+        ...ge,
+        SNSHAH_GREET: "0",
+      });
+      check("SNSHAH_GREET=0 keeps shells quiet", off.err === "", off.err);
+    }
+
     // Git checkout registry against a local fixture.
     const src = join(root, "fixture-src");
     await mkdir(src);
@@ -436,12 +545,23 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
       "git path follows $WORKSPACES_HOME/local/<name>",
       cli(["git", "path", "fixture"]).out.trim() === expected,
     );
-    const list = json<Array<{ state: string }>>(cli(["git", "list", "--json"]));
-    check("git list shows a clean checkout", list?.[0]?.state === "clean");
+    const list = json<Array<{ name: string; state: string }>>(
+      cli(["git", "list", "--json"]),
+    );
     check(
-      "git clone --all twice is safe",
-      cli(["git", "clone", "--all"]).code === 0 &&
-        cli(["git", "clone", "--all"]).out.includes("present"),
+      "git list shows a clean checkout",
+      list?.find((r) => r.name === "fixture")?.state === "clean",
+    );
+    check(
+      "shah/shah is registered by default under github.com/shah/shah",
+      list?.find((r) => r.name === "shah")?.state === "missing" &&
+        cli(["git", "path", "shah"]).out.trim() ===
+          join(home, "workspaces", "github.com", "shah", "shah"),
+    );
+    check(
+      "git clone twice is safe",
+      cli(["git", "clone", "fixture"]).code === 0 &&
+        cli(["git", "clone", "fixture"]).out.includes("present"),
     );
     await writeFile(join(src, "NEXT.md"), "second\n");
     sh(["git", "add", "."], src);
@@ -476,13 +596,386 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
       withRoot.out.trim() ===
         join(root, "elsewhere", "github.com", "shah", "shah"),
     );
-    check("git remove", cli(["git", "remove", "shah"]).out.includes("Removed"));
+    check(
+      "git remove",
+      cli(["git", "remove", "fixture"]).out.includes("Removed"),
+    );
     check(
       "git remove again is a no-op",
-      cli(["git", "remove", "shah"]).out.includes("not registered"),
+      cli(["git", "remove", "fixture"]).out.includes("not registered"),
+    );
+    const builtIn = cli(["git", "remove", "shah"]);
+    check(
+      "git remove refuses the built-in shah/shah entry",
+      builtIn.code !== 0 && (builtIn.out + builtIn.err).includes("built in"),
+      builtIn.out + builtIn.err,
     );
     check(
       "apply after git changes still has no changes",
+      cli(["apply", "--yes"]).out.includes("No changes needed."),
+    );
+
+    // profile.d: selectors, typed merge, hooks, explain, retirement.
+    const factsFile = async (name: string, facts: Record<string, unknown>) => {
+      const path = join(root, `facts-${name}.json`);
+      await writeFile(path, JSON.stringify(facts));
+      return path;
+    };
+    const machines: Record<
+      string,
+      {
+        facts: Record<string, unknown>;
+        expect: string[];
+        shell: string;
+        has: string[];
+        lacks?: string[];
+      }
+    > = {
+      fedora: {
+        facts: {
+          platform: "linux",
+          distro: ["fedora"],
+          omarchy: false,
+          hostname: "f",
+          machine: "0000000000000001",
+          commands: [],
+        },
+        expect: ["20-fedora"],
+        shell: "bash",
+        has: ["dnfu"],
+      },
+      debian: {
+        facts: {
+          platform: "linux",
+          distro: ["debian"],
+          omarchy: false,
+          hostname: "d",
+          machine: "0000000000000002",
+          commands: ["batcat", "fdfind"],
+        },
+        expect: ["20-debian-bat", "20-debian-fd"],
+        shell: "bash",
+        has: ["batcat", "fdfind"],
+      },
+      "debian-with-bat": {
+        facts: {
+          platform: "linux",
+          distro: ["ubuntu", "debian"],
+          omarchy: false,
+          hostname: "u",
+          machine: "0000000000000003",
+          commands: ["batcat", "bat"],
+        },
+        expect: [],
+        shell: "bash",
+        has: [],
+        lacks: ["batcat"],
+      },
+      omarchy: {
+        facts: {
+          platform: "linux",
+          distro: ["arch"],
+          omarchy: true,
+          hostname: "o",
+          machine: "0000000000000004",
+          commands: [],
+        },
+        expect: ["10-omarchy"],
+        shell: "zsh",
+        has: [join(home, "Work")],
+      },
+      macos: {
+        facts: {
+          platform: "macos",
+          distro: [],
+          omarchy: false,
+          hostname: "m",
+          machine: "0000000000000005",
+          commands: [],
+        },
+        expect: ["30-macos"],
+        shell: "zsh",
+        has: ["/opt/homebrew/bin"],
+      },
+      wsl: {
+        facts: {
+          platform: "wsl",
+          distro: ["ubuntu", "debian"],
+          omarchy: false,
+          hostname: "w",
+          machine: "0000000000000006",
+          commands: [],
+        },
+        expect: ["30-wsl"],
+        shell: "bash",
+        has: ["clip.exe"],
+      },
+      windows: {
+        facts: {
+          platform: "windows",
+          distro: [],
+          omarchy: false,
+          hostname: "win",
+          machine: "0000000000000007",
+          commands: [],
+        },
+        expect: ["30-windows"],
+        shell: "pwsh",
+        has: ["Get-Command"],
+      },
+    };
+    for (const [name, m] of Object.entries(machines)) {
+      const e = { ...env, SNSHAH_FACTS: await factsFile(name, m.facts) };
+      const explain = json<{
+        profiles: Array<{ id: string; origin: string; matched: boolean }>;
+      }>(cli(["plan", "--explain", "--json"], undefined, e));
+      const matched = (explain?.profiles ?? [])
+        .filter((p) => p.matched && p.origin === "repo")
+        .map((p) => p.id);
+      check(
+        `profile.d on ${name}: matches ${m.expect.join(", ") || "nothing"}`,
+        JSON.stringify(matched) === JSON.stringify(m.expect),
+        JSON.stringify(matched),
+      );
+      const out = cli(["shell", m.shell], undefined, e).out;
+      check(
+        `profile.d on ${name}: ${m.shell} init reflects it`,
+        m.has.every((x) => out.includes(x)) &&
+          (m.lacks ?? []).every((x) => !out.includes(x)),
+        out,
+      );
+    }
+    const winBash = cli(["shell", "bash"], undefined, {
+      ...env,
+      SNSHAH_FACTS: join(root, "facts-windows.json"),
+    }).out;
+    check(
+      "pwsh-only alias stays out of bash",
+      !winBash.includes("Get-Command"),
+    );
+    const viaAs = cli([
+      "plan",
+      "--explain",
+      "--json",
+      "--as",
+      join(root, "facts-fedora.json"),
+    ]);
+    check(
+      "plan --as previews another machine",
+      viaAs.out.includes("20-fedora") && /"matched": true/.test(viaAs.out),
+      viaAs.out + viaAs.err,
+    );
+    const who = json<{ platform: string; machine: string }>(
+      cli(["whoami", "--json"]),
+    );
+    check(
+      "whoami prints facts with a 16-hex fingerprint",
+      !!who && /^([0-9a-f]{16}|unknown)$/.test(who.machine),
+    );
+
+    let repoHostname = false;
+    try {
+      mod.validateSelector({ kind: "hostname", is: "box" }, "repo");
+    } catch {
+      repoHostname = true;
+    }
+    let privateHostname = true;
+    try {
+      mod.validateSelector(
+        { kind: "all", of: [{ kind: "hostname", is: "box" }] },
+        "private",
+      );
+    } catch {
+      privateHostname = false;
+    }
+    check(
+      "hostname selectors are refused in the repo, allowed in private",
+      repoHostname && privateHostname,
+    );
+    const merged = mod.mergeConfig(
+      {
+        path: ["a"],
+        aliases: { x: "1", y: "1" },
+        prompt: { kind: "none" },
+        repositories: [{ name: "r", source: "one" }],
+      },
+      {
+        path: ["a", "b"],
+        aliases: { x: "2" },
+        prompt: { kind: "oh-my-posh" },
+        repositories: [{ name: "r", source: "two" }],
+      },
+    );
+    check(
+      "typed merge: lists join, records overlay, unions replace whole",
+      JSON.stringify(merged.path) === '["a","b"]' &&
+        merged.aliases.x === "2" &&
+        merged.aliases.y === "1" &&
+        JSON.stringify(merged.prompt) === '{"kind":"oh-my-posh"}' &&
+        merged.repositories.length === 1 &&
+        merged.repositories[0].source === "two",
+    );
+
+    if (process.platform !== "win32") {
+      const pdir = join(home, ".config", "snshah", "profile.d");
+      const write = async (file: string, text: string) => {
+        await writeFile(join(pdir, file), text, { mode: 0o600 });
+        await chmod(join(pdir, file), 0o600);
+      };
+      const hookLog = join(home, "hook.log");
+      await write(
+        "50-this-machine.ts",
+        `import type { Contribution, Hook, Selector } from "../snshah.auto.d.ts";
+export const selector = { kind: "hostname", is: "test-box" } satisfies Selector;
+export const config = { aliases: { gs: "git status" } } satisfies Contribution;
+export const hooks = [
+  { kind: "file", path: "~/.config/demo/hello.txt", content: "hello\\n" },
+  { kind: "block", path: "~/.bashrc", content: "export FROM_PROFILE=1" },
+  {
+    kind: "command",
+    phase: "after-apply",
+    run: ["sh", "-c", 'printf "%s|%s|%s|%s\\\\n" "$PASSED" "$SETV" "$DEMO_CMD_TOKEN" "\${NOT_PASSED-unset}" >> "$HOME/hook.log"; touch "$HOME/hook.done"'],
+    unless: ["test", "-f", ${JSON.stringify(join(home, "hook.done"))}],
+    env: { pass: ["PASSED"], set: { SETV: "literal" }, secrets: ["DEMO_CMD_TOKEN"] },
+  },
+] satisfies Hook[];
+`,
+      );
+      const box = {
+        ...env,
+        PASSED: "parent",
+        NOT_PASSED: "leak",
+        SNSHAH_FACTS: await factsFile("box", {
+          platform: "linux",
+          distro: ["debian"],
+          omarchy: false,
+          hostname: "test-box.example.invalid",
+          machine: "00000000000000aa",
+          commands: [],
+        }),
+      };
+      const h1 = cli(["apply", "--yes"], undefined, box);
+      check("private profile hooks apply", h1.code === 0, h1.out + h1.err);
+      const log1 = existsSync(hookLog) ? await readFile(hookLog, "utf8") : "";
+      check(
+        "command hook env: pass, set and secret reach it; others don't",
+        log1 === "parent|literal|cmd-secret-value|unset\n",
+        log1,
+      );
+      check(
+        "file hook wrote its file",
+        existsSync(join(home, ".config", "demo", "hello.txt")),
+      );
+      const rc = await readFile(join(home, ".bashrc"), "utf8");
+      check(
+        "block hook and startup block share ~/.bashrc",
+        rc.includes("export FROM_PROFILE=1") &&
+          rc.split("# >>> snshah profile 50-this-machine >>>").length === 2 &&
+          rc.split("# >>> snshah shell >>>").length === 2,
+        rc,
+      );
+      const h2 = cli(["apply", "--yes"], undefined, box);
+      check(
+        "second apply with hooks reports no changes",
+        h2.out.includes("No changes needed."),
+        h2.out + h2.err,
+      );
+      check(
+        "command hook ran exactly once",
+        (await readFile(hookLog, "utf8")) === log1,
+      );
+      const ex = json<{ overrides: Array<{ key: string; to: string }> }>(
+        cli(["plan", "--explain", "--json"], undefined, box),
+      );
+      check(
+        "explain shows the private profile overriding an alias",
+        !!ex?.overrides.some(
+          (o) => o.key === "aliases.gs" && o.to === "private:50-this-machine",
+        ),
+        JSON.stringify(ex?.overrides),
+      );
+      check(
+        "other machines skip the hostname profile",
+        !cli(["shell", "bash"], undefined, env).out.includes(
+          "alias gs='git status'",
+        ),
+      );
+
+      await write(
+        "60-conflict.ts",
+        `export const selector = { kind: "always" } as const;\nexport const hooks = [{ kind: "file", path: "~/.config/demo/hello.txt", content: "other" }] as const;\n`,
+      );
+      const clash = cli(["plan"], undefined, box);
+      check(
+        "two profiles writing one file stop plan",
+        clash.code === 1 && clash.err.includes("already manages"),
+        clash.out + clash.err,
+      );
+      await rm(join(pdir, "60-conflict.ts"));
+
+      await write(
+        "61-loop.ts",
+        `export const selector = { kind: "always" } as const;\nexport const hooks = [{ kind: "command", phase: "before-apply", run: ["true"], unless: ["false"] }] as const;\n`,
+      );
+      const loop = cli(["apply", "--yes"], undefined, box);
+      check(
+        "a command hook that never converges fails apply",
+        loop.code === 1 && loop.err.includes("still fails"),
+        loop.out + loop.err,
+      );
+      await rm(join(pdir, "61-loop.ts"));
+
+      await writeFile(
+        join(pdir, "62-typo.ts"),
+        `export const selector = { kind: "always" } as const;\nexport const hookz = [];\n`,
+        { mode: 0o600 },
+      );
+      check(
+        "an unknown profile export is an error",
+        cli(["plan"], undefined, box).err.includes("hookz"),
+      );
+      await rm(join(pdir, "62-typo.ts"));
+
+      await writeFile(
+        join(pdir, "63-open.ts"),
+        `export const selector = { kind: "always" } as const;\n`,
+        { mode: 0o666 },
+      );
+      await chmod(join(pdir, "63-open.ts"), 0o666);
+      check(
+        "a group- or world-writable private profile is refused",
+        cli(["plan"], undefined, box).err.includes("writable"),
+      );
+      await rm(join(pdir, "63-open.ts"));
+      check(
+        "apply after removing test profiles is clean",
+        cli(["apply", "--yes"], undefined, box).out.includes(
+          "No changes needed.",
+        ),
+      );
+      await rm(join(pdir, "50-this-machine.ts"));
+    }
+
+    const retired = join(
+      home,
+      ".local",
+      "share",
+      "snshah",
+      "profile.d",
+      "99-retired.ts",
+    );
+    await writeFile(
+      retired,
+      `export const selector = { kind: "always" } as const;\n`,
+    );
+    const r1 = cli(["apply", "--yes"]);
+    check(
+      "a repo profile no longer shipped is removed",
+      r1.code === 0 && !existsSync(retired),
+      r1.out + r1.err,
+    );
+    check(
+      "and the next apply is clean",
       cli(["apply", "--yes"]).out.includes("No changes needed."),
     );
 
@@ -543,7 +1036,11 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
         const url = `https://raw.githubusercontent.com/shah/shah/${remote}/workshop/bootstrap.ps1`;
         const psRemoteHome = join(root, "ps-remote-home");
         await mkdir(psRemoteHome);
-        const e = { ...baseEnv(psRemoteHome), SNSHAH_REF: remote };
+        const e = {
+          ...baseEnv(psRemoteHome),
+          SNSHAH_REF: remote,
+          SNSHAH_CLONE: "1",
+        };
         const iex = ["pwsh", "-NoProfile", "-Command", `irm '${url}' | iex`];
         const q1 = sh(iex, root, e);
         check(
@@ -564,7 +1061,11 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
     if (remote && process.platform !== "win32") {
       const remoteHome = join(root, "remote-home");
       await mkdir(remoteHome);
-      const remoteEnv = { ...baseEnv(remoteHome), SNSHAH_REF: remote };
+      const remoteEnv = {
+        ...baseEnv(remoteHome),
+        SNSHAH_REF: remote,
+        SNSHAH_CLONE: "1",
+      };
       const url = `https://raw.githubusercontent.com/shah/shah/${remote}/workshop/bootstrap.sh`;
       const fetchBoot = async () => {
         const text = await (await fetch(url)).text();

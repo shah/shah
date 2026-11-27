@@ -30,7 +30,10 @@ import {
   stat,
   writeFile,
 } from "node:fs/promises";
-import { homedir, tmpdir } from "node:os";
+import { spawn as spawnChild } from "node:child_process";
+import { createHash } from "node:crypto";
+import { homedir, hostname, tmpdir } from "node:os";
+import { pathToFileURL } from "node:url";
 import {
   basename,
   delimiter,
@@ -41,20 +44,176 @@ import {
 } from "node:path";
 
 // ---------------------------------------------------------------------------
+// Public types. This region is copied verbatim into the private
+// snshah.auto.d.ts, so private config and profile.d files are checked
+// against exactly these declarations. Keep it self-contained.
+// ---------------------------------------------------------------------------
+
+// >>> snshah public types >>>
+export type Platform = "linux" | "wsl" | "macos" | "windows";
+export type Shell = "bash" | "zsh" | "fish" | "pwsh";
+export type AliasValue =
+  string | { posix?: string; fish?: string; pwsh?: string };
+/** Oh My Posh, installed by snshah (pinned, SHA-256 checked) unless `install: false`. */
+export type Prompt =
+  { kind: "oh-my-posh"; theme?: string; install?: boolean } | { kind: "none" };
+export type AgentDefaults = { kind: "defaults" } | { kind: "off" };
+export type Secret =
+  | { variable: string; value: string; scope: "command"; commands: string[] }
+  | { variable: string; value: string; scope: "shell" };
+export type Repository = { name: string; source: string; path?: string };
+export type WorkshopConfig = {
+  workspacesHome?: string;
+  path?: string[];
+  aliases?: Record<string, AliasValue>;
+  prompt?: Prompt;
+  agents?: { claude?: AgentDefaults; codex?: AgentDefaults };
+  repositories?: Repository[];
+  secrets?: Secret[];
+};
+/** What a profile.d file may contribute. Secrets stay in the private config. */
+export type Contribution = Omit<WorkshopConfig, "secrets">;
+/** Which machines a profile applies to. Environment first; identity last. */
+export type Selector =
+  | { kind: "always" }
+  | { kind: "platform"; is: Platform }
+  | { kind: "distro"; id: string }
+  | { kind: "omarchy" }
+  | { kind: "has"; command: string }
+  | { kind: "env"; name: string; equals?: string }
+  | { kind: "hostname"; is: string }
+  | { kind: "machine"; fingerprint: string }
+  | { kind: "all"; of: Selector[] }
+  | { kind: "any"; of: Selector[] }
+  | { kind: "not"; selector: Selector };
+/** The environment a command hook's child process gets. */
+export type CommandEnv = {
+  /** Variables passed through from the parent, or "all". The base is PATH, HOME, USER, LANG, TERM, XDG_* and the OS essentials. */
+  pass?: "all" | string[];
+  /** Literal values. */
+  set?: Record<string, string>;
+  /** Names of secrets declared in the private config (private profiles only). */
+  secrets?: string[];
+};
+export type Hook =
+  | { kind: "file"; path: string; content: string; mode?: number }
+  | {
+      kind: "block";
+      path: string;
+      content: string;
+      comment?: "#" | "//" | ";" | "--" | "<!--";
+    }
+  | {
+      kind: "command";
+      phase: "before-apply" | "after-apply";
+      run: string[];
+      /** Required. The command runs only when this check fails, so re-runs are no-ops. */
+      unless: string[];
+      env?: CommandEnv;
+      cwd?: string;
+    };
+/** What selectors are evaluated against. `snshah whoami` prints them; `--as` fakes them. */
+export type Facts = {
+  platform: Platform;
+  distro: string[];
+  omarchy: boolean;
+  hostname: string;
+  machine: string;
+  /** When set, `has` selectors look only at this list. */
+  commands?: string[];
+};
+// <<< snshah public types <<<
+
+// ---------------------------------------------------------------------------
 // Manifest: the facts ontology/workshop.ttl records. ontology/check.ts fails
 // when the two disagree, so change both together.
 // ---------------------------------------------------------------------------
 
-export const cliVersion = "0.1.1";
+/** Compile-time proof that a list names every member of a union. */
+type Covers<T extends readonly string[], U extends string> = [
+  Exclude<U, T[number]>,
+] extends [never]
+  ? true
+  : ["missing", Exclude<U, T[number]>];
+
+export const cliVersion = "0.2.0";
 export const minimumBun = "1.4.0";
+/** The Oh My Posh release snshah installs when none is on PATH, by Bun-style target. */
+export const ohMyPosh = {
+  version: "33.4.1",
+  assets: {
+    "linux-x64": {
+      file: "posh-linux-amd64",
+      sha256:
+        "48f0f61b1f106ec296f024ebaae675c4cd6f2a185a4132f9adfcd4db7f3a3a9d",
+    },
+    "linux-arm64": {
+      file: "posh-linux-arm64",
+      sha256:
+        "32001936db4f51d7ee4d5312823d1fb72eda8ec1fe6ce2efcaba884ec33d6129",
+    },
+    "darwin-x64": {
+      file: "posh-darwin-amd64",
+      sha256:
+        "b6090ccab2544870b6b7672eb9baf9c3f18073044e84fa405af968d9c28a58b4",
+    },
+    "darwin-arm64": {
+      file: "posh-darwin-arm64",
+      sha256:
+        "3f8667d918df22eb2e975d0dc39c71081b7cef6d843a33c070c405f039fba810",
+    },
+    "windows-x64": {
+      file: "posh-windows-amd64.exe",
+      sha256:
+        "3ae87ffa0b0f0126baf3f0d176fb4e326cb6ec082b13a9cdd10d6cf8aa2f73fc",
+    },
+    "windows-arm64": {
+      file: "posh-windows-arm64.exe",
+      sha256:
+        "ecd288b918e652f187bc49212a9684aa6eb14ae4c1dbf237c418ce25ff55a0ff",
+    },
+  },
+} as const;
+export type PoshTarget = keyof typeof ohMyPosh.assets;
 export const dependencies = {
   commander: "12.1.0",
   chalk: "5.6.2",
   "@clack/prompts": "0.11.0",
 } as const;
-export const shells = ["bash", "zsh", "fish", "pwsh"] as const;
-export const platforms = ["linux", "wsl", "macos", "windows"] as const;
-export const secretScopes = ["command", "shell"] as const;
+export const shells = [
+  "bash",
+  "zsh",
+  "fish",
+  "pwsh",
+] as const satisfies readonly Shell[];
+export const platforms = [
+  "linux",
+  "wsl",
+  "macos",
+  "windows",
+] as const satisfies readonly Platform[];
+export const secretScopes = [
+  "command",
+  "shell",
+] as const satisfies readonly Secret["scope"][];
+export const selectorKinds = [
+  "always",
+  "platform",
+  "distro",
+  "omarchy",
+  "has",
+  "env",
+  "hostname",
+  "machine",
+  "all",
+  "any",
+  "not",
+] as const satisfies readonly Selector["kind"][];
+export const hookKinds = [
+  "file",
+  "block",
+  "command",
+] as const satisfies readonly Hook["kind"][];
 export const stepKinds = [
   "directory",
   "file",
@@ -62,6 +221,9 @@ export const stepKinds = [
   "block",
   "json-fill",
   "toml-fill",
+  "remove",
+  "command",
+  "download",
 ] as const;
 export const packageManagers = [
   "apt",
@@ -75,6 +237,7 @@ export const packageManagers = [
 ] as const;
 export const commandNames = [
   "plan",
+  "whoami",
   "apply",
   "doctor",
   "shell",
@@ -105,6 +268,11 @@ export const xdgPaths = {
     fallback: ".config",
     relative: "snshah/snshah.auto.d.ts",
   },
+  profiles: {
+    base: "XDG_CONFIG_HOME",
+    fallback: ".config",
+    relative: "snshah/profile.d",
+  },
   script: {
     base: "XDG_DATA_HOME",
     fallback: ".local/share",
@@ -115,12 +283,27 @@ export const xdgPaths = {
     fallback: ".local/share",
     relative: "snshah/snshah.omp.json",
   },
+  repoProfiles: {
+    base: "XDG_DATA_HOME",
+    fallback: ".local/share",
+    relative: "snshah/profile.d",
+  },
   receipt: {
     base: "XDG_STATE_HOME",
     fallback: ".local/state",
     relative: "snshah/installed.auto.json",
   },
   downloads: { base: "XDG_CACHE_HOME", fallback: ".cache", relative: "snshah" },
+  state: {
+    base: "XDG_STATE_HOME",
+    fallback: ".local/state",
+    relative: "snshah/state.json",
+  },
+  posh: {
+    base: "XDG_DATA_HOME",
+    fallback: ".local/share",
+    relative: "snshah/bin/oh-my-posh",
+  },
   bin: { base: "XDG_BIN_HOME", fallback: ".local/bin", relative: "snshah" },
 } as const;
 export const upstream = {
@@ -132,57 +315,33 @@ export const upstream = {
 export const workspacesDefaults = {
   variable: "WORKSPACES_HOME",
   standard: "~/workspaces",
-  omarchy: "~/Work",
 } as const;
 
-export type Shell = (typeof shells)[number];
-export type Platform = (typeof platforms)[number];
-export type SecretScope = (typeof secretScopes)[number];
+// These fail to compile if a union gains a member its list lacks.
+const coverage: [
+  Covers<typeof shells, Shell>,
+  Covers<typeof platforms, Platform>,
+  Covers<typeof secretScopes, Secret["scope"]>,
+  Covers<typeof selectorKinds, Selector["kind"]>,
+  Covers<typeof hookKinds, Hook["kind"]>,
+] = [true, true, true, true, true];
+void coverage;
+
+export type SecretScope = Secret["scope"];
 export type StepKind = (typeof stepKinds)[number];
 export type PackageManager = (typeof packageManagers)[number];
 export type CommandName = (typeof commandNames)[number];
 
-// ---------------------------------------------------------------------------
-// Private config types. The same declarations are written to
-// snshah.auto.d.ts so editors can check the private file.
-// ---------------------------------------------------------------------------
-
-export type AliasValue =
-  string | { posix?: string; fish?: string; pwsh?: string };
-export type Prompt = { kind: "oh-my-posh"; theme?: string } | { kind: "none" };
-export type AgentDefaults = { kind: "defaults" } | { kind: "off" };
-export type Secret =
-  | { variable: string; value: string; scope: "command"; commands: string[] }
-  | { variable: string; value: string; scope: "shell" };
-export type Repository = { name: string; source: string; path?: string };
-export type WorkshopConfig = {
-  workspacesHome?: string;
-  path?: string[];
-  aliases?: Record<string, AliasValue>;
-  prompt?: Prompt;
-  agents?: { claude?: AgentDefaults; codex?: AgentDefaults };
-  repositories?: Repository[];
-  secrets?: Secret[];
-};
-
-const configTypes = `// Generated by snshah ${cliVersion}. Do not edit; \`snshah apply\` rewrites it.
-export type AliasValue = string | { posix?: string; fish?: string; pwsh?: string };
-export type Prompt = { kind: "oh-my-posh"; theme?: string } | { kind: "none" };
-export type AgentDefaults = { kind: "defaults" } | { kind: "off" };
-export type Secret =
-  | { variable: string; value: string; scope: "command"; commands: string[] }
-  | { variable: string; value: string; scope: "shell" };
-export type Repository = { name: string; source: string; path?: string };
-export type WorkshopConfig = {
-  workspacesHome?: string;
-  path?: string[];
-  aliases?: Record<string, AliasValue>;
-  prompt?: Prompt;
-  agents?: { claude?: AgentDefaults; codex?: AgentDefaults };
-  repositories?: Repository[];
-  secrets?: Secret[];
-};
-`;
+async function configTypes(): Promise<string> {
+  const source = await readFile(import.meta.path, "utf8");
+  const begin = "// >>> snshah public types >>>\n";
+  const end = "// <<< snshah public types <<<";
+  const region = source.slice(
+    source.indexOf(begin) + begin.length,
+    source.indexOf(end),
+  );
+  return `// Generated by snshah ${cliVersion} from its public types. Do not edit;\n// \`snshah apply\` rewrites it.\n${region}`;
+}
 
 const secretsBegin = "// >>> snshah secrets >>>";
 const secretsEnd = "// <<< snshah secrets <<<";
@@ -209,12 +368,15 @@ ${secretsBlock([])}
 // Managed by \`snshah git add|remove\`.
 ${reposBlock([])}
 
+// Layers, later wins: built-in defaults, workshop/profile.d (matching files,
+// in name order), this file, then $XDG_CONFIG_HOME/snshah/profile.d.
+// Leave a setting out to let a profile decide it.
 export default {
   // workspacesHome: "~/workspaces", // $WORKSPACES_HOME wins when set
+  // prompt: { kind: "oh-my-posh" }, // or { kind: "none" }
+  // agents: { claude: { kind: "defaults" }, codex: { kind: "defaults" } },
   path: [],
   aliases: {},
-  prompt: { kind: "oh-my-posh" },
-  agents: { claude: { kind: "defaults" }, codex: { kind: "defaults" } },
   secrets,
   repositories,
 } satisfies WorkshopConfig;
@@ -374,9 +536,13 @@ export type Context = {
   configDir: string;
   configFile: string;
   typesFile: string;
+  profileDir: string;
   dataDir: string;
+  repoProfileDir: string;
   installedScript: string;
   installedTheme: string;
+  poshBinary: string;
+  stateFile: string;
   stateDir: string;
   receipt: string;
   cacheDir: string;
@@ -406,14 +572,22 @@ export function makeContext(env: Env = process.env): Context {
   return {
     env,
     platform: detectPlatform(env),
-    omarchy: !!Bun.which("omarchy", { PATH: env.PATH ?? "" }),
+    omarchy:
+      !!Bun.which("omarchy", { PATH: env.PATH ?? "" }) ||
+      existsSync(
+        join(xdg(env, home, "XDG_DATA_HOME", ".local/share"), "omarchy"),
+      ),
     home,
     configDir: dirname(p("config")),
     configFile: p("config"),
     typesFile: p("types"),
+    profileDir: p("profiles"),
     dataDir: dirname(p("script")),
+    repoProfileDir: p("repoProfiles"),
     installedScript: p("script"),
     installedTheme: p("theme"),
+    stateFile: p("state"),
+    poshBinary: p("posh") + (process.platform === "win32" ? ".exe" : ""),
     stateDir: dirname(p("receipt")),
     receipt: p("receipt"),
     cacheDir: p("downloads"),
@@ -448,10 +622,8 @@ export function workspacesRoot(ctx: Context, config: WorkshopConfig): string {
   if (fromEnv) return resolve(expandHome(ctx, fromEnv));
   if (config.workspacesHome)
     return resolve(expandHome(ctx, config.workspacesHome));
-  return expandHome(
-    ctx,
-    ctx.omarchy ? workspacesDefaults.omarchy : workspacesDefaults.standard,
-  );
+  // Omarchy's ~/Work comes from workshop/profile.d/10-omarchy.ts.
+  return expandHome(ctx, workspacesDefaults.standard);
 }
 
 /** Show a path with $HOME as ~ so output stays free of account names. */
@@ -535,6 +707,12 @@ export function validateConfig(
       typeof prompt.theme !== "string"
     )
       fail("prompt.theme", "must be a path string");
+    if (
+      prompt.kind === "oh-my-posh" &&
+      prompt.install !== undefined &&
+      typeof prompt.install !== "boolean"
+    )
+      fail("prompt.install", "must be true or false");
   }
   if (value.agents !== undefined) {
     if (!isObject(value.agents)) fail("agents", "must be an object");
@@ -645,7 +823,20 @@ export async function interpretConfig(source: string): Promise<WorkshopConfig> {
   return result;
 }
 
+const defaultAliases: Record<string, AliasValue> = {
+  ll: { posix: "ls -al", fish: "ls -al", pwsh: "Get-ChildItem -Force" },
+  gs: "git status --short --branch",
+  gd: "git diff",
+  gds: "git diff --staged",
+  gl: "git log --oneline --graph --decorate",
+};
+
+/** The built-in layer: generic defaults, plus this repository's own checkout. */
 const defaultConfig: WorkshopConfig = {
+  aliases: defaultAliases,
+  repositories: [
+    { name: upstream.repo, source: `${upstream.owner}/${upstream.repo}` },
+  ],
   prompt: { kind: "oh-my-posh" },
   agents: { claude: { kind: "defaults" }, codex: { kind: "defaults" } },
 };
@@ -675,8 +866,669 @@ async function saveConfigBlock(
 }
 
 // ---------------------------------------------------------------------------
+// profile.d: typed selectors, typed contributions, typed hooks, typed merge
+// ---------------------------------------------------------------------------
+
+export type Origin = "repo" | "private";
+export type LoadedProfile = {
+  id: string;
+  origin: Origin;
+  file: string;
+  selector: Selector;
+  config: Contribution;
+  hooks: Hook[];
+};
+/** Facts plus lazy lookups, so a shell start never pays for what no selector asks. */
+export type FactSource = {
+  platform: Platform;
+  distro: string[];
+  omarchy: boolean;
+  hostname: string;
+  machine: () => string;
+  has: (command: string) => boolean;
+  env: Env;
+};
+
+const profileId = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+const hookComments = ["#", "//", ";", "--", "<!--"] as const;
+
+/** PRETTY_NAME from /etc/os-release, e.g. "Debian GNU/Linux 13 (trixie)". */
+function distroName(): string | undefined {
+  try {
+    const text = readFileSync("/etc/os-release", "utf8");
+    return (
+      /^PRETTY_NAME=(.*)$/m.exec(text)?.[1]?.replaceAll('"', "") || undefined
+    );
+  } catch {
+    return undefined;
+  }
+}
+
+function osRelease(): string[] {
+  let text = "";
+  try {
+    text = readFileSync("/etc/os-release", "utf8");
+  } catch {
+    return [];
+  }
+  const field = (name: string) =>
+    (new RegExp(`^${name}=(.*)$`, "m").exec(text)?.[1] ?? "")
+      .replaceAll('"', "")
+      .toLowerCase()
+      .split(/\s+/)
+      .filter(Boolean);
+  return [...new Set([...field("ID"), ...field("ID_LIKE")])];
+}
+
+/** A salted, truncated hash of the OS machine ID: stable per install, not reversible. */
+export function machineFingerprint(): string {
+  let id: string | undefined;
+  for (const path of ["/etc/machine-id", "/var/lib/dbus/machine-id"]) {
+    try {
+      id = readFileSync(path, "utf8").trim();
+      if (id) break;
+    } catch {
+      /* try the next source */
+    }
+  }
+  if (!id && process.platform === "darwin")
+    id = /"IOPlatformUUID" = "([^"]+)"/.exec(
+      capture(["ioreg", "-rd1", "-c", "IOPlatformExpertDevice"]) ?? "",
+    )?.[1];
+  if (!id && isWindows)
+    id = /MachineGuid\s+REG_SZ\s+(\S+)/.exec(
+      capture([
+        "reg",
+        "query",
+        "HKLM\\SOFTWARE\\Microsoft\\Cryptography",
+        "/v",
+        "MachineGuid",
+      ]) ?? "",
+    )?.[1];
+  if (!id) return "unknown";
+  return createHash("sha256")
+    .update(`snshah:${id.toLowerCase()}`)
+    .digest("hex")
+    .slice(0, 16);
+}
+
+export function validateFacts(value: unknown): asserts value is Facts {
+  function bad(m: string): never {
+    throw new Error(`Facts file: ${m}`);
+  }
+  if (!isObject(value)) bad("must be a JSON object");
+  if (!member(platforms, value.platform))
+    bad(`platform must be one of ${platforms.join(", ")}`);
+  if (
+    !Array.isArray(value.distro) ||
+    !value.distro.every((d) => typeof d === "string")
+  )
+    bad("distro must be an array of strings");
+  if (typeof value.omarchy !== "boolean") bad("omarchy must be true or false");
+  if (typeof value.hostname !== "string") bad("hostname must be a string");
+  if (typeof value.machine !== "string") bad("machine must be a string");
+  if (
+    value.commands !== undefined &&
+    (!Array.isArray(value.commands) ||
+      !value.commands.every((c) => typeof c === "string"))
+  )
+    bad("commands must be an array of strings");
+}
+
+export function factSource(ctx: Context): FactSource {
+  const PATH = ctx.env.PATH ?? "";
+  const fake = ctx.env.SNSHAH_FACTS;
+  if (fake) {
+    const facts: unknown = JSON.parse(readFileSync(fake, "utf8"));
+    validateFacts(facts);
+    return {
+      platform: facts.platform,
+      distro: facts.distro.map((d) => d.toLowerCase()),
+      omarchy: facts.omarchy,
+      hostname: facts.hostname.toLowerCase(),
+      machine: () => facts.machine,
+      has: (c) =>
+        facts.commands ? facts.commands.includes(c) : !!Bun.which(c, { PATH }),
+      env: ctx.env,
+    };
+  }
+  let fingerprint: string | undefined;
+  return {
+    platform: ctx.platform,
+    distro:
+      ctx.platform === "linux" || ctx.platform === "wsl" ? osRelease() : [],
+    omarchy: ctx.omarchy,
+    hostname: hostname().toLowerCase(),
+    machine: () => (fingerprint ??= machineFingerprint()),
+    has: (c) => !!Bun.which(c, { PATH }),
+    env: ctx.env,
+  };
+}
+
+export function factsOf(source: FactSource): Facts {
+  return {
+    platform: source.platform,
+    distro: source.distro,
+    omarchy: source.omarchy,
+    hostname: source.hostname,
+    machine: source.machine(),
+  };
+}
+
+export function matches(selector: Selector, facts: FactSource): boolean {
+  switch (selector.kind) {
+    case "always":
+      return true;
+    case "platform":
+      return facts.platform === selector.is;
+    case "distro":
+      return facts.distro.includes(selector.id.toLowerCase());
+    case "omarchy":
+      return facts.omarchy;
+    case "has":
+      return facts.has(selector.command);
+    case "env": {
+      const value = facts.env[selector.name];
+      return selector.equals === undefined
+        ? !!value
+        : value === selector.equals;
+    }
+    case "hostname": {
+      const want = selector.is.toLowerCase();
+      return facts.hostname === want || facts.hostname.split(".")[0] === want;
+    }
+    case "machine":
+      return facts.machine() === selector.fingerprint.toLowerCase();
+    case "all":
+      return selector.of.every((s) => matches(s, facts));
+    case "any":
+      return selector.of.some((s) => matches(s, facts));
+    case "not":
+      return !matches(selector.selector, facts);
+    default:
+      return assertNever(selector);
+  }
+}
+
+export function validateSelector(
+  value: unknown,
+  origin: Origin,
+  at = "selector",
+): asserts value is Selector {
+  if (!isObject(value) || !member(selectorKinds, value.kind))
+    fail(at, `must be a Selector ({ kind: ${selectorKinds.join(" | ")} })`);
+  const str = (key: string) => {
+    if (typeof value[key] !== "string" || !value[key])
+      fail(`${at}.${key}`, "must be a non-empty string");
+  };
+  const kind = value.kind as Selector["kind"];
+  switch (kind) {
+    case "always":
+    case "omarchy":
+      return;
+    case "platform":
+      if (!member(platforms, value.is))
+        fail(`${at}.is`, `must be one of ${platforms.join(", ")}`);
+      return;
+    case "distro":
+      return str("id");
+    case "has":
+      return str("command");
+    case "env":
+      str("name");
+      if (value.equals !== undefined && typeof value.equals !== "string")
+        fail(`${at}.equals`, "must be a string");
+      return;
+    case "hostname":
+      if (origin === "repo")
+        fail(
+          at,
+          "hostname selectors belong in $XDG_CONFIG_HOME/snshah/profile.d, never in the public repository",
+        );
+      return str("is");
+    case "machine":
+      str("fingerprint");
+      if (!/^[0-9a-f]{16}$/i.test(String(value.fingerprint)))
+        fail(`${at}.fingerprint`, "must be 16 hex digits from snshah whoami");
+      return;
+    case "all":
+    case "any":
+      if (!Array.isArray(value.of) || value.of.length === 0)
+        fail(`${at}.of`, "must list at least one selector");
+      (value.of as unknown[]).forEach((s, i) =>
+        validateSelector(s, origin, `${at}.of[${i}]`),
+      );
+      return;
+    case "not":
+      return validateSelector(value.selector, origin, `${at}.selector`);
+    default:
+      assertNever(kind);
+  }
+}
+
+export function validateHooks(
+  value: unknown,
+  origin: Origin,
+): asserts value is Hook[] {
+  if (!Array.isArray(value)) fail("hooks", "must be an array");
+  value.forEach((hook: unknown, i: number) => {
+    const at = `hooks[${i}]`;
+    if (!isObject(hook) || !member(hookKinds, hook.kind))
+      fail(at, `must be a Hook ({ kind: ${hookKinds.join(" | ")} })`);
+    const kind = hook.kind as Hook["kind"];
+    const argv = (key: string) => {
+      const v = hook[key];
+      if (
+        !Array.isArray(v) ||
+        v.length === 0 ||
+        !v.every((a) => typeof a === "string")
+      )
+        fail(`${at}.${key}`, "must be a non-empty array of strings");
+    };
+    switch (kind) {
+      case "file":
+      case "block":
+        if (typeof hook.path !== "string" || !hook.path)
+          fail(`${at}.path`, "must be a path");
+        if (typeof hook.content !== "string")
+          fail(`${at}.content`, "must be a string");
+        if (kind === "file" && hook.mode !== undefined) {
+          if (
+            typeof hook.mode !== "number" ||
+            !Number.isInteger(hook.mode) ||
+            hook.mode < 0 ||
+            hook.mode > 0o777
+          )
+            fail(`${at}.mode`, "must be a file mode such as 0o644");
+        }
+        if (
+          kind === "block" &&
+          hook.comment !== undefined &&
+          !member(hookComments, hook.comment)
+        )
+          fail(`${at}.comment`, `must be one of ${hookComments.join(" ")}`);
+        return;
+      case "command": {
+        if (!["before-apply", "after-apply"].includes(String(hook.phase)))
+          fail(`${at}.phase`, 'must be "before-apply" or "after-apply"');
+        argv("run");
+        argv("unless");
+        if (hook.cwd !== undefined && typeof hook.cwd !== "string")
+          fail(`${at}.cwd`, "must be a path");
+        if (hook.env === undefined) return;
+        const env = hook.env;
+        if (!isObject(env)) fail(`${at}.env`, "must be an object");
+        if (
+          env.pass !== undefined &&
+          env.pass !== "all" &&
+          !(
+            Array.isArray(env.pass) &&
+            env.pass.every((n) => typeof n === "string" && identifier.test(n))
+          )
+        )
+          fail(`${at}.env.pass`, 'must be "all" or variable names');
+        if (env.set !== undefined) {
+          if (!isObject(env.set)) fail(`${at}.env.set`, "must be an object");
+          for (const [k, v] of Object.entries(env.set))
+            if (!identifier.test(k) || typeof v !== "string")
+              fail(
+                `${at}.env.set.${k}`,
+                "must map a variable name to a string",
+              );
+        }
+        if (env.secrets !== undefined) {
+          if (origin === "repo")
+            fail(
+              `${at}.env.secrets`,
+              "only private profiles may pass secrets to commands",
+            );
+          if (
+            !Array.isArray(env.secrets) ||
+            !env.secrets.every(
+              (n) => typeof n === "string" && identifier.test(n),
+            )
+          )
+            fail(`${at}.env.secrets`, "must list secret variable names");
+        }
+        return;
+      }
+      default:
+        assertNever(kind);
+    }
+  });
+}
+
+async function loadProfileDir(
+  dir: string,
+  origin: Origin,
+): Promise<LoadedProfile[]> {
+  if (!existsSyncDir(dir)) return [];
+  const files = readdirSync(dir)
+    .filter((f) => f.endsWith(".ts") && !f.endsWith(".d.ts"))
+    .sort();
+  const loaded: LoadedProfile[] = [];
+  for (const file of files) {
+    const path = join(dir, file);
+    const id = file.slice(0, -3);
+    const where = `${origin} profile ${file}`;
+    if (!profileId.test(id)) throw new Error(`${where}: invalid file name.`);
+    const info = await lstat(path);
+    if (!info.isFile())
+      throw new Error(`${where}: must be a regular file, not a link.`);
+    if (origin === "private" && !isWindows) {
+      if (info.uid !== process.getuid?.())
+        throw new Error(`${where}: must be owned by you.`);
+      if (info.mode & 0o022)
+        throw new Error(
+          `${where}: must not be writable by group or others (chmod 600).`,
+        );
+    }
+    let module: Record<string, unknown>;
+    try {
+      module = await import(pathToFileURL(path).href);
+    } catch (error) {
+      throw new Error(
+        `${where}: could not load (${(error as Error).message}).`,
+      );
+    }
+    try {
+      for (const key of Object.keys(module))
+        if (!["selector", "config", "hooks"].includes(key))
+          fail(key, "is not a profile export (use selector, config, hooks)");
+      validateSelector(module.selector, origin);
+      const config = module.config ?? {};
+      validateConfig(config);
+      if (config.secrets !== undefined)
+        fail("config.secrets", "secrets belong only in snshah.conf.ts");
+      const hooks = module.hooks ?? [];
+      validateHooks(hooks, origin);
+      loaded.push({
+        id,
+        origin,
+        file: path,
+        selector: module.selector,
+        config,
+        hooks,
+      });
+    } catch (error) {
+      throw new Error(`${where}: ${(error as Error).message}`);
+    }
+  }
+  return loaded;
+}
+
+// Typed merge: the compiler requires one rule per config key.
+type Mergers = {
+  [K in keyof WorkshopConfig]-?: (
+    a: WorkshopConfig[K],
+    b: WorkshopConfig[K],
+  ) => WorkshopConfig[K];
+};
+function later<T>(a: T, b: T): T {
+  return b === undefined ? a : b;
+}
+function byKey<T, K extends keyof T>(key: K) {
+  return (a: T[] | undefined, b: T[] | undefined): T[] | undefined => {
+    if (!a && !b) return undefined;
+    const out = new Map<T[K], T>();
+    for (const item of [...(a ?? []), ...(b ?? [])]) {
+      out.delete(item[key]);
+      out.set(item[key], item);
+    }
+    return [...out.values()];
+  };
+}
+const mergers: Mergers = {
+  // Scalars and tagged unions: a later layer replaces the value whole.
+  workspacesHome: later,
+  prompt: later,
+  // Records: a later layer's keys win; each agent's union is replaced whole.
+  aliases: (a, b) => (a || b ? { ...a, ...b } : undefined),
+  agents: (a, b) => (a || b ? { ...a, ...b } : undefined),
+  // Lists: concatenate; keyed lists let a later layer replace an entry.
+  path: (a, b) =>
+    a || b ? [...new Set([...(a ?? []), ...(b ?? [])])] : undefined,
+  repositories: byKey<Repository, "name">("name"),
+  secrets: byKey<Secret, "variable">("variable"),
+};
+
+export function mergeConfig(
+  a: WorkshopConfig,
+  b: WorkshopConfig,
+): WorkshopConfig {
+  const out: WorkshopConfig = {};
+  const keys = Object.keys(mergers) as (keyof WorkshopConfig)[];
+  for (const key of keys) {
+    const merge = mergers[key] as (x: unknown, y: unknown) => unknown;
+    const value = merge(a[key], b[key]);
+    if (value !== undefined) (out as Record<string, unknown>)[key] = value;
+  }
+  return out;
+}
+
+export type Override = { key: string; from: string; to: string };
+export type Effective = {
+  config: WorkshopConfig;
+  privateConfig: WorkshopConfig;
+  privateSource?: string;
+  facts: FactSource;
+  profiles: Array<{ id: string; origin: Origin; matched: boolean }>;
+  hooks: Array<{ profile: string; origin: Origin; hook: Hook }>;
+  overrides: Override[];
+};
+
+/** Settings a layer sets that are replaced whole, for plan --explain. */
+function overridable(config: WorkshopConfig): Map<string, string> {
+  const out = new Map<string, string>();
+  if (config.workspacesHome !== undefined)
+    out.set("workspacesHome", JSON.stringify(config.workspacesHome));
+  if (config.prompt) out.set("prompt", JSON.stringify(config.prompt));
+  for (const [k, v] of Object.entries(config.agents ?? {}))
+    out.set(`agents.${k}`, JSON.stringify(v));
+  for (const [k, v] of Object.entries(config.aliases ?? {}))
+    out.set(`aliases.${k}`, JSON.stringify(v));
+  for (const r of config.repositories ?? [])
+    out.set(`repositories.${r.name}`, JSON.stringify(r));
+  return out;
+}
+
+export function repoProfileSource(): string {
+  return join(import.meta.dir, "profile.d");
+}
+
+export async function loadEffective(ctx: Context): Promise<Effective> {
+  const facts = factSource(ctx);
+  const { config: privateConfig, source } = await loadConfig(ctx);
+  const repo = await loadProfileDir(repoProfileSource(), "repo");
+  const mine = await loadProfileDir(ctx.profileDir, "private");
+  const layers: Array<{ name: string; config: WorkshopConfig }> = [
+    { name: "built-in", config: defaultConfig },
+  ];
+  const profiles: Effective["profiles"] = [];
+  const hooks: Effective["hooks"] = [];
+  const use = (p: LoadedProfile) => {
+    const matched = matches(p.selector, facts);
+    profiles.push({ id: p.id, origin: p.origin, matched });
+    if (!matched) return;
+    layers.push({ name: `${p.origin}:${p.id}`, config: p.config });
+    for (const hook of p.hooks)
+      hooks.push({ profile: p.id, origin: p.origin, hook });
+  };
+  repo.forEach(use);
+  layers.push({ name: "snshah.conf.ts", config: privateConfig });
+  mine.forEach(use);
+
+  const overrides: Override[] = [];
+  const owner = new Map<string, { layer: string; value: string }>();
+  let config: WorkshopConfig = {};
+  for (const layer of layers) {
+    for (const [key, value] of overridable(layer.config)) {
+      const previous = owner.get(key);
+      if (previous && previous.value !== value)
+        overrides.push({ key, from: previous.layer, to: layer.name });
+      owner.set(key, { layer: layer.name, value });
+    }
+    config = mergeConfig(config, layer.config);
+  }
+  return {
+    config,
+    privateConfig,
+    privateSource: source,
+    facts,
+    profiles,
+    hooks,
+    overrides,
+  };
+}
+
+/** The base environment every command hook gets, before `pass`, `set` and `secrets`. */
+const baseCommandEnv = [
+  "PATH",
+  "HOME",
+  "USER",
+  "USERNAME",
+  "LOGNAME",
+  "SHELL",
+  "LANG",
+  "LC_ALL",
+  "TERM",
+  "TMPDIR",
+  "XDG_CONFIG_HOME",
+  "XDG_DATA_HOME",
+  "XDG_STATE_HOME",
+  "XDG_CACHE_HOME",
+  "XDG_RUNTIME_DIR",
+  "XDG_BIN_HOME",
+  "WORKSPACES_HOME",
+  // Windows needs these for almost any child process to start.
+  "SystemRoot",
+  "SYSTEMROOT",
+  "COMSPEC",
+  "PATHEXT",
+  "USERPROFILE",
+  "APPDATA",
+  "LOCALAPPDATA",
+  "TEMP",
+  "TMP",
+  "ProgramData",
+  "ProgramFiles",
+];
+
+export function commandEnv(
+  parent: Env,
+  spec: CommandEnv | undefined,
+  secrets: readonly Secret[],
+  where: string,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  const copy = (name: string) => {
+    const v = parent[name];
+    if (v !== undefined) out[name] = v;
+  };
+  if (spec?.pass === "all")
+    for (const [k, v] of Object.entries(parent)) {
+      if (v !== undefined) out[k] = v;
+    }
+  else {
+    baseCommandEnv.forEach(copy);
+    (spec?.pass ?? []).forEach(copy);
+  }
+  Object.assign(out, spec?.set ?? {});
+  for (const name of spec?.secrets ?? []) {
+    const secret = secrets.find((s) => s.variable === name);
+    if (!secret)
+      throw new Error(
+        `${where}: secret ${name} is not declared in snshah.conf.ts.`,
+      );
+    out[name] = secret.value;
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
 // Plan: the desired end state, as steps that differ from what is on disk
 // ---------------------------------------------------------------------------
+
+/** The pinned Oh My Posh build for this OS and CPU, if there is one. */
+export function poshTarget(
+  os: NodeJS.Platform = process.platform,
+  arch: string = process.arch,
+): PoshTarget | undefined {
+  const name =
+    os === "linux"
+      ? "linux"
+      : os === "darwin"
+        ? "darwin"
+        : os === "win32"
+          ? "windows"
+          : undefined;
+  const cpu = arch === "x64" ? "x64" : arch === "arm64" ? "arm64" : undefined;
+  const target = name && cpu ? `${name}-${cpu}` : undefined;
+  return target && target in ohMyPosh.assets
+    ? (target as PoshTarget)
+    : undefined;
+}
+
+async function sha256Of(path: string): Promise<string | undefined> {
+  try {
+    const hasher = new Bun.CryptoHasher("sha256");
+    hasher.update(await Bun.file(path).arrayBuffer());
+    return hasher.digest("hex");
+  } catch {
+    return undefined;
+  }
+}
+
+/** One download step when the prompt wants Oh My Posh, none is on PATH, and
+ *  snshah's own copy is missing or not the pinned build. */
+async function planPosh(
+  ctx: Context,
+  config: WorkshopConfig,
+): Promise<Step | undefined> {
+  const prompt = config.prompt ?? { kind: "oh-my-posh" };
+  if (prompt.kind !== "oh-my-posh" || prompt.install === false) return;
+  if (Bun.which("oh-my-posh", { PATH: ctx.env.PATH ?? "" })) return;
+  const target = poshTarget();
+  if (!target) return;
+  const asset = ohMyPosh.assets[target];
+  const current = await sha256Of(ctx.poshBinary);
+  if (current === asset.sha256) return;
+  return {
+    kind: "download",
+    url: `https://github.com/JanDeDobbeleer/oh-my-posh/releases/download/v${ohMyPosh.version}/${asset.file}`,
+    sha256: asset.sha256,
+    cache: join(ctx.cacheDir, `oh-my-posh-${ohMyPosh.version}-${asset.file}`),
+    path: ctx.poshBinary,
+    mode: 0o755,
+    label: `Oh My Posh ${ohMyPosh.version}`,
+    create: current === undefined,
+  };
+}
+
+/** Fetch a pinned file into the cache (reusing a verified copy), then install it. */
+async function download(
+  step: Extract<Step, { kind: "download" }>,
+): Promise<void> {
+  let bytes: Uint8Array | undefined;
+  if ((await sha256Of(step.cache)) === step.sha256)
+    bytes = new Uint8Array(await Bun.file(step.cache).arrayBuffer());
+  if (!bytes) {
+    const response = await fetch(step.url);
+    if (!response.ok)
+      throw new Error(
+        `${step.label}: download failed (HTTP ${response.status}).`,
+      );
+    bytes = new Uint8Array(await response.arrayBuffer());
+    const hasher = new Bun.CryptoHasher("sha256");
+    hasher.update(bytes);
+    if (hasher.digest("hex") !== step.sha256)
+      throw new Error(
+        `${step.label}: checksum mismatch; nothing was installed.`,
+      );
+    await writeAtomic(step.cache, bytes, 0o644);
+  }
+  await writeAtomic(step.path, bytes, step.mode);
+}
 
 export type Step =
   | { kind: "directory"; path: string; mode: number; label: string }
@@ -719,9 +1571,33 @@ export type Step =
       mode: number;
       label: string;
       create: boolean;
+    }
+  | { kind: "remove"; path: string; label: string }
+  | {
+      kind: "download";
+      url: string;
+      sha256: string;
+      cache: string;
+      path: string;
+      mode: number;
+      label: string;
+      create: boolean;
+    }
+  | {
+      kind: "command";
+      phase: "before-apply" | "after-apply";
+      run: string[];
+      unless: string[];
+      env: Record<string, string>;
+      cwd?: string;
+      path: string;
+      label: string;
     };
 
-type ContentStep = Exclude<Step, { kind: "directory" }>;
+type ContentStep = Exclude<
+  Step,
+  { kind: "directory" | "remove" | "command" | "download" }
+>;
 
 async function contentStep<K extends ContentStep["kind"]>(
   kind: K,
@@ -777,7 +1653,7 @@ export function rcBlock(ctx: Context, shell: Shell): string {
         shellBegin,
         docLine,
         "case $- in",
-        `  *i*) if [ -x ${target} ]; then eval "$(${target} shell ${shell})"; fi ;;`,
+        `  *i*) if [ -x ${target} ]; then eval "$(${target} shell ${shell} --greet)"; fi ;;`,
         "esac",
         shellEnd,
       ].join("\n");
@@ -789,7 +1665,7 @@ export function rcBlock(ctx: Context, shell: Shell): string {
       return [
         docLine,
         `if status is-interactive; and test -x ${target}`,
-        `    ${target} shell fish | source`,
+        `    ${target} shell fish --greet | source`,
         "end",
         "",
       ].join("\n");
@@ -802,7 +1678,7 @@ export function rcBlock(ctx: Context, shell: Shell): string {
         shellBegin,
         docLine,
         `$__snshah = ${target}`,
-        'if (Test-Path -LiteralPath $__snshah) { (& $__snshah shell pwsh) -join "`n" | Invoke-Expression }',
+        'if (Test-Path -LiteralPath $__snshah) { (& $__snshah shell pwsh --greet) -join "`n" | Invoke-Expression }',
         "Remove-Variable __snshah -ErrorAction SilentlyContinue",
         shellEnd,
       ].join("\n");
@@ -902,10 +1778,13 @@ function wrapperScripts(
 
 export async function plan(
   ctx: Context,
-  options: { revision?: string } = {},
+  options: { revision?: string; effective?: Effective } = {},
 ): Promise<Step[]> {
-  const { config } = await loadConfig(ctx);
+  const effective = options.effective ?? (await loadEffective(ctx));
+  const { config } = effective;
   const steps: Step[] = [];
+  const before: Step[] = [];
+  const after: Step[] = [];
   const directory = async (path: string, mode: number, label: string) => {
     if (await exists(path)) {
       if (!(await stat(path)).isDirectory())
@@ -917,6 +1796,7 @@ export async function plan(
   };
 
   await directory(ctx.configDir, 0o700, "private config directory");
+  await directory(ctx.profileDir, 0o700, "private profile.d");
   await directory(ctx.dataDir, 0o755, "installed CLI directory");
   await directory(ctx.stateDir, 0o755, "state directory");
   await directory(ctx.cacheDir, 0o755, "download cache");
@@ -952,11 +1832,23 @@ export async function plan(
     ...(await contentStep(
       "file",
       ctx.typesFile,
-      configTypes,
+      await configTypes(),
       0o600,
       "config type declarations",
     )),
   );
+
+  // Paths snshah owns outright; a profile's file hook may not claim them.
+  const owned = new Map<string, string>([
+    [ctx.configFile, "snshah"],
+    [ctx.typesFile, "snshah"],
+    [ctx.installedTheme, "snshah"],
+    [ctx.poshBinary, "snshah"],
+    [ctx.installedScript, "snshah"],
+    [ctx.receipt, "snshah"],
+    [join(ctx.dataDir, "snshah.selftest.ts"), "snshah"],
+    ...wrapperScripts(ctx).map((w) => [w.path, "snshah"] as [string, string]),
+  ]);
 
   const theme = await readText(themeSource());
   if (theme !== undefined)
@@ -969,11 +1861,33 @@ export async function plan(
         "Oh My Posh theme",
       )),
     );
+  const posh = await planPosh(ctx, config);
+  if (posh) steps.push(posh);
+
+  // Marked blocks are accumulated per file, so a startup block and any
+  // number of profile blocks in the same file compose instead of clobbering.
+  const blocks = new Map<string, { content: string; labels: string[] }>();
+  const editBlock = async (
+    path: string,
+    begin: string,
+    end: string,
+    block: string,
+    label: string,
+  ) => {
+    const entry = blocks.get(path) ?? {
+      content: (await readText(path)) ?? "",
+      labels: [],
+    };
+    entry.content = upsertBlock(entry.content, begin, end, block);
+    entry.labels.push(label);
+    blocks.set(path, entry);
+  };
 
   for (const shell of detectedShells(ctx)) {
     const path = rcFile(ctx, shell);
     const block = rcBlock(ctx, shell);
     if (shell === "fish") {
+      owned.set(path, "snshah");
       steps.push(
         ...(await contentStep(
           "file",
@@ -985,17 +1899,102 @@ export async function plan(
       );
       continue;
     }
-    const current = (await readText(path)) ?? "";
+    await editBlock(
+      path,
+      shellBegin,
+      shellEnd,
+      block,
+      `${shell} startup block`,
+    );
+  }
+
+  // Profile hooks.
+  const seenBlocks = new Set<string>();
+  for (const { profile, origin, hook } of effective.hooks) {
+    const where = `${origin} profile ${profile}`;
+    switch (hook.kind) {
+      case "file": {
+        const path = resolve(expandHome(ctx, hook.path));
+        const claimed = owned.get(path);
+        if (claimed)
+          throw new Error(
+            `${where} writes ${tilde(ctx, path)}, which ${claimed} already manages.`,
+          );
+        owned.set(path, where);
+        steps.push(
+          ...(await contentStep(
+            "file",
+            path,
+            hook.content,
+            hook.mode ?? 0o644,
+            `${where}: file`,
+          )),
+        );
+        break;
+      }
+      case "block": {
+        const path = resolve(expandHome(ctx, hook.path));
+        if (owned.has(path))
+          throw new Error(
+            `${where} adds a block to ${tilde(ctx, path)}, which ${owned.get(path)} manages whole.`,
+          );
+        const key = `${path}\0${profile}`;
+        if (seenBlocks.has(key))
+          throw new Error(
+            `${where} has two blocks for ${tilde(ctx, path)}; combine them.`,
+          );
+        seenBlocks.add(key);
+        const c = hook.comment ?? "#";
+        const close = c === "<!--" ? " -->" : "";
+        const begin = `${c} >>> snshah profile ${profile} >>>${close}`;
+        const end = `${c} <<< snshah profile ${profile} <<<${close}`;
+        const body = hook.content.replace(/\n$/, "");
+        await editBlock(
+          path,
+          begin,
+          end,
+          `${begin}\n${body}\n${end}`,
+          `${where}: block`,
+        );
+        break;
+      }
+      case "command": {
+        const env = commandEnv(ctx.env, hook.env, config.secrets ?? [], where);
+        const cwd = hook.cwd ? resolve(expandHome(ctx, hook.cwd)) : undefined;
+        const satisfied =
+          resolveExecutable(hook.unless[0]!, env) !== undefined &&
+          Bun.spawnSync(
+            [resolveExecutable(hook.unless[0]!, env)!, ...hook.unless.slice(1)],
+            { env, cwd, stdin: "ignore", stdout: "ignore", stderr: "ignore" },
+          ).exitCode === 0;
+        if (satisfied) break;
+        (hook.phase === "before-apply" ? before : after).push({
+          kind: "command",
+          phase: hook.phase,
+          run: hook.run,
+          unless: hook.unless,
+          env,
+          cwd,
+          path: cwd ?? "",
+          label: `${where}: ${hook.phase}`,
+        });
+        break;
+      }
+      default:
+        assertNever(hook);
+    }
+  }
+
+  for (const [path, entry] of blocks)
     steps.push(
       ...(await contentStep(
         "block",
         path,
-        upsertBlock(current, shellBegin, shellEnd, block),
+        entry.content,
         0o644,
-        `${shell} startup block`,
+        entry.labels.join(", "),
       )),
     );
-  }
 
   steps.push(...(await planAgentDefaults(ctx, config)));
 
@@ -1022,9 +2021,38 @@ export async function plan(
   }
 
   // The CLI itself goes last, so a failed apply leaves the old one in place.
+  const cli: Step[] = [];
+  const source = repoProfileSource();
+  if (resolve(source) !== resolve(ctx.repoProfileDir)) {
+    const shipped = existsSyncDir(source)
+      ? readdirSync(source)
+          .filter((f) => f.endsWith(".ts"))
+          .sort()
+      : [];
+    for (const file of shipped)
+      cli.push(
+        ...(await contentStep(
+          "file",
+          join(ctx.repoProfileDir, file),
+          await readFile(join(source, file), "utf8"),
+          0o644,
+          `repo profile ${file}`,
+        )),
+      );
+    const installed = existsSyncDir(ctx.repoProfileDir)
+      ? readdirSync(ctx.repoProfileDir).filter((f) => f.endsWith(".ts"))
+      : [];
+    for (const file of installed)
+      if (!shipped.includes(file))
+        cli.push({
+          kind: "remove",
+          path: join(ctx.repoProfileDir, file),
+          label: `retired repo profile ${file}`,
+        });
+  }
   const tests = await readText(join(import.meta.dir, "snshah.selftest.ts"));
   if (tests !== undefined)
-    steps.push(
+    cli.push(
       ...(await contentStep(
         "file",
         join(ctx.dataDir, "snshah.selftest.ts"),
@@ -1034,7 +2062,7 @@ export async function plan(
       )),
     );
   const self = await readFile(import.meta.path, "utf8");
-  steps.push(
+  cli.push(
     ...(await contentStep(
       "file",
       ctx.installedScript,
@@ -1044,7 +2072,7 @@ export async function plan(
     )),
   );
   for (const script of wrapperScripts(ctx))
-    steps.push(
+    cli.push(
       ...(await contentStep(
         "file",
         script.path,
@@ -1053,7 +2081,7 @@ export async function plan(
         "snshah launcher",
       )),
     );
-  return steps;
+  return [...before, ...steps, ...after, ...cli];
 }
 
 // ---------------------------------------------------------------------------
@@ -1249,6 +2277,46 @@ async function applySteps(steps: readonly Step[]): Promise<void> {
       case "toml-fill":
         await writeAtomic(step.path, step.content, step.mode);
         break;
+      case "remove":
+        await rm(step.path, { force: true });
+        break;
+      case "download":
+        await download(step);
+        break;
+      case "command": {
+        const exe = resolveExecutable(step.run[0]!, step.env);
+        if (!exe)
+          throw new Error(`${step.label}: ${step.run[0]} is not on PATH.`);
+        const r = Bun.spawnSync([exe, ...step.run.slice(1)], {
+          env: step.env,
+          cwd: step.cwd,
+          stdin: "inherit",
+          stdout: "pipe",
+          stderr: "pipe",
+        });
+        // Keep stdout clean for --json: hook output goes to stderr.
+        process.stderr.write(r.stdout);
+        process.stderr.write(r.stderr);
+        if (r.exitCode !== 0)
+          throw new Error(
+            `${step.label}: ${step.run.join(" ")} exited ${r.exitCode}.`,
+          );
+        const uexe = resolveExecutable(step.unless[0]!, step.env);
+        const converged =
+          !!uexe &&
+          Bun.spawnSync([uexe, ...step.unless.slice(1)], {
+            env: step.env,
+            cwd: step.cwd,
+            stdin: "ignore",
+            stdout: "ignore",
+            stderr: "ignore",
+          }).exitCode === 0;
+        if (!converged)
+          throw new Error(
+            `${step.label}: its unless check (${step.unless.join(" ")}) still fails after running, so it would run again every time. Fix the hook.`,
+          );
+        break;
+      }
       default:
         assertNever(step);
     }
@@ -1290,15 +2358,7 @@ export type ShellOp =
   | { kind: "alias"; name: string; value: AliasValue }
   | { kind: "mkcd" }
   | { kind: "wrap"; command: string; wrapper: string }
-  | { kind: "prompt"; theme: string };
-
-const defaultAliases: Record<string, AliasValue> = {
-  ll: { posix: "ls -al", fish: "ls -al", pwsh: "Get-ChildItem -Force" },
-  gs: "git status --short --branch",
-  gd: "git diff",
-  gds: "git diff --staged",
-  gl: "git log --oneline --graph --decorate",
-};
+  | { kind: "prompt"; theme: string; binary: string };
 
 export function shellOps(
   ctx: Context,
@@ -1321,10 +2381,7 @@ export function shellOps(
   for (const secret of config.secrets ?? [])
     if (secret.scope === "shell")
       ops.push({ kind: "env", name: secret.variable, value: secret.value });
-  for (const [name, value] of Object.entries({
-    ...defaultAliases,
-    ...(config.aliases ?? {}),
-  }))
+  for (const [name, value] of Object.entries(config.aliases ?? {}))
     ops.push({ kind: "alias", name, value });
   ops.push({ kind: "mkcd" });
   const wrapped = new Set<string>();
@@ -1339,6 +2396,7 @@ export function shellOps(
     ops.push({
       kind: "prompt",
       theme: custom ? expandHome(ctx, custom) : ctx.installedTheme,
+      binary: ctx.poshBinary,
     });
   }
   return ops;
@@ -1407,7 +2465,10 @@ function renderPosix(shell: "bash" | "zsh", op: ShellOp): string[] {
       ];
     case "prompt":
       return [
-        `if command -v oh-my-posh >/dev/null 2>&1 && [ -f ${quotePosix(op.theme)} ]; then eval "$(oh-my-posh init ${shell} --config ${quotePosix(op.theme)})"; fi`,
+        // Prefer an oh-my-posh on PATH; fall back to the copy snshah installed.
+        `__snshah_omp=$(command -v oh-my-posh 2>/dev/null) || __snshah_omp=${quotePosix(op.binary)}`,
+        `if [ -x "$__snshah_omp" ] && [ -f ${quotePosix(op.theme)} ]; then eval "$("$__snshah_omp" init ${shell} --config ${quotePosix(op.theme)})"; fi`,
+        `unset __snshah_omp`,
       ];
     default:
       return assertNever(op);
@@ -1442,7 +2503,9 @@ function renderFish(op: ShellOp): string[] {
       ];
     case "prompt":
       return [
-        `if type -q oh-my-posh; and test -f ${quoteFish(op.theme)}; oh-my-posh init fish --config ${quoteFish(op.theme)} | source; end`,
+        `set -l __snshah_omp (command -s oh-my-posh); or set __snshah_omp ${quoteFish(op.binary)}`,
+        `if test -x "$__snshah_omp"; and test -f ${quoteFish(op.theme)}; $__snshah_omp init fish --config ${quoteFish(op.theme)} | source; end`,
+        `set -e __snshah_omp`,
       ];
     default:
       return assertNever(op);
@@ -1481,7 +2544,10 @@ function renderPwsh(op: ShellOp): string[] {
       ];
     case "prompt":
       return [
-        `if ((Get-Command oh-my-posh -ErrorAction SilentlyContinue) -and (Test-Path -LiteralPath ${quotePwsh(op.theme)})) { oh-my-posh init pwsh --config ${quotePwsh(op.theme)} | Invoke-Expression }`,
+        `$__snshahOmp = (Get-Command oh-my-posh -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1).Source`,
+        `if (-not $__snshahOmp -and (Test-Path -LiteralPath ${quotePwsh(op.binary)})) { $__snshahOmp = ${quotePwsh(op.binary)} }`,
+        `if ($__snshahOmp -and (Test-Path -LiteralPath ${quotePwsh(op.theme)})) { & $__snshahOmp init pwsh --config ${quotePwsh(op.theme)} | Invoke-Expression }`,
+        `Remove-Variable __snshahOmp -ErrorAction SilentlyContinue`,
       ];
     default:
       return assertNever(op);
@@ -1496,7 +2562,7 @@ async function execWithSecrets(ctx: Context, argv: string[]): Promise<number> {
   const args = argv[0] === "--" ? argv.slice(1) : argv;
   const command = args[0];
   if (!command) throw new UsageError("Usage: snshah exec <command> [args...]");
-  const { config } = await loadConfig(ctx);
+  const { config } = await loadEffective(ctx);
   const env: Env = { ...ctx.env };
   for (const secret of config.secrets ?? [])
     if (
@@ -1620,8 +2686,8 @@ async function gitAdd(
   input: string,
   options: { name?: string; path?: string; inPlace?: boolean; clone: boolean },
 ): Promise<void> {
-  const { config } = await loadConfig(ctx);
-  const repos = config.repositories ?? [];
+  const { privateConfig, config: merged } = await loadEffective(ctx);
+  const repos = privateConfig.repositories ?? [];
   let source = input;
   let path = options.path ? resolve(expandHome(ctx, options.path)) : undefined;
   if (options.inPlace) {
@@ -1641,7 +2707,7 @@ async function gitAdd(
     (parsed.kind === "remote" ? parsed.segments.at(-1)! : parsed.name);
   if (!repoName.test(name))
     throw new UsageError(`Invalid repository name: ${name}. Use --name.`);
-  const existing = repos.find((r) => r.name === name);
+  const existing = (merged.repositories ?? []).find((r) => r.name === name);
   if (existing) {
     if (existing.source !== normalized)
       throw new UsageError(
@@ -1670,7 +2736,7 @@ async function gitClone(
   name: string | undefined,
   all = false,
 ): Promise<void> {
-  const { config } = await loadConfig(ctx);
+  const { config } = await loadEffective(ctx);
   const repos = selectRepos(config, name, all);
   let failed = 0;
   for (const repo of repos) {
@@ -1701,7 +2767,7 @@ async function gitUpdate(
   name: string | undefined,
   all: boolean,
 ): Promise<void> {
-  const { config } = await loadConfig(ctx);
+  const { config } = await loadEffective(ctx);
   let failed = 0;
   for (const repo of selectRepos(config, name, all)) {
     const path = repoPath(ctx, config, repo);
@@ -1755,9 +2821,17 @@ function selectRepos(
 }
 
 async function gitRemove(ctx: Context, name: string): Promise<void> {
-  const { config } = await loadConfig(ctx);
-  const repos = config.repositories ?? [];
+  const { privateConfig, config: merged } = await loadEffective(ctx);
+  const repos = privateConfig.repositories ?? [];
   if (!repos.some((r) => r.name === name)) {
+    if ((defaultConfig.repositories ?? []).some((r) => r.name === name))
+      throw new UsageError(
+        `${name} is built in (this repository's own checkout) and cannot be removed.`,
+      );
+    if ((merged.repositories ?? []).some((r) => r.name === name))
+      throw new UsageError(
+        `${name} comes from a profile.d file; remove it there. See snshah plan --explain.`,
+      );
     say(`${name} is not registered; nothing to remove.`, "success");
     return;
   }
@@ -1883,6 +2957,7 @@ const tools: Tool[] = [
       brew: "jandedobbeleer/oh-my-posh/oh-my-posh",
       winget: "JanDeDobbeleer.OhMyPosh",
       omarchy: "oh-my-posh",
+      // Elsewhere snshah apply installs a pinned build itself (see doctor).
       fallback:
         "curl -fsSL https://ohmyposh.dev/install.sh | bash -s -- -d ~/.local/bin",
     },
@@ -2006,19 +3081,25 @@ function detectManager(ctx: Context): PackageManager | undefined {
 export function installCommand(
   manager: PackageManager,
   packages: string[],
+  hasSudo = true,
 ): string {
   const list = packages.join(" ");
+  // Debian and others may have no sudo for this user; then root's su works.
+  const root = (cmd: string) => (hasSudo ? `sudo ${cmd}` : `su -c '${cmd}'`);
   switch (manager) {
     case "apt":
-      return `sudo apt install -y ${list}`;
+      return root(`apt-get update && apt-get install -y ${list}`).replace(
+        "sudo apt-get update && apt-get",
+        "sudo apt-get update && sudo apt-get",
+      );
     case "dnf":
-      return `sudo dnf install -y ${list}`;
+      return root(`dnf install -y ${list}`);
     case "pacman":
-      return `sudo pacman -S --needed ${list}`;
+      return root(`pacman -S --needed ${list}`);
     case "apk":
-      return `sudo apk add ${list}`;
+      return root(`apk add ${list}`);
     case "zypper":
-      return `sudo zypper install -y ${list}`;
+      return root(`zypper install -y ${list}`);
     case "brew":
       return `brew install ${list}`;
     case "winget":
@@ -2042,10 +3123,27 @@ type Check = {
   detail: string;
 };
 
+/** A human name for this OS, so advice says where it applies. */
+function systemName(ctx: Context): string {
+  switch (ctx.platform) {
+    case "macos":
+      return "macOS";
+    case "windows":
+      return "Windows";
+    case "wsl":
+      return `${distroName() ?? "Linux"} on WSL`;
+    case "linux":
+      return ctx.omarchy ? "Omarchy" : (distroName() ?? "Linux");
+    default:
+      return assertNever(ctx.platform);
+  }
+}
+
 async function doctor(ctx: Context): Promise<{
   checks: Check[];
   advice: string[];
   platform: Platform;
+  system: string;
   manager?: PackageManager;
 }> {
   const checks: Check[] = [];
@@ -2056,7 +3154,12 @@ async function doctor(ctx: Context): Promise<{
     detail: `Bun ${Bun.version} (needs ${minimumBun} or newer)`,
   });
   try {
-    const { source } = await loadConfig(ctx);
+    const { privateSource: source, profiles } = await loadEffective(ctx);
+    checks.push({
+      check: "profiles",
+      status: "ok",
+      detail: `${profiles.filter((p) => p.matched).length} of ${profiles.length} profile.d file(s) match this machine`,
+    });
     checks.push({
       check: "config",
       status: source ? "ok" : "warn",
@@ -2086,7 +3189,11 @@ async function doctor(ctx: Context): Promise<{
   for (const tool of tools) {
     if (tool.linuxOnly && !(ctx.platform === "linux" || ctx.platform === "wsl"))
       continue;
-    const found = Bun.which(tool.name, { PATH });
+    const found =
+      Bun.which(tool.name, { PATH }) ??
+      (tool.name === "oh-my-posh" && existsSync(ctx.poshBinary)
+        ? ctx.poshBinary
+        : null);
     if (!found) missing.push(tool);
     checks.push({
       check: tool.name,
@@ -2094,19 +3201,41 @@ async function doctor(ctx: Context): Promise<{
       detail: found ? tool.purpose : `not installed (${tool.purpose})`,
     });
   }
+  // snshah installs Oh My Posh itself where it can; advise apply, not a package.
+  let poshByApply = false;
+  try {
+    poshByApply = !!(await planPosh(ctx, (await loadEffective(ctx)).config));
+  } catch {
+    /* config errors are reported above */
+  }
   const advice: string[] = [];
+  const hasSudo = isWindows || !!Bun.which("sudo", { PATH });
   const viaManager = missing
+    .filter((t) => !(t.name === "oh-my-posh" && poshByApply))
     .filter((t) => manager && t.advice[manager])
     .map((t) => t.advice[manager!]!);
   if (manager && viaManager.length)
-    advice.push(installCommand(manager, viaManager));
-  for (const tool of missing)
-    if (!(manager && tool.advice[manager]) && tool.advice.fallback)
-      advice.push(tool.advice.fallback);
-  for (const tool of missing)
-    if (!(manager && tool.advice[manager]) && !tool.advice.fallback)
-      advice.push(`Install ${tool.name} with your package manager.`);
-  return { checks, advice, platform: ctx.platform, manager };
+    advice.push(installCommand(manager, viaManager, hasSudo));
+  for (const tool of missing) {
+    if (tool.name === "oh-my-posh" && poshByApply) {
+      advice.push(
+        `snshah apply   # installs the pinned Oh My Posh ${ohMyPosh.version} for you, no sudo`,
+      );
+      continue;
+    }
+    if (manager && tool.advice[manager]) continue;
+    advice.push(
+      tool.advice.fallback ??
+        `${tool.name}: no ${manager ?? "known"} package on ${systemName(ctx)}; install it from its project's releases.`,
+    );
+  }
+  return {
+    checks,
+    advice,
+    platform: ctx.platform,
+    system: systemName(ctx),
+    manager,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -2209,7 +3338,7 @@ async function update(
       });
       if (clack.isCancel(ok) || !ok) return 1;
     }
-    return run(
+    const code = run(
       [
         bun,
         "--no-env-file",
@@ -2221,8 +3350,181 @@ async function update(
       ],
       { env: ctx.env },
     );
+    // Keep this repository's own checkout current too, when it is cloned.
+    if (code === 0)
+      try {
+        await gitUpdate(ctx, upstream.repo, false);
+      } catch (error) {
+        say((error as Error).message, "pending");
+      }
+    return code;
   } finally {
     await rm(staging, { recursive: true, force: true });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// State: $XDG_STATE_HOME/snshah/state.json, typed and validated on read
+// ---------------------------------------------------------------------------
+
+export type UpdateCheck =
+  | { kind: "never" }
+  | { kind: "running"; startedAt: string }
+  | {
+      kind: "checked";
+      at: string;
+      ref: string;
+      latest: string;
+      installed?: string;
+    }
+  | { kind: "failed"; at: string; ref: string; error: string };
+export type State = {
+  version: 1;
+  /** The CLI version whose first interactive shell already ran doctor. */
+  doctorRanFor?: string;
+  update: UpdateCheck;
+};
+const emptyState: State = { version: 1, update: { kind: "never" } };
+export const updateCheckIntervalMs = 60 * 60 * 1000;
+/** A check that started but never finished is retried after this long. */
+const staleRunMs = 10 * 60 * 1000;
+
+function isUpdateCheck(v: unknown): v is UpdateCheck {
+  if (!isObject(v)) return false;
+  const str = (k: string) => typeof v[k] === "string";
+  switch (v.kind) {
+    case "never":
+      return true;
+    case "running":
+      return str("startedAt");
+    case "checked":
+      return (
+        str("at") &&
+        str("ref") &&
+        str("latest") &&
+        (v.installed === undefined || str("installed"))
+      );
+    case "failed":
+      return str("at") && str("ref") && str("error");
+    default:
+      return false;
+  }
+}
+
+/** Unreadable or unknown state is treated as empty, never as an error. */
+export async function readState(ctx: Context): Promise<State> {
+  try {
+    const v: unknown = JSON.parse((await readText(ctx.stateFile)) ?? "");
+    if (
+      isObject(v) &&
+      v.version === 1 &&
+      (v.doctorRanFor === undefined || typeof v.doctorRanFor === "string") &&
+      isUpdateCheck(v.update)
+    )
+      return v as State;
+  } catch {
+    /* missing or corrupt: start over */
+  }
+  return emptyState;
+}
+
+async function writeState(ctx: Context, state: State): Promise<void> {
+  await writeAtomic(
+    ctx.stateFile,
+    JSON.stringify(state, null, 2) + "\n",
+    0o644,
+  );
+}
+
+/** Resolve the upstream ref, record the answer, and report it. Never downloads. */
+async function checkForUpdate(
+  ctx: Context,
+  refOption: string | undefined,
+  quiet: boolean,
+): Promise<number> {
+  const ref = refOption ?? ctx.env.SNSHAH_REF ?? upstream.ref;
+  const at = new Date().toISOString();
+  const installed = await installedRevision(ctx);
+  let update: UpdateCheck;
+  try {
+    update = {
+      kind: "checked",
+      at,
+      ref,
+      latest: await resolveRevision(ref),
+      ...(installed ? { installed } : {}),
+    };
+  } catch (error) {
+    update = { kind: "failed", at, ref, error: (error as Error).message };
+  }
+  await writeState(ctx, { ...(await readState(ctx)), update });
+  if (update.kind === "failed") {
+    if (!quiet) say(update.error, "error");
+    return 1;
+  }
+  if (!quiet)
+    say(
+      update.latest === installed
+        ? `Up to date with ${ref} (${update.latest.slice(0, 12)}).`
+        : `An update is available on ${ref}: ${update.latest.slice(0, 12)} (installed ${installed ? installed.slice(0, 12) : "unknown"}). Run snshah update.`,
+      update.latest === installed ? "success" : "action",
+    );
+  return 0;
+}
+
+/**
+ * Runs from each interactive shell's startup (snshah shell <shell> --greet).
+ * Writes only to stderr, never fails the shell, and stays fast: doctor runs
+ * once per installed CLI version, and the update check runs at most hourly
+ * in a detached background process whose answer the next shell prints.
+ * SNSHAH_GREET=0 turns it off.
+ */
+async function greet(ctx: Context): Promise<void> {
+  if (ctx.env.SNSHAH_GREET === "0") return;
+  try {
+    let state = await readState(ctx);
+    const self = [process.execPath, "--no-env-file", import.meta.path];
+    if (state.doctorRanFor !== cliVersion) {
+      state = { ...state, doctorRanFor: cliVersion };
+      await writeState(ctx, state);
+      process.stderr.write(
+        `snshah ${cliVersion}: first run in a shell, checking this machine (snshah doctor)\n`,
+      );
+      const r = Bun.spawnSync([...self, "doctor"], {
+        env: ctx.env,
+        stdin: "ignore",
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+      process.stderr.write(r.stdout);
+      process.stderr.write(r.stderr);
+    }
+    const u = state.update;
+    const installed = await installedRevision(ctx);
+    if (u.kind === "checked" && installed && u.latest !== installed)
+      process.stderr.write(
+        `snshah: an update is available on ${u.ref} (${u.latest.slice(0, 12)}). Run snshah update.\n`,
+      );
+    const now = Date.now();
+    const due =
+      u.kind === "never" ||
+      (u.kind === "running"
+        ? now - Date.parse(u.startedAt) > staleRunMs
+        : now - Date.parse(u.at) > updateCheckIntervalMs);
+    if (due) {
+      await writeState(ctx, {
+        ...state,
+        update: { kind: "running", startedAt: new Date(now).toISOString() },
+      });
+      const child = spawnChild(
+        self[0]!,
+        [...self.slice(1), "update", "--check", "--quiet"],
+        { env: ctx.env, detached: true, stdio: "ignore", windowsHide: true },
+      );
+      child.unref();
+    }
+  } catch {
+    /* a greeting must never break a shell */
   }
 }
 
@@ -2277,20 +3579,60 @@ function say(
 }
 
 function describeStep(ctx: Context, step: Step): string {
-  const verb =
-    step.kind === "directory" ? "create" : step.create ? "create" : "update";
-  return `${verb} ${step.label}: ${tilde(ctx, step.path)} [${step.kind}]`;
+  switch (step.kind) {
+    case "directory":
+      return `create ${step.label}: ${tilde(ctx, step.path)} [directory]`;
+    case "remove":
+      return `remove ${step.label}: ${tilde(ctx, step.path)} [remove]`;
+    case "download":
+      return `${step.create ? "install" : "update"} ${step.label}: ${tilde(ctx, step.path)} (SHA-256 checked) [download]`;
+    case "command":
+      return `run ${step.label}: ${step.run.join(" ")} (because \`${step.unless.join(" ")}\` fails) [command]`;
+    case "file":
+    case "seed":
+    case "block":
+    case "json-fill":
+    case "toml-fill":
+      return `${step.create ? "create" : "update"} ${step.label}: ${tilde(ctx, step.path)} [${step.kind}]`;
+    default:
+      return assertNever(step);
+  }
+}
+
+function stepJson(ctx: Context, s: Step) {
+  return s.kind === "command"
+    ? { kind: s.kind, label: s.label, run: s.run }
+    : { kind: s.kind, label: s.label, path: tilde(ctx, s.path) };
+}
+
+function printExplain(ctx: Context, e: Effective, json: boolean): void {
+  const report = {
+    facts: factsOf(e.facts),
+    profiles: e.profiles,
+    overrides: e.overrides,
+    hooks: e.hooks.map((h) => ({
+      profile: `${h.origin}:${h.profile}`,
+      kind: h.hook.kind,
+    })),
+  };
+  if (json) {
+    console.log(JSON.stringify(report, null, 2));
+    return;
+  }
+  for (const p of e.profiles)
+    say(
+      `${p.matched ? "matches" : "skips  "} ${p.origin}:${p.id}`,
+      p.matched ? "success" : "pending",
+    );
+  for (const o of e.overrides)
+    say(`${o.key}: ${o.to} overrides ${o.from}`, "action");
 }
 
 function printSteps(ctx: Context, steps: readonly Step[], json: boolean): void {
   if (json) {
     console.log(
       JSON.stringify(
-        steps.map((s) => ({
-          kind: s.kind,
-          label: s.label,
-          path: tilde(ctx, s.path),
-        })),
+        steps.map((s) => stepJson(ctx, s)),
         null,
         2,
       ),
@@ -2340,9 +3682,54 @@ export async function buildCli(ctx: Context): Promise<CommanderCommand> {
     .description("Show what apply would change (read-only)")
     .option("--json", "print JSON")
     .option("--revision <sha>", "include an install receipt for this commit")
-    .action(async (o: { json?: boolean; revision?: string }) =>
-      printSteps(ctx, await plan(ctx, { revision: o.revision }), !!o.json),
+    .option(
+      "--explain",
+      "show which profile.d files match and what they override",
+    )
+    .option(
+      "--as <facts.json>",
+      "evaluate profiles as another machine (see whoami --json)",
+    )
+    .action(
+      async (o: {
+        json?: boolean;
+        revision?: string;
+        explain?: boolean;
+        as?: string;
+      }) => {
+        const c = o.as
+          ? makeContext({ ...ctx.env, SNSHAH_FACTS: resolve(o.as) })
+          : ctx;
+        const effective = await loadEffective(c);
+        if (o.explain) printExplain(c, effective, !!o.json);
+        if (!(o.explain && o.json))
+          printSteps(
+            c,
+            await plan(c, { revision: o.revision, effective }),
+            !!o.json,
+          );
+      },
     );
+
+  program
+    .command("whoami")
+    .description("Print this machine's facts for profile.d selectors")
+    .option("--json", "print JSON (usable with plan --as)")
+    .action(async (o: { json?: boolean }) => {
+      const e = await loadEffective(ctx);
+      const facts = factsOf(e.facts);
+      if (o.json) return console.log(JSON.stringify(facts, null, 2));
+      say(`platform: ${facts.platform}`, "action");
+      say(`distro: ${facts.distro.join(", ") || "(none)"}`, "action");
+      say(`omarchy: ${facts.omarchy}`, "action");
+      say(`hostname: ${facts.hostname}`, "action");
+      say(
+        `machine: ${facts.machine}  (use as { kind: "machine", fingerprint: "${facts.machine}" })`,
+        "action",
+      );
+      for (const p of e.profiles.filter((p) => p.matched))
+        say(`profile: ${p.origin}:${p.id}`, "success");
+    });
 
   program
     .command("apply")
@@ -2369,21 +3756,27 @@ export async function buildCli(ctx: Context): Promise<CommanderCommand> {
           console.log(
             JSON.stringify(
               {
-                applied: steps.map((s) => ({
-                  kind: s.kind,
-                  label: s.label,
-                  path: tilde(ctx, s.path),
-                })),
+                applied: steps.map((s) => stepJson(ctx, s)),
               },
               null,
               2,
             ),
           );
-        else if (steps.length)
-          say(
-            `Applied ${steps.length} change(s). Open a new shell to pick them up.`,
-            "success",
-          );
+        else {
+          if (steps.length)
+            say(
+              `Applied ${steps.length} change(s). Open a new shell to pick them up.`,
+              "success",
+            );
+          const { advice, system, manager } = await doctor(ctx);
+          if (advice.length) {
+            say(
+              `Some tools snshah uses are missing. To install on ${system}${manager ? ` (${manager})` : ""}:`,
+              "pending",
+            );
+            for (const line of advice) console.log(`  ${line}`);
+          }
+        }
       });
     });
 
@@ -2406,7 +3799,10 @@ export async function buildCli(ctx: Context): Promise<CommanderCommand> {
               : "error",
         );
       if (report.advice.length) {
-        say(`Suggested install (${report.manager ?? "manual"}):`, "action");
+        say(
+          `To install on ${report.system}${report.manager ? ` (${report.manager})` : ""}:`,
+          "action",
+        );
         for (const line of report.advice) console.log(`  ${line}`);
       }
       if (report.checks.some((c) => c.status === "missing"))
@@ -2417,6 +3813,10 @@ export async function buildCli(ctx: Context): Promise<CommanderCommand> {
     .command("shell")
     .description("Print shell init code: eval it from bash, zsh, fish or pwsh")
     .argument("<shell>", shells.join("|"))
+    .option(
+      "--greet",
+      "also run doctor on first use and the hourly update check (startup files pass this)",
+    )
     .action((shell: string) => {
       throw new UsageError(`Unknown shell ${shell}. Use ${shells.join(", ")}.`);
     });
@@ -2442,7 +3842,11 @@ export async function buildCli(ctx: Context): Promise<CommanderCommand> {
     .description("Validate the config (never prints secret values)")
     .option("--json", "print JSON")
     .action(async (o: { json?: boolean }) => {
-      const { config: c, source } = await loadConfig(ctx);
+      const {
+        config: c,
+        privateSource: source,
+        profiles,
+      } = await loadEffective(ctx);
       const summary = {
         path: tilde(ctx, ctx.configFile),
         exists: !!source,
@@ -2453,11 +3857,14 @@ export async function buildCli(ctx: Context): Promise<CommanderCommand> {
         },
         repositories: (c.repositories ?? []).length,
         aliases: Object.keys(c.aliases ?? {}).length,
+        profiles: profiles
+          .filter((p) => p.matched)
+          .map((p) => `${p.origin}:${p.id}`),
       };
       if (o.json) console.log(JSON.stringify(summary, null, 2));
       else
         say(
-          `${summary.path} is valid: ${summary.secrets.command} command and ${summary.secrets.shell} shell secret(s), ${summary.repositories} repositories, ${summary.aliases} aliases.`,
+          `${summary.path} is valid: ${summary.secrets.command} command and ${summary.secrets.shell} shell secret(s), ${summary.repositories} repositories, ${summary.aliases} aliases. Matching profiles: ${summary.profiles.join(", ") || "none"}.`,
           "success",
         );
     });
@@ -2484,7 +3891,7 @@ export async function buildCli(ctx: Context): Promise<CommanderCommand> {
         ctx.configFile,
       ]);
       if (code !== 0) throw new Error(`${editor} exited with ${code}.`);
-      await loadConfig(ctx);
+      await loadEffective(ctx);
       say("Config is valid. Run snshah plan to see any effect.", "success");
     });
   config
@@ -2518,7 +3925,7 @@ export async function buildCli(ctx: Context): Promise<CommanderCommand> {
     .command("root")
     .description("Print the workspaces root")
     .action(async () =>
-      console.log(workspacesRoot(ctx, (await loadConfig(ctx)).config)),
+      console.log(workspacesRoot(ctx, (await loadEffective(ctx)).config)),
     );
   git
     .command("add")
@@ -2541,7 +3948,7 @@ export async function buildCli(ctx: Context): Promise<CommanderCommand> {
     .description("List registered checkouts and their state")
     .option("--json", "print JSON")
     .action(async (o: { json?: boolean }) => {
-      const { config: c } = await loadConfig(ctx);
+      const { config: c } = await loadEffective(ctx);
       const rows = (c.repositories ?? []).map((r) => {
         const path = repoPath(ctx, c, r);
         return {
@@ -2568,7 +3975,7 @@ export async function buildCli(ctx: Context): Promise<CommanderCommand> {
     .description("Print a checkout path (for scripts)")
     .argument("<name>", "registry name")
     .action(async (name: string) => {
-      const { config: c } = await loadConfig(ctx);
+      const { config: c } = await loadEffective(ctx);
       console.log(repoPath(ctx, c, selectRepos(c, name, false)[0]!));
     });
   git
@@ -2600,16 +4007,31 @@ export async function buildCli(ctx: Context): Promise<CommanderCommand> {
     .description(
       `Update from ${upstream.owner}/${upstream.repo}, pinned to one commit, after a preview`,
     )
-    .option("--check", "preview only")
+    .option(
+      "--check",
+      "only report whether a newer commit exists (shells run this hourly)",
+    )
+    .option("--quiet", "with --check: print nothing, just record the result")
     .option("-y, --yes", "apply without a prompt")
     .option("--ref <ref>", `branch, tag or commit (default ${upstream.ref})`)
-    .action(async (o: { check?: boolean; yes?: boolean; ref?: string }) => {
-      process.exitCode = await update(ctx, {
-        check: !!o.check,
-        yes: !!o.yes,
-        ref: o.ref,
-      });
-    });
+    .action(
+      async (o: {
+        check?: boolean;
+        quiet?: boolean;
+        yes?: boolean;
+        ref?: string;
+      }) => {
+        if (o.check) {
+          process.exitCode = await checkForUpdate(ctx, o.ref, !!o.quiet);
+          return;
+        }
+        process.exitCode = await update(ctx, {
+          check: false,
+          yes: !!o.yes,
+          ref: o.ref,
+        });
+      },
+    );
 
   program
     .command("test")
@@ -2648,11 +4070,16 @@ export async function main(argv: string[]): Promise<number> {
   const ctx = makeContext();
   try {
     // Fast paths: run at every shell start or tool launch, so no npm imports.
-    if (argv[0] === "shell" && argv.length === 2 && member(shells, argv[1])) {
-      const { config } = await loadConfig(ctx);
+    if (
+      argv[0] === "shell" &&
+      member(shells, argv[1]) &&
+      (argv.length === 2 || (argv.length === 3 && argv[2] === "--greet"))
+    ) {
+      const { config } = await loadEffective(ctx);
       process.stdout.write(
         renderShell(argv[1], shellOps(ctx, config, argv[1])),
       );
+      if (argv[2] === "--greet") await greet(ctx);
       return 0;
     }
     if (argv[0] === "exec") return await execWithSecrets(ctx, argv.slice(1));

@@ -1,7 +1,7 @@
 # Feature Specification: Workshop
 
 **Spec ID:** 0003-workshop
-**Status:** Draft — first pass
+**Status:** Draft, second pass (v0.2.0: profile.d, first acceptance run)
 **Created:** 2026-11-27
 **Decision authority:** Shahid N. Shah
 **Input:** "Create a new `workshop` directory in `shah/shah` with a
@@ -52,6 +52,33 @@ This is not an implementation plan.
 - Q: Re-runs? → A: Everything is idempotent; bootstraps and every
   `snshah` command are safe to re-run.
 
+### Session 2026-11-27 (profile.d)
+
+- Q: Where do per-environment setups live? → A: In this repository's
+  `workshop/profile.d/*.ts` ("for Omarchy do this", "for Fedora do that"),
+  and per machine in the private `$XDG_CONFIG_HOME/snshah/profile.d/`. Both
+  are picked up automatically and merged in a type-safe way.
+- Q: What does each profile file export? → A: A typed `selector` as its core
+  export.
+- Q: Command hooks? → A: Allowed, with environment variables passed through
+  from parent to child.
+- Q: How is a machine identified? → A: Environment selectors first
+  (platform, distro, has a command); a hashed machine fingerprint only when
+  one machine truly needs it; hostnames allowed.
+- Q: Hostname selectors in a public repository? → A: Only in the private
+  profile.d (proposed by Claude, not objected to).
+
+### Session 2026-11-27 (first acceptance run on Debian 13)
+
+- Q: The prompt didn't change after install. → A: snshah installs a pinned,
+  SHA-256 checked Oh My Posh into the user's account when none is on PATH.
+- Q: shah/shah should be in `~/workspaces`. → A: It is a built-in registry
+  entry, and the bootstraps clone it there.
+- Q: Doctor and updates? → A: Run `snshah doctor` the first time snshah runs
+  in an interactive shell, and `snshah update --check` at least once an
+  hour, with typed state.
+- Q: Install advice? → A: Distribution-specific, not generic.
+
 ## Primary scenario
 
 Shahid sits down at a new or rebuilt machine (any Linux, WSL, a Mac, or a
@@ -85,6 +112,13 @@ run changes nothing.
    **when** it runs, **then** it reports up to date and changes nothing.
 8. **Given** this repository, **when** `ontology/check.ts` runs, **then**
    it passes only if `ontology/workshop.ttl` matches `workshop/snshah.ts`.
+9. **Given** a fresh Debian 13 account with no `oh-my-posh`, **when** the
+   bootstrap runs and a new shell opens, **then** the snshah prompt shows,
+   shah/shah is at `~/workspaces/github.com/shah/shah`, and that first
+   shell prints `snshah doctor` once.
+10. **Given** profiles in both profile.d directories, **when**
+    `snshah plan --explain` runs, **then** it lists which profiles match
+    this machine and which layer set each overridden value.
 
 ### Edge cases
 
@@ -158,17 +192,60 @@ run changes nothing.
   preview its changes, and replace the CLI only after the rest of the
   apply succeeds.
 
+### Profiles (profile.d)
+
+- **FR-018**: snshah MUST load every `*.ts` file in `workshop/profile.d/`
+  and `$XDG_CONFIG_HOME/snshah/profile.d/`, in name order. Each MUST export
+  a typed `selector` and MAY export `config` and `hooks`; any other export
+  MUST be refused. A private profile MUST be a regular file the user owns
+  that is not group- or world-writable.
+- **FR-019**: Layers MUST merge in this order, later winning: built-in
+  defaults, matching repository profiles, `snshah.conf.ts`, matching
+  private profiles. Secrets MUST come only from `snshah.conf.ts`.
+- **FR-020**: `hostname` and `machine` selectors, and secrets in hook
+  environments, MUST be refused in repository profiles.
+- **FR-021**: A `command` hook MUST declare `unless`; it MUST run only while
+  `unless` fails, and apply MUST fail if `unless` still fails after it runs.
+  Its child gets a minimal environment plus the variables it lists.
+- **FR-022**: `snshah whoami` MUST print the facts selectors match;
+  `plan --explain` MUST show matches and overrides; `plan --as` MUST plan
+  for given facts without reading this machine.
+
+### First run on a machine
+
+- **FR-023**: When the prompt is Oh My Posh and no `oh-my-posh` is on PATH,
+  `apply` MUST install the pinned release, verified by SHA-256, into
+  `$XDG_DATA_HOME/snshah/bin/` without `sudo`, unless the config sets
+  `install: false`.
+- **FR-024**: This repository MUST be a built-in registry entry, and the
+  bootstraps MUST clone it to `$WORKSPACES_HOME/github.com/shah/shah` when
+  `git` is present.
+- **FR-025**: The first interactive shell after each install or upgrade MUST
+  run `snshah doctor`, and interactive shells MUST start a background
+  `snshah update --check` when the last check is over an hour old. Both MUST
+  write only to stderr, MUST NOT fail a shell, and MUST record their state in
+  the typed `$XDG_STATE_HOME/snshah/state.json`.
+- **FR-026**: Install advice (doctor, the end of `apply`, the bootstraps)
+  MUST name the distribution and give its exact command, using `su -c` when
+  there is no `sudo`.
+
 ### Model of record
 
 - **FR-017**: `ontology/workshop.ttl` MUST state the Workshop's version,
-  commands, platforms, shells, secret scopes, step kinds, package managers,
-  pinned dependencies, XDG paths and pinned Bun version, and
+  commands, platforms, shells, secret scopes, step kinds, selector and hook
+  kinds, repository profiles, package managers, pinned dependencies and
+  binaries, XDG paths, update-check interval and pinned Bun version, and
   `ontology/check.ts` MUST fail when any of them disagrees with the code.
 
 ## Key entities
 
 - **Workshop** — `workshop/`: the CLI (`snshah.ts`), its self-test, the
   two bootstraps, the theme. Modeled as `ws:snshah`.
+- **Profiles** — `workshop/profile.d/*.ts` (environment setups, public) and
+  `$XDG_CONFIG_HOME/snshah/profile.d/*.ts` (this machine, private). Modeled
+  as `ws:Profile`.
+- **State** — `$XDG_STATE_HOME/snshah/state.json`: which version already
+  ran doctor, and the last update check.
 - **Private config** — `$XDG_CONFIG_HOME/snshah/snshah.conf.ts`, typed by
   the generated `snshah.auto.d.ts`. Never in any repository.
 - **Ontology** — [`ontology/`](../../../ontology/): the vocabulary, the
@@ -216,3 +293,7 @@ run changes nothing.
 | FR-014 | Shahid N. Shah, direct statement, 2026-11-27 (`$WORKSPACES_HOME`) |
 | FR-015, FR-016 | Shahid N. Shah, direct statements, 2026-11-27 (keep agent defaults; add `snshah update`) |
 | FR-017 | Shahid N. Shah, direct statement, 2026-11-27 (add an ontology to this repository) |
+| FR-018, FR-019, FR-021 | Shahid N. Shah, direct statement, 2026-11-27 (profile.d, type-safe merge, command hooks with env passthrough) |
+| FR-020, FR-022 | Shahid N. Shah, direct statement, 2026-11-27 (environment selectors first, fingerprint when needed, hostnames allowed); private-only rule proposed by Claude |
+| FR-023 | Shahid N. Shah, decision, 2026-11-27 ("Yes, pinned and checksummed") |
+| FR-024 to FR-026 | Shahid N. Shah, direct statements, 2026-11-27 (Debian 13 acceptance run) |

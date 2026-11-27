@@ -27,7 +27,22 @@ Rules for a person or an AI agent changing anything in `workshop/`.
 - Paths follow the XDG Base Directory spec strictly on every OS.
 - Startup files get one marked block. Everything else comes from
   `snshah shell`, guarded so it never overrides what the user already has.
-- Detect and advise; never install system packages or use `sudo`.
+- Detect and advise; never install system packages or use `sudo`. Advice
+  names the distribution and gives its exact command (and `su -c` when there
+  is no `sudo`), never "use your package manager". The only binaries snshah
+  installs itself are pinned releases verified by SHA-256 into the user's
+  account: Bun (bootstraps) and Oh My Posh (`apply`, a `download` step).
+  Bumping either means new checksums from the release and the matching
+  `ontology/workshop.ttl` value.
+- `workshop/profile.d/*.ts` holds environment setups only. Each file exports
+  a typed `selector` and `config` and/or `hooks`, nothing else. Never use
+  `hostname` or `machine` selectors, or `env.secrets`, here: they belong in
+  the private profile.d. Every file is listed as a `ws:Profile` in
+  `ontology/workshop.ttl` with its top-level selector kind.
+- Runtime state lives in `$XDG_STATE_HOME/snshah/state.json`, typed by
+  `State` and validated on read; damaged state is treated as empty. Shell
+  greetings (`snshah shell <shell> --greet`) write only to stderr and must
+  never fail a shell.
 - Pin npm dependencies (`commander`, `chalk`, `@clack/prompts`) by exact
   version in `snshah.ts`. `snshah shell` and `snshah exec` must not load
   them.

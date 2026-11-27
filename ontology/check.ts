@@ -7,7 +7,7 @@
  * - ontology/workshop.ttl disagrees with workshop/snshah.ts or the bootstraps.
  * Read-only and safe to re-run.
  */
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 const n3Version = "1.17.4";
@@ -142,6 +142,66 @@ same("shells", names("emitsFor"), ws.shells);
 same("secret scopes", names("secretScope"), ws.secretScopes);
 same("step kinds", names("makesStep"), ws.stepKinds);
 same("package managers", names("advisesWith"), ws.packageManagers);
+same("selector kinds", names("selectsBy"), ws.selectorKinds);
+same("hook kinds", names("hooksWith"), ws.hookKinds);
+const interval = /^PT(\d+)H$/.exec(
+  one(toolkit, `${WS}updateCheckInterval`) ?? "",
+);
+if (!interval || Number(interval[1]) * 3_600_000 !== ws.updateCheckIntervalMs)
+  problems.push(
+    `updateCheckInterval: ontology vs snshah.ts ${ws.updateCheckIntervalMs} ms`,
+  );
+if (one(toolkit, `${WS}selfCheckout`) !== ws.upstream.repo)
+  problems.push(`selfCheckout: ontology vs snshah.ts ${ws.upstream.repo}`);
+const posh = values(toolkit, `${WS}installs`).find(
+  (iri) => one(iri, `${WS}name`) === "oh-my-posh",
+);
+if (!posh || one(posh, `${WS}pinnedVersion`) !== ws.ohMyPosh.version)
+  problems.push(`oh-my-posh: ontology vs snshah.ts ${ws.ohMyPosh.version}`);
+
+// 3b. Every workshop/profile.d file is modeled, with its top-level selector
+// kind, and none uses a private-only selector (hostname, machine).
+const privateOnly = new Set(
+  quads
+    .filter(
+      (q) =>
+        q.predicate.value === `${WS}privateOnly` && q.object.value === "true",
+    )
+    .map((q) => one(q.subject.value, `${WS}name`)),
+);
+privateOnly.add("machine");
+const profileDir = join(root, "workshop", "profile.d");
+const shipped = readdirSync(profileDir)
+  .filter((f) => f.endsWith(".ts"))
+  .map((f) => f.slice(0, -3));
+same("profiles", names("hasProfile"), shipped);
+const kindsIn = (value: unknown): string[] =>
+  Array.isArray(value)
+    ? value.flatMap(kindsIn)
+    : value && typeof value === "object"
+      ? [
+          ...("kind" in value
+            ? [String((value as { kind: unknown }).kind)]
+            : []),
+          ...Object.values(value).flatMap(kindsIn),
+        ]
+      : [];
+for (const id of shipped) {
+  const mod = await import(join(profileDir, `${id}.ts`));
+  const iri = values(toolkit, `${WS}hasProfile`).find(
+    (p) => one(p, `${WS}name`) === id,
+  );
+  const modeled = iri && one(one(iri, `${WS}selectorKind`) ?? "", `${WS}name`);
+  if (iri && modeled !== mod.selector?.kind)
+    problems.push(
+      `profile ${id}: ontology selector ${modeled} vs file ${mod.selector?.kind}`,
+    );
+  for (const kind of kindsIn(mod.selector))
+    if (privateOnly.has(kind))
+      problems.push(
+        `profile ${id}: ${kind} selectors belong only in private profile.d`,
+      );
+}
 same(
   "dependencies",
   values(toolkit, `${WS}dependsOn`).map(
@@ -171,7 +231,6 @@ if (one(toolkit, `${WS}upstream`) !== upstream)
 for (const [p, v] of [
   ["workspacesVariable", ws.workspacesDefaults.variable],
   ["workspacesDefault", ws.workspacesDefaults.standard],
-  ["workspacesOmarchy", ws.workspacesDefaults.omarchy],
 ] as const)
   if (one(toolkit, `${WS}${p}`) !== v)
     problems.push(

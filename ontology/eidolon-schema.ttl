@@ -68,6 +68,12 @@ ws:BootstrapScript a owl:Class ; rdfs:subClassOf eid:Artifact ;
     rdfs:comment "A thin installer: get Bun, pin one commit, run apply." .
 ws:Theme a owl:Class ; rdfs:subClassOf eid:Artifact .
 ws:Runtime a owl:Class .
+ws:SelectorKind a owl:Class ; rdfs:comment "A kind of profile.d selector: which machines a profile applies to." .
+ws:HookKind a owl:Class ; rdfs:comment "A kind of profile.d hook: a file, a marked block, or an idempotent command." .
+ws:Profile a owl:Class ; rdfs:subClassOf eid:Artifact ;
+    rdfs:comment "A workshop/profile.d/*.ts file: a typed selector plus a config contribution or hooks." .
+ws:PinnedBinary a owl:Class ;
+    rdfs:comment "A tool snshah installs into the user's account itself: a pinned release, SHA-256 checked, no sudo." .
 
 # ---------- Workshop properties ----------
 ws:name a owl:DatatypeProperty ; rdfs:range xsd:string ;
@@ -95,5 +101,18 @@ ws:upstream a owl:DatatypeProperty ; rdfs:domain ws:Toolkit ; rdfs:range xsd:str
     rdfs:comment "owner/repo@ref that `snshah update` and the bootstraps pin a commit from." .
 ws:workspacesVariable a owl:DatatypeProperty ; rdfs:domain ws:Toolkit ; rdfs:range xsd:string .
 ws:workspacesDefault a owl:DatatypeProperty ; rdfs:domain ws:Toolkit ; rdfs:range xsd:string .
-ws:workspacesOmarchy a owl:DatatypeProperty ; rdfs:domain ws:Toolkit ; rdfs:range xsd:string .
+ws:updateCheckInterval a owl:DatatypeProperty ; rdfs:domain ws:Toolkit ; rdfs:range xsd:duration ;
+    rdfs:comment "How often interactive shells start a background `snshah update --check`." .
+ws:doctorOnFirstShell a owl:DatatypeProperty ; rdfs:domain ws:Toolkit ; rdfs:range xsd:boolean ;
+    rdfs:comment "The first interactive shell after each install or upgrade runs `snshah doctor`." .
+ws:selectsBy a owl:ObjectProperty ; rdfs:domain ws:Toolkit ; rdfs:range ws:SelectorKind .
+ws:hooksWith a owl:ObjectProperty ; rdfs:domain ws:Toolkit ; rdfs:range ws:HookKind .
+ws:hasProfile a owl:ObjectProperty ; rdfs:domain ws:Toolkit ; rdfs:range ws:Profile .
+ws:selectorKind a owl:ObjectProperty ; rdfs:domain ws:Profile ; rdfs:range ws:SelectorKind ;
+    rdfs:comment "The kind of the profile's top-level exported selector." .
+ws:privateOnly a owl:DatatypeProperty ; rdfs:domain ws:SelectorKind ; rdfs:range xsd:boolean ;
+    rdfs:comment "True when only private profile.d files may use this selector (it names a machine)." .
+ws:installs a owl:ObjectProperty ; rdfs:domain ws:Toolkit ; rdfs:range ws:PinnedBinary .
+ws:selfCheckout a owl:DatatypeProperty ; rdfs:domain ws:Toolkit ; rdfs:range xsd:string ;
+    rdfs:comment "Registry name of this repository's own built-in checkout under $WORKSPACES_HOME." .
 ws:idempotent a owl:DatatypeProperty ; rdfs:range xsd:boolean .

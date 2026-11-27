@@ -15,23 +15,37 @@ ws:snshah a ws:Toolkit ;
     doap:programming-language "TypeScript" ;
     dcterms:creator "Shahid Shah" ;
     eid:path "workshop/snshah.ts" ;
-    ws:version "0.1.1" ;
+    ws:version "0.2.0" ;
     ws:idempotent true ;
     ws:runtime ws:bun ;
     ws:upstream "shah/shah@main" ;
     ws:workspacesVariable "WORKSPACES_HOME" ;
     ws:workspacesDefault "~/workspaces" ;
-    ws:workspacesOmarchy "~/Work" ;
+    ws:selfCheckout "shah" ;
+    ws:updateCheckInterval "PT1H"^^xsd:duration ;
+    ws:doctorOnFirstShell true ;
     ws:bootstrap ws:bootstrap-sh , ws:bootstrap-ps1 ;
     ws:theme ws:theme-omp ;
     ws:supportsPlatform ws:platform-linux , ws:platform-wsl , ws:platform-macos , ws:platform-windows ;
     ws:emitsFor ws:shell-bash , ws:shell-zsh , ws:shell-fish , ws:shell-pwsh ;
     ws:secretScope ws:scope-command , ws:scope-shell ;
-    ws:makesStep ws:step-directory , ws:step-file , ws:step-seed , ws:step-block , ws:step-json-fill , ws:step-toml-fill ;
+    ws:makesStep ws:step-directory , ws:step-file , ws:step-seed , ws:step-block , ws:step-json-fill , ws:step-toml-fill ,
+        ws:step-remove , ws:step-command , ws:step-download ;
+    ws:selectsBy ws:selector-always , ws:selector-platform , ws:selector-distro , ws:selector-omarchy , ws:selector-has , ws:selector-env , ws:selector-hostname , ws:selector-machine , ws:selector-all , ws:selector-any , ws:selector-not ;
+    ws:hooksWith ws:hook-file , ws:hook-block , ws:hook-command ;
+    ws:hasProfile ws:profile-10-omarchy ,
+        ws:profile-20-debian-bat ,
+        ws:profile-20-debian-fd ,
+        ws:profile-20-fedora ,
+        ws:profile-30-macos ,
+        ws:profile-30-windows ,
+        ws:profile-30-wsl ;
+    ws:installs ws:bin-oh-my-posh ;
     ws:advisesWith ws:pm-apt , ws:pm-dnf , ws:pm-pacman , ws:pm-apk , ws:pm-zypper , ws:pm-brew , ws:pm-winget , ws:pm-omarchy ;
     ws:dependsOn ws:dep-commander , ws:dep-chalk , ws:dep-clack ;
-    ws:usesPath ws:path-config , ws:path-types , ws:path-script , ws:path-theme , ws:path-receipt , ws:path-downloads , ws:path-bin ;
-    ws:hasCommand ws:cmd-plan , ws:cmd-apply , ws:cmd-doctor , ws:cmd-shell , ws:cmd-exec ,
+    ws:usesPath ws:path-config , ws:path-types , ws:path-profiles , ws:path-script , ws:path-repoProfiles , ws:path-theme ,
+        ws:path-posh , ws:path-receipt , ws:path-state , ws:path-downloads , ws:path-bin ;
+    ws:hasCommand ws:cmd-plan , ws:cmd-whoami , ws:cmd-apply , ws:cmd-doctor , ws:cmd-shell , ws:cmd-exec ,
         ws:cmd-config-path , ws:cmd-config-check , ws:cmd-config-edit , ws:cmd-config-set-secret ,
         ws:cmd-git-root , ws:cmd-git-add , ws:cmd-git-list , ws:cmd-git-path , ws:cmd-git-clone , ws:cmd-git-update , ws:cmd-git-remove ,
         ws:cmd-update , ws:cmd-test .
@@ -47,9 +61,11 @@ ws:theme-omp a ws:Theme ; rdfs:label "Oh My Posh theme" ; eid:path "workshop/sns
 
 # ---------- Commands ----------
 ws:cmd-plan a ws:Command ; ws:name "plan" ; rdfs:comment "Read-only: the steps apply would take." .
+ws:cmd-whoami a ws:Command ; ws:name "whoami" ; rdfs:comment "Print the facts profile.d selectors match against." .
 ws:cmd-apply a ws:Command ; ws:name "apply" ; rdfs:comment "Converge to the desired state; a second run changes nothing." .
 ws:cmd-doctor a ws:Command ; ws:name "doctor" ; rdfs:comment "Detect tools and advise installs; never installs." .
-ws:cmd-shell a ws:Command ; ws:name "shell" ; rdfs:comment "Print init code for one shell." .
+ws:cmd-shell a ws:Command ; ws:name "shell" ;
+    rdfs:comment "Print init code for one shell. With --greet (what startup files pass), also run doctor on the first shell of each version and the hourly background update check." .
 ws:cmd-exec a ws:Command ; ws:name "exec" ; rdfs:comment "Run a command with its command-scoped secrets." .
 ws:cmd-config-path a ws:Command ; ws:name "config path" .
 ws:cmd-config-check a ws:Command ; ws:name "config check" .
@@ -87,6 +103,44 @@ ws:step-seed a ws:StepKind ; ws:name "seed" ; rdfs:comment "Created once, then n
 ws:step-block a ws:StepKind ; ws:name "block" ; rdfs:comment "One marked block inside a file the user owns." .
 ws:step-json-fill a ws:StepKind ; ws:name "json-fill" ; rdfs:comment "Adds unset JSON keys only." .
 ws:step-toml-fill a ws:StepKind ; ws:name "toml-fill" ; rdfs:comment "Adds unset TOML keys only." .
+ws:step-remove a ws:StepKind ; ws:name "remove" ; rdfs:comment "Deletes a file snshah installed and no longer ships (a retired repo profile)." .
+ws:step-command a ws:StepKind ; ws:name "command" ; rdfs:comment "A profile command hook; planned only while its unless check fails." .
+ws:step-download a ws:StepKind ; ws:name "download" ; rdfs:comment "Installs a pinned, SHA-256 checked release file snshah owns." .
+
+# ---------- profile.d ----------
+ws:selector-always a ws:SelectorKind ; ws:name "always" .
+ws:selector-platform a ws:SelectorKind ; ws:name "platform" .
+ws:selector-distro a ws:SelectorKind ; ws:name "distro" .
+ws:selector-omarchy a ws:SelectorKind ; ws:name "omarchy" .
+ws:selector-has a ws:SelectorKind ; ws:name "has" .
+ws:selector-env a ws:SelectorKind ; ws:name "env" .
+ws:selector-hostname a ws:SelectorKind ; ws:name "hostname" ; ws:privateOnly true .
+ws:selector-machine a ws:SelectorKind ; ws:name "machine" .
+ws:selector-all a ws:SelectorKind ; ws:name "all" .
+ws:selector-any a ws:SelectorKind ; ws:name "any" .
+ws:selector-not a ws:SelectorKind ; ws:name "not" .
+
+ws:hook-file a ws:HookKind ; ws:name "file" ; rdfs:comment "A file the profile owns outright." .
+ws:hook-block a ws:HookKind ; ws:name "block" ; rdfs:comment "One marked block per profile inside a file the user owns." .
+ws:hook-command a ws:HookKind ; ws:name "command" ; rdfs:comment "Runs before or after apply only while its required unless check fails." .
+
+ws:profile-10-omarchy a ws:Profile ; ws:name "10-omarchy" ; eid:path "workshop/profile.d/10-omarchy.ts" ;
+    ws:selectorKind ws:selector-omarchy ; rdfs:comment "Omarchy keeps work under ~/Work. $WORKSPACES_HOME and snshah.conf.ts still win." .
+ws:profile-20-debian-bat a ws:Profile ; ws:name "20-debian-bat" ; eid:path "workshop/profile.d/20-debian-bat.ts" ;
+    ws:selectorKind ws:selector-all ; rdfs:comment "Debian and Ubuntu ship bat as `batcat`; use the upstream name when it is free." .
+ws:profile-20-debian-fd a ws:Profile ; ws:name "20-debian-fd" ; eid:path "workshop/profile.d/20-debian-fd.ts" ;
+    ws:selectorKind ws:selector-all ; rdfs:comment "Debian and Ubuntu ship fd as `fdfind`; use the upstream name when it is free." .
+ws:profile-20-fedora a ws:Profile ; ws:name "20-fedora" ; eid:path "workshop/profile.d/20-fedora.ts" ;
+    ws:selectorKind ws:selector-distro ; rdfs:comment "Fedora and its relatives: one alias for a full refresh-and-upgrade." .
+ws:profile-30-macos a ws:Profile ; ws:name "30-macos" ; eid:path "workshop/profile.d/30-macos.ts" ;
+    ws:selectorKind ws:selector-platform ; rdfs:comment "Homebrew on Apple silicon lives in /opt/homebrew, which login shells may not have on PATH." .
+ws:profile-30-windows a ws:Profile ; ws:name "30-windows" ; eid:path "workshop/profile.d/30-windows.ts" ;
+    ws:selectorKind ws:selector-platform ; rdfs:comment "Windows PowerShell: `which` for people with Unix fingers. Other shells get nothing." .
+ws:profile-30-wsl a ws:Profile ; ws:name "30-wsl" ; eid:path "workshop/profile.d/30-wsl.ts" ;
+    ws:selectorKind ws:selector-platform ; rdfs:comment "WSL: reach the Windows clipboard and Explorer with familiar names." .
+
+ws:bin-oh-my-posh a ws:PinnedBinary ; ws:name "oh-my-posh" ; ws:pinnedVersion "33.4.1" ;
+    rdfs:comment "Installed under $XDG_DATA_HOME/snshah/bin only when no oh-my-posh is on PATH and the prompt allows it." .
 
 ws:pm-apt a ws:PackageManager ; ws:name "apt" .
 ws:pm-dnf a ws:PackageManager ; ws:name "dnf" .
@@ -104,6 +158,13 @@ ws:dep-clack a ws:Dependency ; ws:name "@clack/prompts" ; ws:pinnedVersion "0.11
 # ---------- Strict XDG paths ----------
 ws:path-config a ws:XdgPath ; ws:name "config" ; ws:xdgBase "XDG_CONFIG_HOME" ; ws:fallback ".config" ; ws:relativePath "snshah/snshah.conf.ts" ;
     rdfs:comment "Private, mode 0600, never in Git." .
+ws:path-profiles a ws:XdgPath ; ws:name "profiles" ; ws:xdgBase "XDG_CONFIG_HOME" ; ws:fallback ".config" ; ws:relativePath "snshah/profile.d" ;
+    rdfs:comment "Private profile.d: may use hostname and machine selectors and secrets." .
+ws:path-repoProfiles a ws:XdgPath ; ws:name "repoProfiles" ; ws:xdgBase "XDG_DATA_HOME" ; ws:fallback ".local/share" ; ws:relativePath "snshah/profile.d" ;
+    rdfs:comment "Installed copy of workshop/profile.d." .
+ws:path-state a ws:XdgPath ; ws:name "state" ; ws:xdgBase "XDG_STATE_HOME" ; ws:fallback ".local/state" ; ws:relativePath "snshah/state.json" ;
+    rdfs:comment "Typed runtime state: which version already ran doctor, and the last update check." .
+ws:path-posh a ws:XdgPath ; ws:name "posh" ; ws:xdgBase "XDG_DATA_HOME" ; ws:fallback ".local/share" ; ws:relativePath "snshah/bin/oh-my-posh" .
 ws:path-types a ws:XdgPath ; ws:name "types" ; ws:xdgBase "XDG_CONFIG_HOME" ; ws:fallback ".config" ; ws:relativePath "snshah/snshah.auto.d.ts" .
 ws:path-script a ws:XdgPath ; ws:name "script" ; ws:xdgBase "XDG_DATA_HOME" ; ws:fallback ".local/share" ; ws:relativePath "snshah/snshah.ts" .
 ws:path-theme a ws:XdgPath ; ws:name "theme" ; ws:xdgBase "XDG_DATA_HOME" ; ws:fallback ".local/share" ; ws:relativePath "snshah/snshah.omp.json" .

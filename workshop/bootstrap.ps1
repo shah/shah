@@ -6,9 +6,11 @@
 # Safe to re-run. It makes sure Bun 1.4+ is present (a pinned release,
 # checked by SHA-256, installed under ~\.bun without admin rights), adds
 # ~\.bun\bin and ~\.local\bin to your user PATH once, pins one shah/shah
-# commit, and runs `snshah apply`. A second run reports "No changes needed."
-# Set $env:SNSHAH_REF to a branch, tag or commit to try something other than
-# main. Arguments are passed to `snshah apply`.
+# commit, clones shah/shah into $env:WORKSPACES_HOME (when git is present),
+# and runs `snshah apply`. A second run reports "No changes needed." Set
+# $env:SNSHAH_REF to a branch, tag or commit to try something other than
+# main, or $env:SNSHAH_CLONE = '0' to skip the checkout. Arguments are passed
+# to `snshah apply`.
 #
 # Everything runs inside one script block, so `irm | iex` never changes your
 # session's strict mode or error preference, and never exits your shell.
@@ -130,6 +132,16 @@
     return $sha
   }
 
+  # Clone this repository into the workspaces root; returns its path or $null.
+  function Clone-Self([string] $Script) {
+    if ($env:SNSHAH_CLONE -eq '0' -or -not (Get-Command git -ErrorAction SilentlyContinue)) { return $null }
+    & $bun --no-env-file $Script git clone $Repo | ForEach-Object { [Console]::Error.WriteLine($_) }
+    if ($LASTEXITCODE -ne 0) { Say "could not clone $Owner/$Repo into the workspaces root; continuing without it"; return $null }
+    $path = & $bun --no-env-file $Script git path $Repo 2>$null
+    if ($LASTEXITCODE -eq 0 -and $path) { return ($path | Select-Object -Last 1).Trim() }
+    return $null
+  }
+
   $bun = Install-Bun
   Add-UserPath (Split-Path -Parent $BunExe)
   Add-UserPath $BinDir
@@ -137,6 +149,9 @@
   $here = if ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { $null }
   if ($here -and (Test-Path -LiteralPath (Join-Path $here 'snshah.ts'))) {
     & $bun --no-env-file (Join-Path $here 'snshah.ts') apply --yes @args
+    if ($LASTEXITCODE -ne 0) { throw "snshah apply failed (exit $LASTEXITCODE)." }
+    $null = Clone-Self (Join-Path $here 'snshah.ts')
+    $global:LASTEXITCODE = 0
   } else {
     if (-not (Get-Command tar -ErrorAction SilentlyContinue)) { throw 'tar is missing (it ships with Windows 10 and later).' }
     $ref = if ($env:SNSHAH_REF) { $env:SNSHAH_REF } else { 'main' }
@@ -153,7 +168,15 @@
     try {
       & tar -xzf $archive -C $scratch "$Repo-$revision/$Directory"
       if ($LASTEXITCODE -ne 0) { Remove-Item -Force $archive; throw 'Could not unpack the download; removed it from the cache. Re-run to try again.' }
-      & $bun --no-env-file (Join-Path $scratch "$Repo-$revision/$Directory/snshah.ts") apply --yes --revision $revision @args
+      $script = Join-Path $scratch "$Repo-$revision/$Directory/snshah.ts"
+      # Install from the checkout when it is clean and at exactly this commit.
+      $checkout = Clone-Self $script
+      if ($checkout -and (Test-Path -LiteralPath (Join-Path $checkout "$Directory/snshah.ts")) -and
+          ((& git -C $checkout rev-parse HEAD 2>$null) -eq $revision) -and
+          -not (& git -C $checkout status --porcelain 2>$null)) {
+        $script = Join-Path $checkout "$Directory/snshah.ts"
+      }
+      & $bun --no-env-file $script apply --yes --revision $revision @args
     } finally {
       Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $scratch
     }

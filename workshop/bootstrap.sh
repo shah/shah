@@ -6,9 +6,11 @@
 #
 # Safe to re-run. It makes sure Bun 1.4+ is present (a pinned release,
 # checked by SHA-256, installed under ~/.bun without sudo), pins one
-# shah/shah commit, and runs `snshah apply`. A second run reports
-# "No changes needed." Set SNSHAH_REF to a branch, tag or commit to try
-# something other than main. Arguments are passed to `snshah apply`.
+# shah/shah commit, clones shah/shah into $WORKSPACES_HOME (when git is
+# present), and runs `snshah apply`. A second run reports "No changes
+# needed." Set SNSHAH_REF to a branch, tag or commit to try something other
+# than main, or SNSHAH_CLONE=0 to skip the checkout. Arguments are passed to
+# `snshah apply`.
 set -eu
 
 BUN_VERSION=1.4.4
@@ -55,6 +57,29 @@ version_ok() { # VERSION -> true when 1.4.0 or newer
   minor=${rest%%.*}
   case "$major$minor" in '' | *[!0-9]*) return 1 ;; esac
   [ "$major" -gt 1 ] || { [ "$major" -eq 1 ] && [ "$minor" -ge 4 ]; }
+}
+
+install_hint() { # PACKAGE -> the install command for this distribution
+  root=sudo
+  have sudo || root=
+  case $(uname -s) in
+    Darwin) printf 'brew install %s' "$1"; return ;;
+  esac
+  ids=$( (. /etc/os-release 2>/dev/null && printf '%s %s' "${ID-}" "${ID_LIKE-}") || true)
+  cmd=
+  case " $ids " in
+    *" debian "* | *" ubuntu "*) cmd="apt-get update && apt-get install -y $1" ;;
+    *" fedora "* | *" rhel "* | *" centos "*) cmd="dnf install -y $1" ;;
+    *" arch "*) cmd="pacman -S --needed $1" ;;
+    *" alpine "*) cmd="apk add $1" ;;
+    *" suse "* | *" opensuse "*) cmd="zypper install -y $1" ;;
+    *) printf 'your package manager (package %s)' "$1"; return ;;
+  esac
+  if [ -n "$root" ]; then
+    printf '%s' "sudo $cmd" | sed 's/&& /\&\& sudo /'
+  else
+    printf "su -c '%s'" "$cmd"
+  fi
 }
 
 bun_target() {
@@ -107,7 +132,7 @@ ensure_bun() {
       return 0
     fi
   done
-  have unzip || die "needs unzip to install Bun (install it with your package manager, then re-run)"
+  have unzip || die "needs unzip to install Bun. Install it with: $(install_hint unzip), then re-run"
   target=$(bun_target)
   expected=$(bun_sha256 "$target") || die "no pinned checksum for bun-$target"
   mkdir -p "$cache_dir"
@@ -153,13 +178,24 @@ resolve_revision() { # REF -> 40-hex commit
   printf '%s\n' "$sha"
 }
 
+clone_self() { # SNSHAH_TS -> checkout path of this repository, or nothing
+  [ "${SNSHAH_CLONE:-1}" != 0 ] && have git || return 0
+  if ! "$BUN" --no-env-file "$1" git clone "$REPO" >&2; then
+    say "could not clone $OWNER/$REPO into the workspaces root; continuing without it"
+    return 0
+  fi
+  "$BUN" --no-env-file "$1" git path "$REPO" 2>/dev/null || true
+}
+
 main() {
   ensure_bun
   # From a checkout: run the snshah.ts next to this file.
   if [ -f "$0" ]; then
     here=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
     if [ -f "$here/snshah.ts" ]; then
-      exec "$BUN" --no-env-file "$here/snshah.ts" apply --yes "$@"
+      "$BUN" --no-env-file "$here/snshah.ts" apply --yes "$@"
+      clone_self "$here/snshah.ts" >/dev/null
+      return 0
     fi
   fi
   # Piped from the network: fetch exactly one commit, cached by its hash.
@@ -179,7 +215,16 @@ main() {
     rm -f "$archive"
     die "could not unpack the download; removed it from the cache, re-run to try again"
   fi
-  "$BUN" --no-env-file "$scratch/$REPO-$revision/$DIRECTORY/snshah.ts" apply --yes --revision "$revision" "$@"
+  snshah_ts=$scratch/$REPO-$revision/$DIRECTORY/snshah.ts
+  # Install from the shah/shah checkout in $WORKSPACES_HOME when it is at
+  # exactly this commit and clean; otherwise from the verified download.
+  checkout=$(clone_self "$snshah_ts")
+  if [ -n "$checkout" ] && [ -f "$checkout/$DIRECTORY/snshah.ts" ] &&
+    [ "$(git -C "$checkout" rev-parse HEAD 2>/dev/null)" = "$revision" ] &&
+    [ -z "$(git -C "$checkout" status --porcelain 2>/dev/null)" ]; then
+    snshah_ts=$checkout/$DIRECTORY/snshah.ts
+  fi
+  "$BUN" --no-env-file "$snshah_ts" apply --yes --revision "$revision" "$@"
 }
 
 main "$@"
