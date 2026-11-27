@@ -161,7 +161,7 @@ type Covers<T extends readonly string[], U extends string> = [
   ? true
   : ["missing", Exclude<U, T[number]>];
 
-export const cliVersion = "0.6.0";
+export const cliVersion = "0.7.0";
 export const minimumBun = "1.4.0";
 /** The Oh My Posh release snshah installs when none is on PATH, by Bun-style target. */
 export const ohMyPosh = {
@@ -364,6 +364,7 @@ export const commandNames = [
   "ux fonts missing",
   "ux fonts reset",
   "ux fonts install",
+  "uninstall",
   "update",
   "test",
 ] as const;
@@ -4199,6 +4200,135 @@ function printNext(next: readonly NextStep[]): void {
 }
 
 // ---------------------------------------------------------------------------
+// uninstall: the documented way to take snshah off a machine
+// ---------------------------------------------------------------------------
+
+type Removal =
+  | { kind: "block"; path: string; label: string }
+  | { kind: "delete"; path: string; label: string };
+
+const managedBegin =
+  /^(#|\/\/|<!--) >>> snshah (shell|profile \S+|agent guidance) >>>( -->)?$/;
+
+/** The text without snshah's marked blocks, and how many were removed. */
+export function stripManagedBlocks(content: string): {
+  text: string;
+  removed: number;
+} {
+  const lines = content.split("\n");
+  const kept: string[] = [];
+  let removed = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
+    if (managedBegin.test(line)) {
+      const end = line.replace(">>>", "<<<").replace(">>>", "<<<");
+      const last = lines.indexOf(end, i + 1);
+      if (last > i) {
+        i = last;
+        removed++;
+        continue;
+      }
+    }
+    kept.push(line);
+  }
+  return { text: kept.join("\n"), removed };
+}
+
+async function planUninstall(ctx: Context, purge: boolean): Promise<Removal[]> {
+  const items: Removal[] = [];
+  const blockFiles: Array<[string, string]> = [];
+  for (const shell of shells) {
+    if (shell !== "fish")
+      blockFiles.push([rcFile(ctx, shell), `${shell} startup`]);
+  }
+  blockFiles.push([
+    join(ctx.env.CLAUDE_CONFIG_DIR || join(ctx.home, ".claude"), "CLAUDE.md"),
+    "Claude Code guidance",
+  ]);
+  const codexDir = ctx.env.CODEX_HOME || join(ctx.home, ".codex");
+  blockFiles.push(
+    [join(codexDir, "AGENTS.md"), "Codex guidance"],
+    [join(codexDir, "AGENTS.override.md"), "Codex guidance"],
+  );
+  for (const [path, label] of blockFiles) {
+    const text = await readText(path);
+    if (text !== undefined && stripManagedBlocks(text).removed > 0)
+      items.push({ kind: "block", path, label: `snshah block in ${label}` });
+  }
+  const fish = rcFile(ctx, "fish");
+  if ((await readText(fish))?.includes(docLine))
+    items.push({ kind: "delete", path: fish, label: "fish startup file" });
+  const files: Array<[string, string]> = [
+    [ctx.wrapper, "launcher"],
+    ...(isWindows
+      ? ([[ctx.windowsWrapper, "launcher"]] as Array<[string, string]>)
+      : []),
+    [ctx.miseToolsFile, "mise tool list"],
+    [ctx.dataDir, "installed CLI, theme, and downloaded Oh My Posh and mise"],
+    [ctx.stateDir, "state and install receipt"],
+    [ctx.cacheDir, "download cache"],
+  ];
+  if (purge)
+    files.push([
+      ctx.configDir,
+      "YOUR PRIVATE CONFIG (snshah.conf.ts, secrets)",
+    ]);
+  for (const [path, label] of files)
+    if (existsSync(path)) items.push({ kind: "delete", path, label });
+  return items;
+}
+
+async function uninstall(
+  ctx: Context,
+  options: { yes: boolean; purge: boolean },
+): Promise<number> {
+  const receipt = await readReceipt(ctx);
+  const items = await planUninstall(ctx, options.purge);
+  if (items.length === 0) {
+    say("Nothing to remove. No changes needed.", "success");
+    return 0;
+  }
+  say(options.yes ? "Removing snshah:" : "snshah would remove:", "action");
+  for (const item of items)
+    console.log(
+      `  ${item.kind === "block" ? "edit  " : "delete"} ${tilde(ctx, item.path)}  (${item.label})`,
+    );
+  if (!options.yes) {
+    say(
+      `Nothing was changed. To remove it: snshah uninstall --yes${options.purge ? "" : "   (add --purge to also delete your private config)"}`,
+      "pending",
+    );
+  } else {
+    // Startup blocks first, so a half-finished run never leaves a shell
+    // pointing at a launcher that is gone.
+    for (const item of items.filter((i) => i.kind === "block")) {
+      const text = (await readText(item.path)) ?? "";
+      await writeFile(item.path, stripManagedBlocks(text).text);
+    }
+    for (const item of items.filter((i) => i.kind === "delete"))
+      await rm(item.path, { recursive: true, force: true });
+    say(
+      "snshah is removed. Open a new shell (or run: exec $SHELL).",
+      "success",
+    );
+  }
+  const left: string[] = [];
+  if (receipt && existsSync(receipt.checkout))
+    left.push(
+      `the git checkout (your repository): rm -rf ${tilde(ctx, receipt.checkout)}`,
+    );
+  if (!options.purge && existsSync(ctx.configDir))
+    left.push("your private config: snshah uninstall --yes --purge");
+  left.push(
+    "Bun (~/.bun) and the tools mise installed (~/.local/share/mise), which other programs may use",
+    "SSH host entries and keys in ~/.ssh, and Claude Code or Codex settings that snshah filled in",
+  );
+  console.log("Left in place on purpose:");
+  for (const line of left) console.log(`  - ${line}`);
+  return 0;
+}
+
+// ---------------------------------------------------------------------------
 // update: pinned to one upstream commit, applied only after a preview
 // ---------------------------------------------------------------------------
 
@@ -7394,6 +7524,23 @@ export async function buildCli(ctx: Context): Promise<CommanderCommand> {
     .description("Show (or with --run, do) the Nerd Font install")
     .option("--run", "run oh-my-posh font install Meslo now")
     .action(async (o: { run?: boolean }) => fontsInstall(ctx, !!o.run));
+
+  program
+    .command("uninstall")
+    .description(
+      "Remove snshah from this machine: startup blocks, launcher, installed copy, state, cache (previews unless --yes)",
+    )
+    .option("-y, --yes", "do it; without this, only list what would go")
+    .option(
+      "--purge",
+      "also delete your private config directory (snshah.conf.ts and its secrets)",
+    )
+    .action(async (o: { yes?: boolean; purge?: boolean }) => {
+      process.exitCode = await uninstall(ctx, {
+        yes: !!o.yes,
+        purge: !!o.purge,
+      });
+    });
 
   program
     .command("update")

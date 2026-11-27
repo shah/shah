@@ -338,19 +338,20 @@ the bootstrap and `snshah git clone shah` put it in
 
 ## Commands
 
-| Command                                                   | What it does                                                                                |
-| --------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `snshah plan [--json] [--explain] [--as FACTS]`           | Show what `apply` would change. Read-only.                                                  |
-| `snshah whoami [--json]`                                  | Print the facts profile selectors match against.                                            |
-| `snshah apply [--yes] [--json]`                           | Bring this machine to the desired state.                                                    |
-| `snshah doctor [--json]`                                  | Check tools and print install commands for this distribution and package manager.           |
-| `snshah shell <shell> [--greet]`                          | Print init code for bash, zsh, fish or pwsh.                                                |
-| `snshah exec <command> [args]`                            | Run a command with its command-scoped secrets.                                              |
-| `snshah config path\|check\|edit\|set-secret`             | Manage the private config.                                                                  |
-| `snshah git root\|add\|list\|path\|clone\|update\|remove` | Manage checkouts.                                                                           |
-| `snshah ssh <subcommand>`                                 | SSH keys, key copying and hosts (see above).                                                |
-| `snshah update [--check [--quiet]] [--yes] [--ref REF]`   | Fetch the checkout, preview, fast-forward, apply. `--check` only says whether one is newer. |
-| `snshah test [--remote REF]`                              | Self-test in a temporary HOME.                                                              |
+| Command                                                   | What it does                                                                                     |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `snshah plan [--json] [--explain] [--as FACTS]`           | Show what `apply` would change. Read-only.                                                       |
+| `snshah whoami [--json]`                                  | Print the facts profile selectors match against.                                                 |
+| `snshah apply [--yes] [--json]`                           | Bring this machine to the desired state.                                                         |
+| `snshah doctor [--json]`                                  | Check tools and print install commands for this distribution and package manager.                |
+| `snshah shell <shell> [--greet]`                          | Print init code for bash, zsh, fish or pwsh.                                                     |
+| `snshah exec <command> [args]`                            | Run a command with its command-scoped secrets.                                                   |
+| `snshah config path\|check\|edit\|set-secret`             | Manage the private config.                                                                       |
+| `snshah git root\|add\|list\|path\|clone\|update\|remove` | Manage checkouts.                                                                                |
+| `snshah ssh <subcommand>`                                 | SSH keys, key copying and hosts (see above).                                                     |
+| `snshah update [--check [--quiet]] [--yes] [--ref REF]`   | Fetch the checkout, preview, fast-forward, apply. `--check` only says whether one is newer.      |
+| `snshah uninstall [--yes] [--purge]`                      | Remove snshah. Lists what would go; `--yes` does it; `--purge` also deletes your private config. |
+| `snshah test [--remote REF]`                              | Self-test in a temporary HOME.                                                                   |
 
 `snshah update` runs `git fetch` in the install checkout, shows the plan the
 new commit would make (from a temporary worktree), asks, fast-forwards the
@@ -360,6 +361,23 @@ has uncommitted changes, is detached, is on another branch, or has diverged
 from origin. `update --check` only asks origin. The installed CLI is a copy,
 not a symlink, so a half-finished edit in the checkout never breaks your
 shell; it changes when you run `snshah apply` or `snshah update`.
+
+## Removing snshah
+
+```sh
+snshah uninstall                 # lists what would be removed; changes nothing
+snshah uninstall --yes           # removes it
+snshah uninstall --yes --purge   # also deletes your private config (and its secrets)
+```
+
+It removes snshah's marked blocks from your startup files (and the guidance
+blocks in Claude Code's and Codex's instruction files), the fish startup
+file, the launcher, the installed copy (with the Oh My Posh and mise that
+snshah downloaded), state, the download cache and snshah's mise tool list.
+It never touches your own lines in those files. It leaves your private
+config (unless `--purge`), the git checkout (it prints the `rm -rf` line),
+Bun, tools mise installed, `~/.ssh`, and settings snshah filled in for
+Claude Code or Codex. Running it twice is harmless. Open a new shell after.
 
 **Picking up changes in the shell you are in.** A program can't change its
 parent shell, so in bash, zsh and fish `snshah` is a small shell function

@@ -15,7 +15,7 @@ ws:snshah a ws:Toolkit ;
     doap:programming-language "TypeScript" ;
     dcterms:creator "Shahid Shah" ;
     eid:path "workshop/snshah.ts" ;
-    ws:version "0.6.0" ;
+    ws:version "0.7.0" ;
     ws:idempotent true ;
     ws:runtime ws:bun ;
     ws:upstream "shah/shah@main" ;
@@ -53,7 +53,7 @@ ws:snshah a ws:Toolkit ;
     ws:hasCommand ws:cmd-plan , ws:cmd-whoami , ws:cmd-apply , ws:cmd-doctor , ws:cmd-shell , ws:cmd-exec ,
         ws:cmd-config-path , ws:cmd-config-check , ws:cmd-config-edit , ws:cmd-config-set-secret ,
         ws:cmd-git-root , ws:cmd-git-add , ws:cmd-git-list , ws:cmd-git-path , ws:cmd-git-clone , ws:cmd-git-update , ws:cmd-git-remove ,
-        ws:cmd-ssh-status , ws:cmd-ssh-keys , ws:cmd-ssh-new , ws:cmd-ssh-copy , ws:cmd-ssh-authorize , ws:cmd-ssh-authorized , ws:cmd-ssh-test , ws:cmd-ssh-harden , ws:cmd-ssh-host-add , ws:cmd-ssh-host-list , ws:cmd-ssh-host-remove , ws:cmd-profile-list , ws:cmd-profile-prune , ws:cmd-profile-show , ws:cmd-profile-allow , ws:cmd-profile-deny , ws:cmd-profile-init , ws:cmd-profile-check , ws:cmd-profile-why , ws:cmd-profile-load , ws:cmd-ux-fonts-status , ws:cmd-ux-fonts-installed , ws:cmd-ux-fonts-missing , ws:cmd-ux-fonts-reset , ws:cmd-ux-fonts-install , ws:cmd-update , ws:cmd-test .
+        ws:cmd-ssh-status , ws:cmd-ssh-keys , ws:cmd-ssh-new , ws:cmd-ssh-copy , ws:cmd-ssh-authorize , ws:cmd-ssh-authorized , ws:cmd-ssh-test , ws:cmd-ssh-harden , ws:cmd-ssh-host-add , ws:cmd-ssh-host-list , ws:cmd-ssh-host-remove , ws:cmd-profile-list , ws:cmd-profile-prune , ws:cmd-profile-show , ws:cmd-profile-allow , ws:cmd-profile-deny , ws:cmd-profile-init , ws:cmd-profile-check , ws:cmd-profile-why , ws:cmd-profile-load , ws:cmd-ux-fonts-status , ws:cmd-ux-fonts-installed , ws:cmd-ux-fonts-missing , ws:cmd-ux-fonts-reset , ws:cmd-ux-fonts-install , ws:cmd-uninstall , ws:cmd-update , ws:cmd-test .
 
 ws:bun a ws:Runtime ; rdfs:label "Bun" ; ws:minimumVersion "1.4.0" .
 
@@ -109,6 +109,7 @@ ws:cmd-ux-fonts-missing a ws:Command ; ws:name "ux fonts missing" ; rdfs:comment
 ws:cmd-ux-fonts-reset a ws:Command ; ws:name "ux fonts reset" ; rdfs:comment "Forget your answer; doctor shows unknown." .
 ws:cmd-ux-fonts-install a ws:Command ; ws:name "ux fonts install" ; rdfs:comment "Show, or with --run do, oh-my-posh font install Meslo." .
 ws:cmd-update a ws:Command ; ws:name "update" ; rdfs:comment "Fetch the install checkout, preview the plan from a temporary worktree, fast-forward it, then apply from it." .
+ws:cmd-uninstall a ws:Command ; ws:name "uninstall" ; rdfs:comment "Remove snshah: startup blocks, launcher, installed copy, state and cache. Previews unless --yes; --purge also deletes the private config." .
 ws:cmd-test a ws:Command ; ws:name "test" ; rdfs:comment "Self-test in a temporary HOME." .
 
 # ---------- Controlled values ----------

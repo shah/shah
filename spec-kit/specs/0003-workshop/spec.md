@@ -229,6 +229,13 @@ run changes nothing.
   `apply`, with a receipt naming the checkout and its commit. There is no
   migration or compatibility code for earlier install methods.
 
+- **FR-042**: `snshah uninstall` MUST list what it would remove and change
+  nothing without `--yes`; with `--yes` it MUST remove only what snshah
+  created or marked (startup and guidance blocks, launcher, installed copy,
+  state, cache, mise tool list), keep the owner's other lines, keep the
+  private config unless `--purge`, never delete the git checkout, and be a
+  no-op when run again.
+
 ### Profiles (profile.d)
 
 - **FR-018**: snshah MUST load every `*.ts` file in `workshop/profile.d/`

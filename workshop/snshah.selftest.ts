@@ -1130,6 +1130,64 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
       );
     }
 
+    // uninstall: previews, removes what snshah made, keeps what is yours.
+    {
+      const rmHome = join(root, "uninstall-home");
+      await mkdir(rmHome);
+      await writeFile(join(rmHome, ".bashrc"), "export KEEP=1\n");
+      const re = fromOrigin(rmHome);
+      pipedBootstrap(re);
+      const launcher = join(rmHome, ".local", "bin", "snshah");
+      const privateConfig = join(rmHome, ".config", "snshah", "snshah.conf.ts");
+      const preview = sh([launcher, "uninstall"], root, re);
+      check(
+        "uninstall previews by default and changes nothing",
+        preview.code === 0 &&
+          preview.out.includes("would remove") &&
+          existsSync(launcher) &&
+          (await readFile(join(rmHome, ".bashrc"), "utf8")).includes(
+            ">>> snshah shell >>>",
+          ),
+        preview.out + preview.err,
+      );
+      const gone = sh([launcher, "uninstall", "--yes"], root, re);
+      const rc = await readFile(join(rmHome, ".bashrc"), "utf8");
+      check(
+        "uninstall --yes removes the block, launcher, copy, state and cache",
+        gone.code === 0 &&
+          rc.includes("export KEEP=1") &&
+          !rc.includes("snshah") &&
+          !existsSync(launcher) &&
+          !existsSync(join(rmHome, ".local", "share", "snshah")) &&
+          !existsSync(join(rmHome, ".local", "state", "snshah")),
+        gone.out + gone.err + rc,
+      );
+      check(
+        "uninstall keeps the private config and the checkout, and says so",
+        existsSync(privateConfig) &&
+          existsSync(checkoutOf(rmHome)) &&
+          gone.out.includes("--purge") &&
+          gone.out.includes("rm -rf"),
+        gone.out,
+      );
+      const again = sh(
+        [bun, "--no-env-file", script, "uninstall", "--yes", "--purge"],
+        root,
+        re,
+      );
+      check(
+        "uninstall --purge deletes the private config, and twice is a no-op",
+        again.code === 0 &&
+          !existsSync(join(rmHome, ".config", "snshah")) &&
+          sh(
+            [bun, "--no-env-file", script, "uninstall", "--yes", "--purge"],
+            root,
+            re,
+          ).out.includes("No changes needed"),
+        again.out + again.err,
+      );
+    }
+
     // Shell greeting: doctor on first use per version, update check hourly.
     {
       const greetHome = join(root, "greet-home");
