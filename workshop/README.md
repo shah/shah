@@ -152,6 +152,25 @@ but not send one. `schedule` pulls from a systemd user timer; elsewhere it
 tells you to use your own scheduler. `remove` forgets the sign-in and keeps
 your files: revoke the access in the provider's settings too.
 
+## File servers: `snshah share`
+
+On a machine with Samba (`smbd`) or an NFS server, `snshah share` looks and
+prints; it never edits a service.
+
+```sh
+snshah share status                  # installed, running, what is shared
+snshah share audit                   # exits 1 on a serious finding; --json too
+snshah share audit --smb-conf ./smb.conf --exports ./exports   # another machine's files
+snshah share print smb --path /srv/docs --subnet 192.168.1.0/24 --user me
+snshah share print nfs --path /srv/docs --subnet 192.168.1.0/24 --read-write
+```
+
+`audit` flags SMB1 and NTLMv1, guest access, shares that anyone can write,
+wide links, exports to everyone and `no_root_squash`. `print` gives a
+read-only, no-guest, one-subnet share (or export) for you to paste, plus the
+reload commands. It requires a private subnet and refuses anything wider.
+Samba keeps its own passwords: you set them with `smbpasswd`, not snshah.
+
 ## Prompt icons: Nerd Fonts
 
 The prompt draws icons from a [Nerd Font](https://www.nerdfonts.com). If your
@@ -406,6 +425,7 @@ the bootstrap and `snshah git clone shah` put it in
 | `snshah context [--json]`                                                 | Where am I? OS, shell, tools, git state, profiles, sandbox, problems.                             |
 | `snshah commands [--json]`                                                | Every command, what it does to the machine, and whether it takes `--json`.                        |
 | `snshah efss connect\|list\|status\|pull\|push\|folder\|schedule\|remove` | Mirror cloud and network folders with rclone (present where rclone is). See File sync.            |
+| `snshah share status\|audit\|print`                                       | Audit Samba and NFS, print safe subnet-scoped config. Present where a file server is.             |
 | `snshah vscode [--yes] [--json]`                                          | Fill VS Code settings (fill-only), list extensions. Present where VS Code is (a profile command). |
 | `snshah wt new\|ls\|prune`                                                | Git worktrees next to the repository, one per branch.                                             |
 | `snshah shell <shell> [--greet]`                                          | Print init code for bash, zsh, fish or pwsh.                                                      |

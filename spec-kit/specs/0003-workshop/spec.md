@@ -301,6 +301,18 @@ run changes nothing.
   with `--update` and delete nothing; `pull --mirror` MUST preview unless
   `--yes`. `push` MUST preview unless `--yes`; `push --delete` MUST require
   `--max-delete <n>`. An agent MAY preview a push but MUST NOT send one.
+- **FR-058**: Where Samba (`smbd`) or an NFS server (`nfs-server`,
+  `exportfs`) is installed (profile `share`), `snshah share status|audit|print`
+  MUST only read and print: it MUST NOT edit smb.conf, /etc/exports or a
+  service, and MUST NOT print or accept a password.
+- **FR-059**: `share audit` MUST flag SMB1 or NTLMv1, guest access, `map to
+  guest`, writable shares without `valid users`, wide links, shares and
+  exports open to everyone, `no_root_squash`, and a Samba that listens on
+  every interface; MUST read another machine's files with `--smb-conf` and
+  `--exports`; and MUST exit 1 on a high-severity finding.
+- **FR-060**: `share print smb|nfs` MUST require `--path` and a private
+  `--subnet` (10/8, 172.16/12, 192.168/16 or fd00::/8), refuse anything wider,
+  default to read-only, and print the reload commands for the owner to run.
 - **FR-057**: `list`, `status` and `folder` MUST take `--json`; `schedule
   <name> <30m|6h|1d|off>` MUST write and enable a systemd user timer that runs
   `snshah efss pull`, idempotently; `remove` MUST forget the sign-in and
@@ -487,6 +499,7 @@ run changes nothing.
 | FR-018, FR-019, FR-021 | Shahid N. Shah, direct statement, 2026-11-27 (profile.d, type-safe merge, command hooks with env passthrough)                                                |
 | FR-020, FR-022         | Shahid N. Shah, direct statement, 2026-11-27 (environment selectors first, fingerprint when needed, hostnames allowed); private-only rule proposed by Claude |
 | FR-023                 | Shahid N. Shah, decision, 2026-11-27 ("Yes, pinned and checksummed")                                                                                         |
+| FR-058 to FR-060       | Shahid N. Shah, direct statement, 2026-11-27 (`smbd` and `nfs` handled through print and audit, contributed by a service-detecting profile) |
 | FR-054 to FR-057       | Shahid N. Shah, direct statements, 2026-11-27 (`snshah efss` for OneDrive, SharePoint, Box, GDrive, Dropbox; no FUSE; read or read-write chosen at `connect`) |
 | FR-050 to FR-053       | Shahid N. Shah, direct statements, 2026-11-27 (a `service` selector so a profile contributes commands when its tool is present, "so the core stays lean")    |
 | FR-042 to FR-049       | Shahid N. Shah, direct statements, 2026-11-27 (`snshah uninstall`; agent-first improvements: agent mode, `context`, `vscode`, `wt`, `commands`, CI)          |

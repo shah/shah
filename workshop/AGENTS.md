@@ -89,6 +89,8 @@ Rules for a person or an AI agent changing anything in `workshop/`.
 - `snshah efss` never handles a secret: sign-in is rclone's, `--set` refuses
   secret-looking keys, `connect` refuses under an agent, and `push` sends
   only with `--yes` (never from an agent) and deletes only with `--max-delete`.
+- `snshah share` only reads and prints. Never make it write a service's
+  configuration, and keep `print` refusing a subnet that isn't private.
 - Install the CLI files last, so a failed apply keeps the old CLI working.
 
 ## Before every push

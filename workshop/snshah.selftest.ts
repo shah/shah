@@ -1245,6 +1245,186 @@ exit 0
       );
     }
 
+    // share: audit Samba and NFS, print safe configuration, never edit.
+    if (process.platform !== "win32") {
+      const sh2 = join(root, "share-home");
+      const bin = join(sh2, "stubs");
+      await mkdir(bin, { recursive: true });
+      await writeFile(join(bin, "smbd"), "#!/bin/sh\n", { mode: 0o755 });
+      const bare = baseEnv(sh2);
+      const se = { ...bare, PATH: `${bin}${delimiter}${bare.PATH ?? ""}` };
+      const smbConf = join(sh2, "smb.conf");
+      await writeFile(
+        smbConf,
+        `[global]
+   workgroup = HOME
+   server min protocol = NT1
+   map to guest = Bad User
+
+[public]
+   path = /srv/public
+   guest ok = yes
+   read only = no
+
+[docs]
+   path = /srv/docs
+   valid users = me
+   hosts allow = 192.168.1.0/24
+   read only = yes
+`,
+      );
+      const exportsFile = join(sh2, "exports");
+      await writeFile(
+        exportsFile,
+        `/srv/open *(rw,no_root_squash)
+/srv/lan 192.168.1.0/24(ro,sync,no_subtree_check)
+`,
+      );
+      const off = cli(["share", "status"], undefined, {
+        ...bare,
+        PATH: "/usr/bin:/bin",
+      });
+      const hasExportfs = !!Bun.which("exportfs", { PATH: "/usr/bin:/bin" });
+      check(
+        "share is inactive without Samba or NFS and says how to get one",
+        hasExportfs || (off.code === 2 && off.err.includes("turns on when")),
+        off.err,
+      );
+      const audit = json<{
+        findings: Array<{ id: string; where: string; severity: string }>;
+      }>(
+        cli(
+          [
+            "share",
+            "audit",
+            "--smb-conf",
+            smbConf,
+            "--exports",
+            exportsFile,
+            "--json",
+          ],
+          undefined,
+          se,
+        ),
+      );
+      const ids = (audit?.findings ?? []).map((f) => `${f.id}@${f.where}`);
+      check(
+        "audit finds SMB1, guest access, a world-writable export and no_root_squash",
+        ids.includes("smb-old-protocol@global") &&
+          ids.includes("smb-map-to-guest@global") &&
+          ids.includes("smb-guest@public") &&
+          ids.includes("smb-writable-anyone@public") &&
+          ids.some((i) => i.startsWith("nfs-everyone@/srv/open")) &&
+          ids.some((i) => i.startsWith("nfs-no-root-squash@/srv/open")),
+        ids.join(", "),
+      );
+      check(
+        "audit leaves a scoped read-only share and a subnet export alone",
+        !ids.some(
+          (i) => i.endsWith("@docs") && !i.startsWith("smb-unscoped"),
+        ) && !ids.some((i) => i.includes("/srv/lan")),
+        ids.join(", "),
+      );
+      const bad = cli(
+        ["share", "audit", "--smb-conf", smbConf, "--exports", exportsFile],
+        undefined,
+        se,
+      );
+      check(
+        "audit exits 1 on a serious finding and prints the fix",
+        bad.code === 1 && bad.out.includes("fix:"),
+        bad.out + bad.err,
+      );
+      const clean = join(sh2, "clean.conf");
+      await writeFile(
+        clean,
+        `[global]
+   server min protocol = SMB3
+   bind interfaces only = yes
+   hosts allow = 192.168.1.0/24
+   server smb encrypt = required
+
+[docs]
+   path = /srv/docs
+   valid users = me
+   read only = yes
+`,
+      );
+      const ok = cli(
+        ["share", "audit", "--smb-conf", clean, "--exports", join(sh2, "none")],
+        undefined,
+        se,
+      );
+      check(
+        "a careful smb.conf audits clean",
+        ok.code === 0 && ok.out.includes("Nothing to fix"),
+        ok.out + ok.err,
+      );
+      const printed = cli(
+        [
+          "share",
+          "print",
+          "smb",
+          "--path",
+          "/srv/docs",
+          "--subnet",
+          "192.168.1.0/24",
+          "--user",
+          "me",
+        ],
+        undefined,
+        se,
+      );
+      check(
+        "print smb gives a read-only, subnet-scoped, no-guest share and changes nothing",
+        printed.code === 0 &&
+          printed.out.includes("read only = yes") &&
+          printed.out.includes("guest ok = no") &&
+          printed.out.includes("hosts allow = 192.168.1.0/24") &&
+          printed.out.includes("Nothing was changed"),
+        printed.out + printed.err,
+      );
+      const nfs = cli(
+        [
+          "share",
+          "print",
+          "nfs",
+          "--path",
+          "/srv/docs",
+          "--subnet",
+          "10.0.0.0/24",
+          "--read-write",
+        ],
+        undefined,
+        se,
+      );
+      check(
+        "print nfs gives one subnet with root_squash",
+        nfs.code === 0 &&
+          nfs.out.includes(
+            "/srv/docs 10.0.0.0/24(rw,sync,no_subtree_check,root_squash)",
+          ),
+        nfs.out + nfs.err,
+      );
+      for (const subnet of ["0.0.0.0/0", "8.8.8.0/24", "*"]) {
+        const r = cli(
+          ["share", "print", "nfs", "--path", "/srv/docs", "--subnet", subnet],
+          undefined,
+          se,
+        );
+        check(
+          `print refuses ${subnet}`,
+          r.code === 2 && r.err.includes("private subnet"),
+          r.err,
+        );
+      }
+      check(
+        "print needs a subnet",
+        cli(["share", "print", "smb", "--path", "/srv/docs"], undefined, se)
+          .code === 2,
+      );
+    }
+
     // wt: worktrees next to the repository; prune only what is safe.
     {
       const wh = join(root, "wt-home");

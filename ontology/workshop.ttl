@@ -15,7 +15,7 @@ ws:snshah a ws:Toolkit ;
     doap:programming-language "TypeScript" ;
     dcterms:creator "Shahid Shah" ;
     eid:path "workshop/snshah.ts" ;
-    ws:version "0.11.0" ;
+    ws:version "0.12.0" ;
     ws:idempotent true ;
     ws:runtime ws:bun ;
     ws:upstream "shah/shah@main" ;
@@ -41,7 +41,8 @@ ws:snshah a ws:Toolkit ;
         ws:profile-30-windows ,
         ws:profile-30-wsl ,
         ws:profile-vscode ,
-        ws:profile-efss ;
+        ws:profile-efss ,
+        ws:profile-share ;
     ws:installs ws:bin-oh-my-posh , ws:bin-mise ;
     ws:toolManager ws:bin-mise ;
     ws:defaultTool "gh" , "ripgrep" , "fd" , "bat" , "fzf" , "jq" , "yq" , "delta" , "direnv" , "eza" ;
@@ -182,6 +183,8 @@ ws:profile-vscode a ws:Profile ; ws:name "vscode" ; eid:path "workshop/profile.d
     ws:selectorKind ws:selector-any ; ws:providesGroup "vscode" ; rdfs:comment "snshah vscode: VS Code settings and extensions, present where VS Code is (code on PATH or a VS Code terminal)." .
 ws:profile-efss a ws:Profile ; ws:name "efss" ; eid:path "workshop/profile.d/efss.ts" ;
     ws:selectorKind ws:selector-has ; ws:providesGroup "efss" ; rdfs:comment "snshah efss: mirror OneDrive, SharePoint, Google Drive, Box, Dropbox, SMB, SFTP and WebDAV through rclone, present where rclone is." .
+ws:profile-share a ws:Profile ; ws:name "share" ; eid:path "workshop/profile.d/share.ts" ;
+    ws:selectorKind ws:selector-any ; ws:providesGroup "share" ; rdfs:comment "snshah share: audit Samba and NFS and print safe subnet-scoped configuration, present where smbd or an NFS server is." .
 
 ws:bin-oh-my-posh a ws:PinnedBinary ; ws:name "oh-my-posh" ; ws:pinnedVersion "33.4.1" ;
     rdfs:comment "Installed under $XDG_DATA_HOME/snshah/bin only when no oh-my-posh is on PATH and the prompt allows it." .
