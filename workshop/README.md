@@ -261,14 +261,15 @@ export const config = {
 > `snshah profile allow`, and that **any edit makes it untrusted again** (the
 > trust is a SHA-256 of its content, kept in `state.json`).
 
-| Command                                         | What it does                                            |
-| ----------------------------------------------- | ------------------------------------------------------- |
-| `snshah profile init`                           | Create a starter file here (never overwrites).          |
-| `snshah profile list`                           | The files that apply here, and whether each is trusted. |
-| `snshah profile allow` (alias `safe`) `[--yes]` | 🚨 Show the file, then trust it to run with no limits.  |
-| `snshah profile deny`                           | Stop trusting it.                                       |
-| `snshah profile show` / `why <name>`            | What applies here, and which file set it.               |
-| `snshah profile check`                          | Validate a trusted file (this runs it).                 |
+| Command                                                  | What it does                                                                                                                                         |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `snshah profile init`                                    | Create a starter file here (never overwrites).                                                                                                       |
+| `snshah profile list` (alias `ls`) `[--all] [--depth n]` | Finds files here, above and below, and shows which are trusted, not trusted or changed. `--all` also scans your workspaces and registered checkouts. |
+| `snshah profile prune`                                   | Forget trust for files that no longer exist.                                                                                                         |
+| `snshah profile allow` (alias `safe`) `[--yes]`          | 🚨 Show the file, then trust it to run with no limits.                                                                                               |
+| `snshah profile deny`                                    | Stop trusting it.                                                                                                                                    |
+| `snshah profile show` / `why <name>`                     | What applies here, and which file set it.                                                                                                            |
+| `snshah profile check`                                   | Validate a trusted file (this runs it).                                                                                                              |
 
 An untrusted or changed file costs your shell one notice line and nothing
 else. Only `aliases`, `env`, `path`, `onEnter` and `onLeave` make sense per
