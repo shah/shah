@@ -79,6 +79,19 @@ This is not an implementation plan.
   hour, with typed state.
 - Q: Install advice? → A: Distribution-specific, not generic.
 
+### Session 2026-11-27 (developer tools and SSH)
+
+- Q: Which tool manager? → A: mise, on by default, configurable, with the
+  README explaining it and how to turn it off (`toolManager: { kind: "none" }`).
+- Q: Install the tools? → A: Yes: gh, ripgrep, fd, bat, fzf, jq, yq, delta and
+  direnv. `bwrap` and `socat` stay distribution-package advice.
+- Q: GitHub? → A: Suggest `gh`, and after first login explain how to sign in
+  before GitHub quietly stops working.
+- Q: SSH helpers? → A: `snshah ssh` shows keys, shows how to copy a key from
+  Linux, macOS or Windows (only the client's OS when it can be told), and
+  covers common cases. A password login gets a colored hint using the same
+  text as `snshah ssh copy`.
+
 ## Primary scenario
 
 Shahid sits down at a new or rebuilt machine (any Linux, WSL, a Mac, or a
@@ -229,6 +242,33 @@ run changes nothing.
   MUST name the distribution and give its exact command, using `su -c` when
   there is no `sudo`.
 
+### Developer tools, GitHub and SSH
+
+- **FR-027**: Unless the config sets `toolManager: { kind: "none" }`,
+  `apply` MUST make mise available (the pinned, SHA-256 checked release in
+  `$XDG_DATA_HOME/snshah/bin/` when none is on PATH, no `sudo`), write the
+  tool list to `$XDG_CONFIG_HOME/mise/conf.d/snshah.toml`, run `mise install`
+  last, and fail if a listed tool is still missing. A user's own mise
+  `config.toml` wins. `tools: { name: false }` leaves a tool out.
+- **FR-028**: The default tools MUST be gh, ripgrep, fd, bat, fzf, jq, yq,
+  delta and direnv; `snshah shell` MUST activate mise and hook direnv for
+  each supported shell.
+- **FR-029**: `snshah doctor` MUST report whether GitHub is signed in and, if
+  not, give the exact next step (`gh auth login --web --git-protocol https`
+  then `gh auth setup-git`); interactive shells MUST remind at most once a
+  day until signed in.
+- **FR-030**: `snshah ssh` MUST provide status (default), keys, new, copy,
+  authorize (file, stdin or `--github <user>`), authorized, test, harden and
+  host add|list|remove. Every change MUST be idempotent, and `harden` MUST
+  only print advice.
+- **FR-031**: `ssh copy` MUST show only the client's OS when known (from
+  `LC_SNSHAH_OS`, `SNSHAH_CLIENT_OS` or iTerm2's `LC_TERMINAL`), otherwise
+  Linux, macOS and Windows, using the address from `SSH_CONNECTION`.
+- **FR-032**: A login that used a password (from `SSH_USER_AUTH`, else the
+  sshd log for that client address and port, else no authorized keys) MUST
+  show a colored hint once per connection with the output of
+  `snshah ssh copy`; `SNSHAH_SSH_HINT=0` MUST silence it.
+
 ### Model of record
 
 - **FR-017**: `ontology/workshop.ttl` MUST state the Workshop's version,
@@ -296,4 +336,5 @@ run changes nothing.
 | FR-018, FR-019, FR-021 | Shahid N. Shah, direct statement, 2026-11-27 (profile.d, type-safe merge, command hooks with env passthrough) |
 | FR-020, FR-022 | Shahid N. Shah, direct statement, 2026-11-27 (environment selectors first, fingerprint when needed, hostnames allowed); private-only rule proposed by Claude |
 | FR-023 | Shahid N. Shah, decision, 2026-11-27 ("Yes, pinned and checksummed") |
+| FR-027 to FR-032 | Shahid N. Shah, direct statements, 2026-11-27 (mise, tools, GitHub sign-in, `snshah ssh`) |
 | FR-024 to FR-026 | Shahid N. Shah, direct statements, 2026-11-27 (Debian 13 acceptance run) |

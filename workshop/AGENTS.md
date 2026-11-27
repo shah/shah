@@ -31,7 +31,7 @@ Rules for a person or an AI agent changing anything in `workshop/`.
   names the distribution and gives its exact command (and `su -c` when there
   is no `sudo`), never "use your package manager". The only binaries snshah
   installs itself are pinned releases verified by SHA-256 into the user's
-  account: Bun (bootstraps) and Oh My Posh (`apply`, a `download` step).
+  account: Bun (bootstraps), Oh My Posh and mise (`apply`, `download` steps).
   Bumping either means new checksums from the release and the matching
   `ontology/workshop.ttl` value.
 - `workshop/profile.d/*.ts` holds environment setups only. Each file exports
@@ -43,6 +43,13 @@ Rules for a person or an AI agent changing anything in `workshop/`.
   `State` and validated on read; damaged state is treated as empty. Shell
   greetings (`snshah shell <shell> --greet`) write only to stderr and must
   never fail a shell.
+- mise owns the developer tools. snshah owns only
+  `$XDG_CONFIG_HOME/mise/conf.d/snshah.toml`; never touch the user's
+  `config.toml`. The `tools` step (`mise install`) runs last. Bumping
+  `miseRelease` needs every target's SHA-256 from the release's
+  `SHASUMS256.txt` and the ontology's mise version. The self-test uses a stub
+  `mise`, so the first real run on a machine is the true test of installs.
+- The `snshah ssh` commands never run `sshd` changes: `harden` only prints.
 - Pin npm dependencies (`commander`, `chalk`, `@clack/prompts`) by exact
   version in `snshah.ts`. `snshah shell` and `snshah exec` must not load
   them.

@@ -159,6 +159,17 @@ const posh = values(toolkit, `${WS}installs`).find(
 if (!posh || one(posh, `${WS}pinnedVersion`) !== ws.ohMyPosh.version)
   problems.push(`oh-my-posh: ontology vs snshah.ts ${ws.ohMyPosh.version}`);
 
+const mise = values(toolkit, `${WS}installs`).find(
+  (iri) => one(iri, `${WS}name`) === "mise",
+);
+if (!mise || one(mise, `${WS}pinnedVersion`) !== ws.miseRelease.version)
+  problems.push(`mise: ontology vs snshah.ts ${ws.miseRelease.version}`);
+same(
+  "default tools",
+  values(toolkit, `${WS}defaultTool`),
+  Object.keys(ws.defaultTools),
+);
+
 // 3b. Every workshop/profile.d file is modeled, with its top-level selector
 // kind, and none uses a private-only selector (hostname, machine).
 const privateOnly = new Set(

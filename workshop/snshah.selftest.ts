@@ -14,11 +14,87 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import { generateKeyPairSync } from "node:crypto";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { delimiter, dirname, join } from "node:path";
 
 type Result = { code: number; out: string; err: string };
 type Options = { script: string; remote?: string };
+
+/** A stand-in for mise: records installs under $HOME/.mise-stub and fakes shims. */
+const miseStub = String.raw`#!/bin/sh
+state=@{MISE_STUB_STATE:-$HOME/.mise-stub}
+data=@{XDG_DATA_HOME:-$HOME/.local/share}/mise
+conf=@{XDG_CONFIG_HOME:-$HOME/.config}/mise/conf.d
+mkdir -p "$state"
+case "$1" in
+  --version) echo "2026.11.14 stub" ;;
+  ls)
+    printf '{'
+    sep=
+    if [ -f "$state/installed" ]; then
+      while read -r name; do
+        printf '%s"%s":[{"version":"1.0.0","installed":true,"active":true}]' "$sep" "$name"
+        sep=,
+      done < "$state/installed"
+    fi
+    printf '}\n'
+    ;;
+  install)
+    mkdir -p "$data/shims"
+    for f in "$conf"/*.toml; do
+      [ -f "$f" ] || continue
+      sed -n 's/^"\([^"]*\)" = .*/\1/p' "$f"
+    done | while read -r name; do
+      grep -qx "$name" "$state/installed" 2>/dev/null || echo "$name" >> "$state/installed"
+      bin=$name; [ "$name" = ripgrep ] && bin=rg
+      cat > "$data/shims/$bin" <<'SHIM'
+#!/bin/sh
+if [ "$1" = hook ]; then
+  case "$2" in
+    fish) echo "set -gx DIRENV_STUB_HOOK fish" ;;
+    pwsh) echo "\$env:DIRENV_STUB_HOOK='pwsh'" ;;
+    *) echo "export DIRENV_STUB_HOOK=$2" ;;
+  esac
+  exit 0
+fi
+echo "__BIN__ 1.2.3"
+SHIM
+      sed -i "s/__BIN__/$bin/" "$data/shims/$bin"
+      chmod +x "$data/shims/$bin"
+      echo "stub: installed $name" >&2
+    done
+    ;;
+  activate)
+    case "$2" in
+      fish) echo "set -gx MISE_SHELL fish; set -gx MISE_STUB_ACTIVE 1; set -gx PATH $data/shims \$PATH" ;;
+      pwsh) echo "\$env:MISE_SHELL='pwsh'; \$env:MISE_STUB_ACTIVE='1'; \$env:PATH='$data/shims' + ':' + \$env:PATH" ;;
+      *) echo "export MISE_SHELL=$2 MISE_STUB_ACTIVE=1; export PATH=$data/shims:\$PATH" ;;
+    esac
+    ;;
+  *) echo "stub mise: unsupported: $*" >&2; exit 2 ;;
+esac
+`.replaceAll("@{", "$" + "{");
+
+/** A valid ed25519 public key line, made in-process (no ssh-keygen needed). */
+function publicKeyLine(comment: string): string {
+  const { publicKey } = generateKeyPairSync("ed25519");
+  const raw = (
+    publicKey.export({ format: "der", type: "spki" }) as Buffer
+  ).subarray(-32);
+  const u32 = (n: number) => {
+    const b = Buffer.alloc(4);
+    b.writeUInt32BE(n);
+    return b;
+  };
+  const blob = Buffer.concat([
+    u32(11),
+    Buffer.from("ssh-ed25519"),
+    u32(32),
+    raw,
+  ]);
+  return `ssh-ed25519 ${blob.toString("base64")} ${comment}`;
+}
 
 export async function selfTest({ script, remote }: Options): Promise<number> {
   const root = await mkdtemp(join(tmpdir(), "snshah-test-"));
@@ -37,7 +113,7 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
     for (const [k, v] of Object.entries(process.env)) {
       if (v === undefined) continue;
       if (
-        /^(XDG_|WORKSPACES_HOME$|CLAUDE_CONFIG_DIR$|CODEX_HOME$|ZDOTDIR$|SNSHAH_|BUN_INSTALL$)/.test(
+        /^(XDG_|WORKSPACES_HOME$|CLAUDE_CONFIG_DIR$|CODEX_HOME$|ZDOTDIR$|SNSHAH_|BUN_INSTALL$|MISE_|GH_|GITHUB_TOKEN$|SSH_CONNECTION$|SSH_CLIENT$|SSH_USER_AUTH$|LC_SNSHAH_OS$|LC_TERMINAL$)/.test(
           k,
         )
       )
@@ -46,6 +122,9 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
     }
     return {
       ...env,
+      // A stand-in mise first on PATH: real installs need the GitHub API,
+      // which a test must not depend on. Its state lives under each HOME.
+      PATH: `${join(root, "stub")}${delimiter}${env.PATH ?? ""}`,
       HOME: home,
       USERPROFILE: home,
       NO_COLOR: "1",
@@ -66,6 +145,10 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
     join(root, "gitconfig"),
     "[user]\n\tname = snshah test\n\temail = test@example.invalid\n[init]\n\tdefaultBranch = main\n[advice]\n\tdetachedHead = false\n",
   );
+
+  await mkdir(join(root, "stub"), { recursive: true });
+  await writeFile(join(root, "stub", "mise"), miseStub, { mode: 0o755 });
+  await chmod(join(root, "stub", "mise"), 0o755);
 
   const home = join(root, "home");
   await mkdir(home, { recursive: true });
@@ -408,23 +491,23 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
       bash: [
         "bash",
         "-ic",
-        `echo "MKCD=$(type -t mkcd)"; echo "GS=$(type -t gs)"; echo "WS=$WORKSPACES_HOME"; echo "TOKEN=$DEMO_SHELL_TOKEN"; echo "CMD=$(bun -e '${probe}')"`,
+        `echo "MKCD=$(type -t mkcd)"; echo "GS=$(type -t gs)"; echo "WS=$WORKSPACES_HOME"; echo "TOKEN=$DEMO_SHELL_TOKEN"; echo "CMD=$(bun -e '${probe}')"; echo "MISE=$MISE_STUB_ACTIVE"; echo "DIRENV=$DIRENV_STUB_HOOK"; echo "OS=$LC_SNSHAH_OS"`,
       ],
       zsh: [
         "zsh",
         "-ic",
-        `echo "MKCD=\${$(whence -w mkcd)#*: }"; echo "GS=\${$(whence -w gs)#*: }"; echo "WS=$WORKSPACES_HOME"; echo "TOKEN=$DEMO_SHELL_TOKEN"; echo "CMD=$(bun -e '${probe}')"`,
+        `echo "MKCD=\${$(whence -w mkcd)#*: }"; echo "GS=\${$(whence -w gs)#*: }"; echo "WS=$WORKSPACES_HOME"; echo "TOKEN=$DEMO_SHELL_TOKEN"; echo "CMD=$(bun -e '${probe}')"; echo "MISE=$MISE_STUB_ACTIVE"; echo "DIRENV=$DIRENV_STUB_HOOK"; echo "OS=$LC_SNSHAH_OS"`,
       ],
       fish: [
         "fish",
         "-ic",
-        `echo MKCD=(type -t mkcd); echo GS=(type -t gs); echo WS=$WORKSPACES_HOME; echo TOKEN=$DEMO_SHELL_TOKEN; echo CMD=(bun -e '${probe}')`,
+        `echo MKCD=(type -t mkcd); echo GS=(type -t gs); echo WS=$WORKSPACES_HOME; echo TOKEN=$DEMO_SHELL_TOKEN; echo CMD=(bun -e '${probe}'); echo MISE=$MISE_STUB_ACTIVE; echo DIRENV=$DIRENV_STUB_HOOK; echo OS=$LC_SNSHAH_OS`,
       ],
       pwsh: [
         "pwsh",
         "-NoLogo",
         "-Command",
-        `"MKCD=" + (Get-Command mkcd).CommandType; "GS=" + (Get-Command gs).CommandType; "WS=" + $env:WORKSPACES_HOME; "TOKEN=" + $env:DEMO_SHELL_TOKEN; "CMD=" + (bun -e '${probe}')`,
+        `"MKCD=" + (Get-Command mkcd).CommandType; "GS=" + (Get-Command gs).CommandType; "WS=" + $env:WORKSPACES_HOME; "TOKEN=" + $env:DEMO_SHELL_TOKEN; "CMD=" + (bun -e '${probe}'); "MISE=" + $env:MISE_STUB_ACTIVE; "DIRENV=" + $env:DIRENV_STUB_HOOK; "OS=" + $env:LC_SNSHAH_OS`,
       ],
     };
     for (const [shell, argv] of Object.entries(live)) {
@@ -436,7 +519,12 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
           /GS=(alias|function)/i.test(r.out) &&
           r.out.includes(`WS=${join(home, "workspaces")}`) &&
           r.out.includes("TOKEN=shell-secret-value") &&
-          r.out.includes("CMD=cmd-secret-value"),
+          r.out.includes("CMD=cmd-secret-value") &&
+          r.out.includes("MISE=1") &&
+          r.out.includes(`DIRENV=${shell}`) &&
+          r.out.includes(
+            `OS=${process.platform === "darwin" ? "macos" : process.platform === "win32" ? "windows" : "linux"}`,
+          ),
         r.out + r.err,
       );
     }
@@ -514,6 +602,537 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
         SNSHAH_GREET: "0",
       });
       check("SNSHAH_GREET=0 keeps shells quiet", off.err === "", off.err);
+    }
+
+    // mise: tool list, install through mise, activation, direnv, opt-out.
+    {
+      const miseFile = join(home, ".config", "mise", "conf.d", "snshah.toml");
+      const toml = existsSync(miseFile) ? await readFile(miseFile, "utf8") : "";
+      check(
+        "apply wrote snshah's mise tool list with the default tools",
+        [
+          "direnv",
+          "gh",
+          "ripgrep",
+          "fd",
+          "bat",
+          "fzf",
+          "jq",
+          "yq",
+          "delta",
+        ].every((t) => toml.includes(`"${t}" = "latest"`)),
+        toml,
+      );
+      check(
+        "apply installed the default tools through mise",
+        existsSync(join(home, ".local", "share", "mise", "shims", "direnv")) &&
+          existsSync(join(home, ".local", "share", "mise", "shims", "rg")),
+      );
+      const d = json<{
+        checks: Array<{ check: string; version?: string }>;
+        advice: string[];
+      }>(cli(["doctor", "--json"]));
+      check(
+        "doctor finds mise-installed tools and shows their versions",
+        ["direnv", "gh", "rg", "fd", "bat", "delta"].every(
+          (t) => d?.checks.find((c) => c.check === t)?.version === "1.2.3",
+        ) && !d?.advice.some((a) => /fd-find|git-delta|direnv/.test(a)),
+        JSON.stringify(d?.checks.filter((c) => c.version)),
+      );
+      for (const shell of ["bash", "zsh", "fish", "pwsh"]) {
+        const out = cli(["shell", shell]).out;
+        check(
+          `shell ${shell}: activates mise, hooks direnv, tells servers the OS`,
+          out.includes(`activate ${shell}`) &&
+            out.includes(`direnv hook ${shell}`) &&
+            out.includes("LC_SNSHAH_OS"),
+        );
+      }
+
+      // A private profile can leave a tool out and add one.
+      const profileDir = join(home, ".config", "snshah", "profile.d");
+      await mkdir(profileDir, { recursive: true });
+      const tweak = join(profileDir, "60-tools.ts");
+      await writeFile(
+        tweak,
+        'export const selector = { kind: "always" };\nexport const config = { tools: { delta: false, node: "20" } };\n',
+      );
+      const t1 = cli(["apply", "--yes"]);
+      const toml2 = await readFile(miseFile, "utf8");
+      check(
+        "tools: false leaves a tool out and a new tool is added and installed",
+        t1.code === 0 &&
+          !toml2.includes('"delta"') &&
+          toml2.includes('"node" = "20"') &&
+          existsSync(join(home, ".local", "share", "mise", "shims", "node")),
+        t1.out + t1.err + toml2,
+      );
+      check(
+        "apply with a tools change is idempotent",
+        cli(["apply", "--yes"]).out.includes("No changes needed."),
+      );
+      await writeFile(
+        tweak,
+        'export const selector = { kind: "always" };\nexport const config = { toolManager: { kind: "none" } };\n',
+      );
+      const off = cli(["plan", "--json"]);
+      const offSteps = json<Array<{ kind: string; label: string }>>(off) ?? [];
+      check(
+        'toolManager "none" plans removing snshah\'s tool list only',
+        offSteps.some(
+          (x) => x.kind === "remove" && x.label.includes("mise tool list"),
+        ) && !offSteps.some((x) => x.kind === "tools"),
+        off.out,
+      );
+      const offOut = cli(["shell", "bash"]).out;
+      check(
+        'toolManager "none" stops emitting mise activation',
+        !offOut.includes("activate bash") && offOut.includes("direnv hook"),
+      );
+      cli(["apply", "--yes"]);
+      check(
+        'toolManager "none" removed the tool list and left your own mise config alone',
+        !existsSync(miseFile),
+      );
+      await rm(tweak);
+      cli(["apply", "--yes"]);
+      check(
+        "removing the profile brings the tool list back",
+        existsSync(miseFile) &&
+          cli(["apply", "--yes"]).out.includes("No changes needed."),
+      );
+      const bad = join(profileDir, "61-bad.ts");
+      await writeFile(
+        bad,
+        'export const selector = { kind: "always" };\nexport const config = { tools: { "x y": "latest" } };\n',
+      );
+      const badRun = cli(["plan"]);
+      check(
+        "an invalid tool name is refused",
+        badRun.code !== 0 && (badRun.out + badRun.err).includes("tools"),
+        badRun.out + badRun.err,
+      );
+      await rm(bad);
+    }
+
+    // GitHub sign-in: shown by the greeting once a day until done.
+    {
+      const ghHome = join(root, "gh-home");
+      await mkdir(ghHome);
+      const ge = {
+        ...baseEnv(ghHome),
+        SNSHAH_GREET: "1",
+        SNSHAH_REF: "0123456789abcdef0123456789abcdef01234567",
+      };
+      cli(["apply", "--yes"], undefined, ge);
+      const a = cli(["shell", "bash", "--greet"], undefined, ge);
+      check(
+        "greeting reminds about GitHub sign-in with the command to run",
+        a.err.includes("GitHub is not signed in") &&
+          a.err.includes("gh auth login"),
+        a.err,
+      );
+      const b = cli(["shell", "bash", "--greet"], undefined, ge);
+      check(
+        "the GitHub reminder shows once a day",
+        !b.err.includes("GitHub is not signed in"),
+        b.err,
+      );
+      const signed = join(root, "gh-signed");
+      await mkdir(signed);
+      const se = {
+        ...baseEnv(signed),
+        SNSHAH_GREET: "1",
+        GH_TOKEN: "x",
+        SNSHAH_REF: "0123456789abcdef0123456789abcdef01234567",
+      };
+      const c = cli(["shell", "bash", "--greet"], undefined, se);
+      check(
+        "no GitHub reminder when a token is present",
+        !c.err.includes("GitHub is not signed in"),
+        c.err,
+      );
+    }
+
+    // ssh: keys, authorizing, copy instructions, hosts, the password-login hint.
+    {
+      const sshHome = join(root, "ssh-home");
+      await mkdir(sshHome);
+      const se = baseEnv(sshHome);
+      const key1 = publicKeyLine("alice@laptop");
+      const key2 = publicKeyLine("bob@desktop");
+      const parsed = mod.parsePublicKey(key1);
+      check(
+        "parsePublicKey reads a key and its comment; fingerprint is SHA256",
+        parsed?.type === "ssh-ed25519" &&
+          parsed.comment === "alice@laptop" &&
+          /^SHA256:[A-Za-z0-9+/]{43}$/.test(mod.fingerprint(parsed.blob)),
+      );
+      check(
+        "parsePublicKey refuses a key whose blob does not match its type",
+        mod.parsePublicKey("ssh-rsa " + key1.split(" ")[1]) === undefined &&
+          mod.parsePublicKey("not a key") === undefined,
+      );
+      check(
+        "parsePublicKey keeps authorized_keys options apart from the key",
+        mod.parsePublicKey(`from="10.0.0.0/8",no-pty ${key1}`)?.options ===
+          'from="10.0.0.0/8",no-pty',
+      );
+      const sess0 = cli(["ssh", "authorized"], undefined, se);
+      check(
+        "ssh authorized with no keys says so",
+        sess0.code === 0 && sess0.out.includes("No keys"),
+        sess0.out + sess0.err,
+      );
+      const a1 = cli(["ssh", "authorize", "--key", key1], undefined, se);
+      const a2 = cli(["ssh", "authorize", "--key", key1], undefined, se);
+      check(
+        "ssh authorize adds a key once and is a no-op the second time",
+        a1.out.includes("Added 1") &&
+          a2.out.includes("No changes needed.") &&
+          a2.out.includes("already there"),
+        a1.out + a2.out + a1.err + a2.err,
+      );
+      const file = join(sshHome, ".ssh", "authorized_keys");
+      const again = cli(
+        ["ssh", "authorize", "--key", key1.replace("alice@laptop", "renamed")],
+        undefined,
+        se,
+      );
+      check(
+        "a key already authorized is recognized by the key, not its comment",
+        again.out.includes("No changes needed.") &&
+          (await readFile(file, "utf8")).trim().split("\n").length === 1,
+      );
+      await writeFile(
+        join(root, "more.pub"),
+        `${key2}\n# a comment\nnot a key\n`,
+      );
+      const a3 = cli(
+        ["ssh", "authorize", "--file", join(root, "more.pub")],
+        undefined,
+        se,
+      );
+      check(
+        "ssh authorize --file adds valid keys and skips the rest",
+        a3.out.includes("Added 1") && a3.out.includes("not valid"),
+        a3.out + a3.err,
+      );
+      if (process.platform !== "win32") {
+        const modes = [
+          (await stat(join(sshHome, ".ssh"))).mode & 0o777,
+          (await stat(file)).mode & 0o777,
+        ];
+        check(
+          "authorized_keys is 0600 in a 0700 directory",
+          modes[0] === 0o700 && modes[1] === 0o600,
+          modes.map((m) => m.toString(8)).join(" "),
+        );
+      }
+      const list = json<Array<{ fingerprint: string; comment: string }>>(
+        cli(["ssh", "authorized", "--json"], undefined, se),
+      );
+      check(
+        "ssh authorized --json lists fingerprints and comments",
+        list?.length === 2 &&
+          list[0]!.comment === "alice@laptop" &&
+          list[1]!.fingerprint.startsWith("SHA256:"),
+      );
+      check(
+        "ssh authorize needs exactly one source",
+        cli(["ssh", "authorize"], undefined, se).code === 2,
+      );
+      check(
+        "ssh authorize refuses a bad GitHub user name",
+        cli(["ssh", "authorize", "--github", "-bad"], undefined, se).code === 2,
+      );
+
+      // keys: list, fingerprints, loose permissions.
+      await writeFile(join(sshHome, ".ssh", "id_ed25519.pub"), key1 + "\n");
+      await writeFile(join(sshHome, ".ssh", "id_ed25519"), "private\n", {
+        mode: 0o644,
+      });
+      if (process.platform !== "win32")
+        await chmod(join(sshHome, ".ssh", "id_ed25519"), 0o644);
+      const keys = cli(["ssh", "keys"], undefined, se);
+      check(
+        "ssh keys shows the public key and warns about a world-readable private key",
+        keys.out.includes(key1) &&
+          (process.platform === "win32" || keys.out.includes("chmod 600")) &&
+          !keys.out.includes("private\n"),
+        keys.out + keys.err,
+      );
+      check(
+        "ssh new leaves an existing key alone",
+        cli(["ssh", "new"], undefined, se).out.includes("already exists"),
+      );
+
+      // copy: instructions for each OS, filled in from the target.
+      const t = mod.parseTarget("shah@example.invalid", "me", 2222);
+      const linux = mod
+        .copyCommands("linux", t)
+        .map((x: { command: string }) => x.command)
+        .join("\n");
+      const mac = mod
+        .copyCommands("macos", t)
+        .map((x: { command: string }) => x.command)
+        .join("\n");
+      const win = mod
+        .copyCommands("windows", t)
+        .map((x: { command: string }) => x.command)
+        .join("\n");
+      check(
+        "copy instructions: ssh-copy-id on Linux and macOS, PowerShell on Windows, port included",
+        linux.includes(
+          "ssh-copy-id -i ~/.ssh/id_ed25519.pub -p 2222 shah@example.invalid",
+        ) &&
+          mac.includes("--apple-use-keychain") &&
+          win.includes("Get-Content") &&
+          win.includes("ssh -p 2222 shah@example.invalid") &&
+          !linux.includes("Get-Content"),
+        win,
+      );
+      check(
+        "parseTarget refuses option-looking input",
+        (() => {
+          try {
+            mod.parseTarget("-oProxyCommand=evil@host", "me");
+            return false;
+          } catch {
+            return true;
+          }
+        })() &&
+          (() => {
+            try {
+              mod.parseTarget("me@-oProxyCommand=evil", "me");
+              return false;
+            } catch {
+              return true;
+            }
+          })(),
+      );
+      const ce = { ...se, SSH_CONNECTION: "192.0.2.10 50000 192.0.2.20 2222" };
+      const all = cli(["ssh", "copy"], undefined, ce);
+      check(
+        "ssh copy on a server uses the address the client connected to and shows all three OSes",
+        all.out.includes("@192.0.2.20") &&
+          all.out.includes("-p 2222") &&
+          all.out.includes("Linux") &&
+          all.out.includes("macOS") &&
+          all.out.includes("Windows"),
+        all.out + all.err,
+      );
+      const smart = cli(["ssh", "copy"], undefined, {
+        ...ce,
+        LC_SNSHAH_OS: "macos",
+      });
+      check(
+        "ssh copy shows only the client's OS when the client told us",
+        smart.out.includes("macOS") &&
+          !smart.out.includes("Windows (PowerShell)") &&
+          smart.out.includes("sent by the client"),
+        smart.out,
+      );
+      const iterm = mod.detectClientOs({ LC_TERMINAL: "iTerm2" });
+      check(
+        "iTerm2 identifies a macOS client; nothing identifies nothing",
+        iterm?.os === "macos" && mod.detectClientOs({}) === undefined,
+      );
+      check(
+        "ssh copy --run refuses on a server (no target)",
+        cli(["ssh", "copy", "--run"], undefined, ce).code === 2,
+      );
+
+      // hosts: one marked block each, idempotent.
+      const h1 = cli(
+        [
+          "ssh",
+          "host",
+          "add",
+          "nas",
+          "me@nas.example.invalid",
+          "-p",
+          "2200",
+          "-i",
+          "~/.ssh/id_ed25519",
+        ],
+        undefined,
+        se,
+      );
+      const h2 = cli(
+        [
+          "ssh",
+          "host",
+          "add",
+          "nas",
+          "me@nas.example.invalid",
+          "-p",
+          "2200",
+          "-i",
+          "~/.ssh/id_ed25519",
+        ],
+        undefined,
+        se,
+      );
+      const cfg = await readFile(join(sshHome, ".ssh", "config"), "utf8");
+      check(
+        "ssh host add writes one block and is a no-op when repeated",
+        h1.code === 0 &&
+          h2.out.includes("No changes needed.") &&
+          cfg.includes("Host nas") &&
+          cfg.includes("Port 2200") &&
+          cfg.includes("SendEnv LC_SNSHAH_OS") &&
+          cfg.split("# >>> snshah ssh host nas >>>").length === 2,
+        h1.out + h2.out + cfg,
+      );
+      check(
+        "ssh host list shows it",
+        cli(["ssh", "host", "list"], undefined, se).out.includes("nas"),
+      );
+      check(
+        "ssh host add refuses an option-looking target",
+        cli(["ssh", "host", "add", "x", "-oProxyCommand=evil@h"], undefined, se)
+          .code !== 0,
+      );
+      check(
+        "ssh host remove removes only that block",
+        await (async () => {
+          await writeFile(
+            join(sshHome, ".ssh", "config"),
+            "Host mine\n    User me\n\n" + cfg,
+          );
+          cli(["ssh", "host", "remove", "nas"], undefined, se);
+          const after = await readFile(join(sshHome, ".ssh", "config"), "utf8");
+          return after.includes("Host mine") && !after.includes("Host nas");
+        })(),
+      );
+
+      // sshd settings (pure parsing): first value wins, Include is followed, Match stops it.
+      const files: Record<string, string> = {
+        "/etc/ssh/sshd_config":
+          "Include /etc/ssh/sshd_config.d/*.conf\nPasswordAuthentication yes\nPermitRootLogin prohibit-password\nMatch User x\nPasswordAuthentication yes\n",
+        "/etc/ssh/sshd_config.d/10-a.conf": "PasswordAuthentication no\n",
+      };
+      const sshd = mod.parseSshdConfig(
+        (path: string) => files[path],
+        (dir: string) =>
+          dir === "/etc/ssh/sshd_config.d" ? ["10-a.conf", "README"] : [],
+      );
+      check(
+        "sshd config parsing: included file first, first value wins",
+        sshd.get("passwordauthentication") === "no" &&
+          sshd.get("permitrootlogin") === "prohibit-password",
+      );
+      const hard = cli(["ssh", "harden"], undefined, se);
+      check(
+        "ssh harden only prints advice",
+        hard.code === 0 && hard.out.includes("never runs it"),
+        hard.out + hard.err,
+      );
+
+      // How you logged in: log lines, then authorized keys.
+      const logText = [
+        "Nov 27 12:00:00 h sshd[1]: Accepted publickey for snshah from 192.0.2.9 port 40000 ssh2: ED25519 SHA256:x",
+        "Nov 27 12:01:00 h sshd[2]: Accepted password for snshah from 192.0.2.10 port 50000 ssh2",
+        "Nov 27 12:02:00 h sshd[3]: Accepted keyboard-interactive/pam for snshah from 192.0.2.11 port 50001 ssh2",
+      ].join("\n");
+      check(
+        "login method is read from the sshd log line for that exact connection",
+        mod.methodFromLog(logText, "snshah", "192.0.2.10", 50000) ===
+          "password" &&
+          mod.methodFromLog(logText, "snshah", "192.0.2.9", 40000) ===
+            "publickey" &&
+          mod.methodFromLog(logText, "snshah", "192.0.2.11", 50001) ===
+            "keyboard-interactive" &&
+          mod.methodFromLog(logText, "snshah", "192.0.2.10", 50099) ===
+            undefined,
+      );
+
+      // The greeting: hint on a password login, once per connection.
+      const hintHome = join(root, "hint-home");
+      await mkdir(hintHome);
+      const hintEnv = {
+        ...baseEnv(hintHome),
+        SNSHAH_GREET: "1",
+        SNSHAH_REF: "0123456789abcdef0123456789abcdef01234567",
+        SSH_CONNECTION: "192.0.2.10 50000 192.0.2.20 22",
+        USER: "snshah",
+      };
+      cli(["apply", "--yes"], undefined, hintEnv);
+      const plainShell = cli(["shell", "bash"], undefined, hintEnv);
+      const h = cli(["shell", "bash", "--greet"], undefined, hintEnv);
+      check(
+        "a password login (no authorized keys) shows the SSH key hint on stderr only",
+        h.code === 0 &&
+          h.err.includes("signed in with a password") &&
+          h.err.includes("ssh-copy-id") &&
+          h.err.includes("@192.0.2.20") &&
+          h.out === plainShell.out,
+        h.err,
+      );
+      const via = cli(["ssh", "copy"], undefined, hintEnv);
+      check(
+        "the hint's instructions are the same text as `snshah ssh copy`",
+        via.out.length > 0 &&
+          h.err.includes(via.out.trim().split("\n")[0]!) &&
+          h.err.includes(via.out.trim().split("\n").at(-1)!),
+        via.out,
+      );
+      check(
+        "the hint shows once per connection",
+        !cli(["shell", "bash", "--greet"], undefined, hintEnv).err.includes(
+          "signed in with a password",
+        ),
+      );
+      const other = cli(["shell", "bash", "--greet"], undefined, {
+        ...hintEnv,
+        SSH_CONNECTION: "192.0.2.10 50001 192.0.2.20 22",
+      });
+      check(
+        "a new connection shows it again",
+        other.err.includes("signed in with a password"),
+      );
+      const quietHome = join(root, "hint-quiet");
+      await mkdir(quietHome);
+      const quietEnv = {
+        ...hintEnv,
+        ...baseEnv(quietHome),
+        SNSHAH_GREET: "1",
+        SNSHAH_SSH_HINT: "0",
+      };
+      check(
+        "SNSHAH_SSH_HINT=0 silences it",
+        !cli(["shell", "bash", "--greet"], undefined, quietEnv).err.includes(
+          "signed in with a password",
+        ),
+      );
+      const keyedHome = join(root, "hint-keyed");
+      await mkdir(join(keyedHome, ".ssh"), { recursive: true });
+      await writeFile(join(keyedHome, ".ssh", "authorized_keys"), key1 + "\n");
+      const keyedEnv = { ...hintEnv, ...baseEnv(keyedHome), SNSHAH_GREET: "1" };
+      check(
+        "no hint when this account already has authorized keys and the login method is unknown",
+        !cli(["shell", "bash", "--greet"], undefined, keyedEnv).err.includes(
+          "signed in with a password",
+        ),
+      );
+      const localHome = join(root, "hint-local");
+      await mkdir(localHome);
+      const localEnv = { ...baseEnv(localHome), SNSHAH_GREET: "1" };
+      check(
+        "no hint on a local console",
+        !cli(["shell", "bash", "--greet"], undefined, localEnv).err.includes(
+          "signed in with a password",
+        ),
+      );
+      const st = cli(["ssh", "status"], undefined, hintEnv);
+      check(
+        "ssh status reports the password login and the next step",
+        st.code === 0 &&
+          st.out.includes("with a password") &&
+          st.out.includes("snshah ssh copy"),
+        st.out + st.err,
+      );
     }
 
     // Git checkout registry against a local fixture.

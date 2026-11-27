@@ -112,6 +112,14 @@ ws:selectorKind a owl:ObjectProperty ; rdfs:domain ws:Profile ; rdfs:range ws:Se
     rdfs:comment "The kind of the profile's top-level exported selector." .
 ws:privateOnly a owl:DatatypeProperty ; rdfs:domain ws:SelectorKind ; rdfs:range xsd:boolean ;
     rdfs:comment "True when only private profile.d files may use this selector (it names a machine)." .
+ws:toolManager a owl:ObjectProperty ; rdfs:domain ws:Toolkit ; rdfs:range ws:PinnedBinary ;
+    rdfs:comment "The developer tool manager snshah drives by default." .
+ws:defaultTool a owl:DatatypeProperty ; rdfs:domain ws:Toolkit ; rdfs:range xsd:string ;
+    rdfs:comment "A mise tool every machine gets unless its config sets tools.<name> to false." .
+ws:clientOsVariable a owl:DatatypeProperty ; rdfs:domain ws:Toolkit ; rdfs:range xsd:string ;
+    rdfs:comment "The LC_* variable snshah's shell init exports so ssh sends the client OS to the server." .
+ws:sshHintSilencedBy a owl:DatatypeProperty ; rdfs:domain ws:Toolkit ; rdfs:range xsd:string ;
+    rdfs:comment "Environment variable that silences the password-login hint." .
 ws:installs a owl:ObjectProperty ; rdfs:domain ws:Toolkit ; rdfs:range ws:PinnedBinary .
 ws:selfCheckout a owl:DatatypeProperty ; rdfs:domain ws:Toolkit ; rdfs:range xsd:string ;
     rdfs:comment "Registry name of this repository's own built-in checkout under $WORKSPACES_HOME." .

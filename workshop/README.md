@@ -58,6 +58,8 @@ binaries it installs itself are pinned, checksummed user-space releases
 | Private typed config (mode 0600, never in Git) | `$XDG_CONFIG_HOME/snshah/snshah.conf.ts` and its generated `snshah.auto.d.ts`                                            |
 | Oh My Posh theme                               | `$XDG_DATA_HOME/snshah/snshah.omp.json`, from [`snshah.omp.json`](snshah.omp.json) (the coach theme, unmodified)         |
 | Oh My Posh 33.4.1, only if none is on PATH     | `$XDG_DATA_HOME/snshah/bin/oh-my-posh`, SHA-256 checked (turn off with `prompt: { kind: "oh-my-posh", install: false }`) |
+| mise 2026.11.14, only if none is on PATH       | `$XDG_DATA_HOME/snshah/bin/mise`, SHA-256 checked (see [Developer tools](#developer-tools-mise))                         |
+| Your developer tools                           | `$XDG_CONFIG_HOME/mise/conf.d/snshah.toml`, installed by `mise install` as the last step                                 |
 | Profiles from this repository                  | `$XDG_DATA_HOME/snshah/profile.d/`, from [`profile.d/`](profile.d/)                                                      |
 | Install receipt, lock and `state.json`         | `$XDG_STATE_HOME/snshah/`                                                                                                |
 | Download cache                                 | `$XDG_CACHE_HOME/snshah/`                                                                                                |
@@ -69,6 +71,62 @@ Paths follow the XDG Base Directory spec strictly, on every OS including
 macOS and Windows: an unset or relative `XDG_*` variable falls back to
 `~/.config`, `~/.local/share`, `~/.local/state` and `~/.cache`, never to
 `~/Library` or `%APPDATA%`.
+
+## Developer tools (mise)
+
+[mise](https://mise.jdx.dev) is on by default. It installs developer tools
+into your account (no `sudo`) and keeps them current, on every OS. `apply`
+installs mise if it is missing, writes the tool list to
+`$XDG_CONFIG_HOME/mise/conf.d/snshah.toml` (your own `config.toml` wins), and
+runs `mise install`. It fails loudly if a tool is still missing.
+
+Default tools: `gh`, `ripgrep`, `fd`, `bat`, `fzf`, `jq`, `yq`, `delta` and
+`direnv`. `snshah shell` activates mise and hooks direnv, so a `.envrc` in
+a project just works (`direnv allow` once). Change it in your private config:
+
+```ts
+export default {
+  tools: { delta: false, node: "lts" }, // drop one, add one
+  // toolManager: { kind: "none" },     // turn mise and the tool list off
+};
+```
+
+`bwrap` and `socat` (needed by Claude Code's sandbox) are system packages, so
+`snshah doctor` advises them for your distribution instead. mise and direnv
+are not yet tested on native Windows.
+
+### GitHub sign-in
+
+`gh` is installed, but it can't sign in for you. After your first login run:
+
+```sh
+gh auth login --web --git-protocol https && gh auth setup-git
+```
+
+Do it before `git clone` or `git push` over HTTPS quietly fails. `snshah
+doctor` shows whether you are signed in, and your shell reminds you once a
+day until you are.
+
+## SSH helpers
+
+| Command                                       | What it does                                                                   |
+| --------------------------------------------- | ------------------------------------------------------------------------------ |
+| `snshah ssh [status]`                         | How you logged in, from where, and the keys involved.                          |
+| `snshah ssh keys` / `new`                     | List your public keys with fingerprints / create an ed25519 key.               |
+| `snshah ssh copy [target] [--os OS] [--run]`  | How to copy a key to this machine from Linux, macOS or Windows.                |
+| `snshah ssh authorize [file] [--github USER]` | Add a public key to `authorized_keys`, once.                                   |
+| `snshah ssh authorized`                       | Which keys can log in here.                                                    |
+| `snshah ssh test <target>`                    | Check key login to a target.                                                   |
+| `snshah ssh harden`                           | Prints the sshd changes that turn off passwords. Advice only; never runs them. |
+| `snshah ssh host add\|list\|remove`           | Manage marked `Host` blocks in `~/.ssh/config`.                                |
+
+`copy` shows only the client's OS when it knows it. snshah's shell init exports
+`LC_SNSHAH_OS`, which default `ssh` and `sshd` configs already send and accept;
+otherwise it shows all three. If you log in with a password, the shell shows a
+colored hint with the same text as `snshah ssh copy`, once per connection.
+Detection uses `SSH_USER_AUTH` (`ExposeAuthInfo yes` makes it exact), else the
+sshd log, else "no authorized keys". `SNSHAH_SSH_HINT=0` silences the hint, and
+`SNSHAH_GREET=0` silences all greetings.
 
 ## Minimal shell pollution: `snshah shell`
 
@@ -215,6 +273,7 @@ the bootstrap and `snshah git clone shah` put it in
 | `snshah exec <command> [args]`                            | Run a command with its command-scoped secrets.                                             |
 | `snshah config path\|check\|edit\|set-secret`             | Manage the private config.                                                                 |
 | `snshah git root\|add\|list\|path\|clone\|update\|remove` | Manage checkouts.                                                                          |
+| `snshah ssh <subcommand>`                                 | SSH keys, key copying and hosts (see above).                                               |
 | `snshah update [--check [--quiet]] [--yes] [--ref REF]`   | Preview, then apply, one pinned upstream commit. `--check` only says whether one is newer. |
 | `snshah test [--remote REF]`                              | Self-test in a temporary HOME.                                                             |
 

@@ -32,7 +32,13 @@ import {
 } from "node:fs/promises";
 import { spawn as spawnChild } from "node:child_process";
 import { createHash } from "node:crypto";
-import { homedir, hostname, tmpdir } from "node:os";
+import {
+  homedir,
+  hostname,
+  networkInterfaces,
+  tmpdir,
+  userInfo,
+} from "node:os";
 import { pathToFileURL } from "node:url";
 import {
   basename,
@@ -62,11 +68,17 @@ export type Secret =
   | { variable: string; value: string; scope: "command"; commands: string[] }
   | { variable: string; value: string; scope: "shell" };
 export type Repository = { name: string; source: string; path?: string };
+/** mise installs and activates developer tools in your account. `none` turns it off. */
+export type ToolManager = { kind: "mise" } | { kind: "none" };
+/** A mise version ("latest", "20", "1.7.1"), or false to leave a tool out. */
+export type ToolSpec = string | false;
 export type WorkshopConfig = {
   workspacesHome?: string;
   path?: string[];
   aliases?: Record<string, AliasValue>;
   prompt?: Prompt;
+  toolManager?: ToolManager;
+  tools?: Record<string, ToolSpec>;
   agents?: { claude?: AgentDefaults; codex?: AgentDefaults };
   repositories?: Repository[];
   secrets?: Secret[];
@@ -136,7 +148,7 @@ type Covers<T extends readonly string[], U extends string> = [
   ? true
   : ["missing", Exclude<U, T[number]>];
 
-export const cliVersion = "0.2.2";
+export const cliVersion = "0.3.0";
 export const minimumBun = "1.4.0";
 /** The Oh My Posh release snshah installs when none is on PATH, by Bun-style target. */
 export const ohMyPosh = {
@@ -175,6 +187,65 @@ export const ohMyPosh = {
   },
 } as const;
 export type PoshTarget = keyof typeof ohMyPosh.assets;
+/** The mise release snshah installs when none is on PATH; bare binaries, SHA-256 from its SHASUMS256.txt. */
+export const miseRelease = {
+  version: "2026.11.14",
+  assets: {
+    "linux-x64": {
+      file: "mise-v2026.11.14-linux-x64",
+      sha256:
+        "6fa596291e9758106f761fea4f8e7fac6c3e7ff4714d5c0b9a76e16068db14f6",
+    },
+    "linux-x64-musl": {
+      file: "mise-v2026.11.14-linux-x64-musl",
+      sha256:
+        "3b2dbc7011bfd96c4b1160db2bca9f0937f226cc61ae5beddfd1fec536e81b2a",
+    },
+    "linux-arm64": {
+      file: "mise-v2026.11.14-linux-arm64",
+      sha256:
+        "7bd3b2d5ffff077a7662ba186c09600e5b40c1eee9df0c264ed67642ce0a8698",
+    },
+    "linux-arm64-musl": {
+      file: "mise-v2026.11.14-linux-arm64-musl",
+      sha256:
+        "7a5252b6a4f30baa96486234e9f217c9f9aaef2343f32b744cd1a54fb4248268",
+    },
+    "macos-x64": {
+      file: "mise-v2026.11.14-macos-x64",
+      sha256:
+        "7f38115f28c6cef9d344bc528670d1033d24a9385455013768e78ad6203d9791",
+    },
+    "macos-arm64": {
+      file: "mise-v2026.11.14-macos-arm64",
+      sha256:
+        "ad39dddb61236cc546ecbd0294aa3fc72a5ae7f1f8c7e6dc6fd4211f99eb3b79",
+    },
+    "windows-x64": {
+      file: "mise-v2026.11.14-windows-x64.exe",
+      sha256:
+        "d190f5d00fd79d4c7bff1f3f5f4e41aa0b4a2a1a9002e6fca1977367be36413e",
+    },
+    "windows-arm64": {
+      file: "mise-v2026.11.14-windows-arm64.exe",
+      sha256:
+        "1f2caac177da781843b36a8ff764f6b5ecec9df3090ea89053b3e6aea7a648fb",
+    },
+  },
+} as const;
+export type MiseTarget = keyof typeof miseRelease.assets;
+/** Developer tools every machine gets from mise, by mise registry name. */
+export const defaultTools = {
+  gh: "latest",
+  ripgrep: "latest",
+  fd: "latest",
+  bat: "latest",
+  fzf: "latest",
+  jq: "latest",
+  yq: "latest",
+  delta: "latest",
+  direnv: "latest",
+} as const satisfies Record<string, string>;
 export const dependencies = {
   commander: "12.1.0",
   chalk: "5.6.2",
@@ -224,6 +295,7 @@ export const stepKinds = [
   "remove",
   "command",
   "download",
+  "tools",
 ] as const;
 export const packageManagers = [
   "apt",
@@ -253,6 +325,17 @@ export const commandNames = [
   "git clone",
   "git update",
   "git remove",
+  "ssh status",
+  "ssh keys",
+  "ssh new",
+  "ssh copy",
+  "ssh authorize",
+  "ssh authorized",
+  "ssh test",
+  "ssh harden",
+  "ssh host add",
+  "ssh host list",
+  "ssh host remove",
   "update",
   "test",
 ] as const;
@@ -303,6 +386,11 @@ export const xdgPaths = {
     base: "XDG_DATA_HOME",
     fallback: ".local/share",
     relative: "snshah/bin/oh-my-posh",
+  },
+  mise: {
+    base: "XDG_DATA_HOME",
+    fallback: ".local/share",
+    relative: "snshah/bin/mise",
   },
   bin: { base: "XDG_BIN_HOME", fallback: ".local/bin", relative: "snshah" },
 } as const;
@@ -375,6 +463,8 @@ export default {
   // workspacesHome: "~/workspaces", // $WORKSPACES_HOME wins when set
   // prompt: { kind: "oh-my-posh" }, // or { kind: "none" }
   // agents: { claude: { kind: "defaults" }, codex: { kind: "defaults" } },
+  // toolManager: { kind: "none" }, // mise is on by default; this turns it off
+  // tools: { delta: false, node: "lts" }, // add tools, pin versions, or leave one out
   path: [],
   aliases: {},
   secrets,
@@ -542,6 +632,11 @@ export type Context = {
   installedScript: string;
   installedTheme: string;
   poshBinary: string;
+  miseBinary: string;
+  /** snshah's own mise config: $XDG_CONFIG_HOME/mise/conf.d/snshah.toml */
+  miseToolsFile: string;
+  /** mise's shims directory, where installed tools get a launcher. */
+  miseShims: string;
   stateFile: string;
   stateDir: string;
   receipt: string;
@@ -587,6 +682,20 @@ export function makeContext(env: Env = process.env): Context {
     installedScript: p("script"),
     installedTheme: p("theme"),
     stateFile: p("state"),
+    miseBinary: p("mise") + (process.platform === "win32" ? ".exe" : ""),
+    miseToolsFile: join(
+      env.MISE_CONFIG_DIR && isAbsolute(env.MISE_CONFIG_DIR)
+        ? env.MISE_CONFIG_DIR
+        : join(xdg(env, home, "XDG_CONFIG_HOME", ".config"), "mise"),
+      "conf.d",
+      "snshah.toml",
+    ),
+    miseShims: join(
+      env.MISE_DATA_DIR && isAbsolute(env.MISE_DATA_DIR)
+        ? env.MISE_DATA_DIR
+        : join(xdg(env, home, "XDG_DATA_HOME", ".local/share"), "mise"),
+      "shims",
+    ),
     poshBinary: p("posh") + (process.platform === "win32" ? ".exe" : ""),
     stateDir: dirname(p("receipt")),
     receipt: p("receipt"),
@@ -642,6 +751,8 @@ function tilde(ctx: Context, path: string): string {
 const identifier = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const commandWord = /^[A-Za-z0-9][A-Za-z0-9._+-]*$/;
 const repoName = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+const toolName = /^[A-Za-z0-9][A-Za-z0-9:@/._+-]*$/;
+const toolVersionPattern = /^[A-Za-z0-9][A-Za-z0-9._+:@/~^<>=, -]*$/;
 
 function fail(path: string, message: string): never {
   throw new Error(`Config ${path}: ${message}`);
@@ -660,6 +771,8 @@ export function validateConfig(
     "path",
     "aliases",
     "prompt",
+    "toolManager",
+    "tools",
     "agents",
     "repositories",
     "secrets",
@@ -713,6 +826,26 @@ export function validateConfig(
       typeof prompt.install !== "boolean"
     )
       fail("prompt.install", "must be true or false");
+  }
+  if (value.toolManager !== undefined) {
+    const manager = value.toolManager;
+    if (!isObject(manager) || !["mise", "none"].includes(String(manager.kind)))
+      fail("toolManager", 'must be { kind: "mise" } or { kind: "none" }');
+  }
+  if (value.tools !== undefined) {
+    if (!isObject(value.tools)) fail("tools", "must be an object");
+    for (const [name, version] of Object.entries(value.tools)) {
+      if (!toolName.test(name))
+        fail(`tools.${name}`, "is not a valid mise tool name");
+      if (
+        version !== false &&
+        !(typeof version === "string" && toolVersionPattern.test(version))
+      )
+        fail(
+          `tools.${name}`,
+          'must be a version string such as "latest" or "1.7.1", or false',
+        );
+    }
   }
   if (value.agents !== undefined) {
     if (!isObject(value.agents)) fail("agents", "must be an object");
@@ -841,6 +974,8 @@ const defaultConfig: WorkshopConfig = {
     },
   ],
   prompt: { kind: "oh-my-posh" },
+  toolManager: { kind: "mise" },
+  tools: { ...defaultTools },
   agents: { claude: { kind: "defaults" }, codex: { kind: "defaults" } },
 };
 
@@ -1285,8 +1420,10 @@ const mergers: Mergers = {
   // Scalars and tagged unions: a later layer replaces the value whole.
   workspacesHome: later,
   prompt: later,
+  toolManager: later,
   // Records: a later layer's keys win; each agent's union is replaced whole.
   aliases: (a, b) => (a || b ? { ...a, ...b } : undefined),
+  tools: (a, b) => (a || b ? { ...a, ...b } : undefined),
   agents: (a, b) => (a || b ? { ...a, ...b } : undefined),
   // Lists: concatenate; keyed lists let a later layer replace an entry.
   path: (a, b) =>
@@ -1326,6 +1463,10 @@ function overridable(config: WorkshopConfig): Map<string, string> {
   if (config.workspacesHome !== undefined)
     out.set("workspacesHome", JSON.stringify(config.workspacesHome));
   if (config.prompt) out.set("prompt", JSON.stringify(config.prompt));
+  if (config.toolManager)
+    out.set("toolManager", JSON.stringify(config.toolManager));
+  for (const [k, v] of Object.entries(config.tools ?? {}))
+    out.set(`tools.${k}`, JSON.stringify(v));
   for (const [k, v] of Object.entries(config.agents ?? {}))
     out.set(`agents.${k}`, JSON.stringify(v));
   for (const [k, v] of Object.entries(config.aliases ?? {}))
@@ -1482,8 +1623,32 @@ async function sha256Of(path: string): Promise<string | undefined> {
   }
 }
 
-/** One download step when the prompt wants Oh My Posh, none is on PATH, and
- *  snshah's own copy is missing or not the pinned build. */
+/** One download step for a pinned release file that is missing or not the pinned build. */
+async function planPinned(
+  ctx: Context,
+  pin: {
+    label: string;
+    url: string;
+    sha256: string;
+    cacheName: string;
+    path: string;
+  },
+): Promise<Step | undefined> {
+  const current = await sha256Of(pin.path);
+  if (current === pin.sha256) return;
+  return {
+    kind: "download",
+    url: pin.url,
+    sha256: pin.sha256,
+    cache: join(ctx.cacheDir, pin.cacheName),
+    path: pin.path,
+    mode: 0o755,
+    label: pin.label,
+    create: current === undefined,
+  };
+}
+
+/** Oh My Posh, when the prompt wants it and none is on PATH. */
 async function planPosh(
   ctx: Context,
   config: WorkshopConfig,
@@ -1494,18 +1659,177 @@ async function planPosh(
   const target = poshTarget();
   if (!target) return;
   const asset = ohMyPosh.assets[target];
-  const current = await sha256Of(ctx.poshBinary);
-  if (current === asset.sha256) return;
-  return {
-    kind: "download",
+  return planPinned(ctx, {
+    label: `Oh My Posh ${ohMyPosh.version}`,
     url: `https://github.com/JanDeDobbeleer/oh-my-posh/releases/download/v${ohMyPosh.version}/${asset.file}`,
     sha256: asset.sha256,
-    cache: join(ctx.cacheDir, `oh-my-posh-${ohMyPosh.version}-${asset.file}`),
+    cacheName: `oh-my-posh-${ohMyPosh.version}-${asset.file}`,
     path: ctx.poshBinary,
-    mode: 0o755,
-    label: `Oh My Posh ${ohMyPosh.version}`,
-    create: current === undefined,
-  };
+  });
+}
+
+/** The pinned mise build for this OS and CPU, if there is one. */
+export function miseTarget(
+  os: NodeJS.Platform = process.platform,
+  arch: string = process.arch,
+  musl: boolean = existsSync("/etc/alpine-release"),
+): MiseTarget | undefined {
+  const cpu = arch === "x64" ? "x64" : arch === "arm64" ? "arm64" : undefined;
+  if (!cpu) return;
+  const name =
+    os === "linux"
+      ? `linux-${cpu}${musl ? "-musl" : ""}`
+      : os === "darwin"
+        ? `macos-${cpu}`
+        : os === "win32"
+          ? `windows-${cpu}`
+          : undefined;
+  return name && name in miseRelease.assets ? (name as MiseTarget) : undefined;
+}
+
+function miseOnPath(ctx: Context): string | undefined {
+  return Bun.which("mise", { PATH: ctx.env.PATH ?? "" }) ?? undefined;
+}
+
+/** The mise this machine uses: one already on PATH, else snshah's pinned copy. */
+function miseBinaryFor(ctx: Context): string {
+  return miseOnPath(ctx) ?? ctx.miseBinary;
+}
+
+function toolManagerOn(config: WorkshopConfig): boolean {
+  return (config.toolManager ?? { kind: "mise" }).kind === "mise";
+}
+
+/** The tools snshah asks mise for: every `tools` entry that is not false, sorted. */
+export function wantedTools(config: WorkshopConfig): Array<[string, string]> {
+  if (!toolManagerOn(config)) return [];
+  return Object.entries(config.tools ?? {})
+    .filter((e): e is [string, string] => e[1] !== false)
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+}
+
+/** snshah's mise config, a conf.d file mise reads after (and yields to) your own config.toml. */
+export function miseToolsToml(tools: ReadonlyArray<[string, string]>): string {
+  return [
+    "# Managed by snshah (github.com/shah/shah, workshop/). Regenerated by `snshah apply`.",
+    "# Your own mise config.toml wins over this file. Change the list in snshah.conf.ts",
+    '# (`tools`), or turn mise off with `toolManager: { kind: "none" }`.',
+    "[tools]",
+    ...tools.map(
+      ([name, version]) =>
+        `${JSON.stringify(name)} = ${JSON.stringify(version)}`,
+    ),
+    "",
+  ].join("\n");
+}
+
+function cleanEnv(env: Env): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(env).filter(
+      (e): e is [string, string] => e[1] !== undefined,
+    ),
+  );
+}
+
+/** The wanted tools that `mise ls` does not report as installed. Any failure counts as missing. */
+export function miseMissing(
+  binary: string,
+  env: Record<string, string>,
+  cwd: string,
+  names: readonly string[],
+): string[] {
+  try {
+    const r = Bun.spawnSync([binary, "ls", "--json"], {
+      env,
+      cwd,
+      stdin: "ignore",
+      stdout: "pipe",
+      stderr: "ignore",
+      timeout: 30_000,
+    });
+    if (r.exitCode !== 0) return [...names];
+    const listed: unknown = JSON.parse(r.stdout.toString());
+    if (!isObject(listed)) return [...names];
+    return names.filter((name) => {
+      const entries = listed[name];
+      return !(
+        Array.isArray(entries) &&
+        entries.some((e) => isObject(e) && e.installed === true)
+      );
+    });
+  } catch {
+    return [...names];
+  }
+}
+
+/** mise itself (when none is on PATH). */
+async function planMise(
+  ctx: Context,
+  config: WorkshopConfig,
+): Promise<Step | undefined> {
+  if (!toolManagerOn(config) || miseOnPath(ctx)) return;
+  const target = miseTarget();
+  if (!target) return;
+  const asset = miseRelease.assets[target];
+  return planPinned(ctx, {
+    label: `mise ${miseRelease.version}`,
+    url: `https://github.com/jdx/mise/releases/download/v${miseRelease.version}/${asset.file}`,
+    sha256: asset.sha256,
+    cacheName: `mise-${miseRelease.version}-${asset.file}`,
+    path: ctx.miseBinary,
+  });
+}
+
+/**
+ * The tool list file and mise itself come first; installing the tools comes
+ * last, after the rest of the apply, so a slow or failed download never blocks
+ * the startup files and CLI.
+ */
+async function planTools(
+  ctx: Context,
+  config: WorkshopConfig,
+): Promise<{ early: Step[]; late: Step[] }> {
+  const early: Step[] = [];
+  const late: Step[] = [];
+  const wanted = wantedTools(config);
+  const file = ctx.miseToolsFile;
+  if (!wanted.length) {
+    if (await exists(file))
+      early.push({
+        kind: "remove",
+        path: file,
+        label: toolManagerOn(config)
+          ? "mise tool list (no tools wanted)"
+          : "mise tool list (tool manager off)",
+      });
+    return { early, late };
+  }
+  early.push(
+    ...(await contentStep(
+      "file",
+      file,
+      miseToolsToml(wanted),
+      0o644,
+      "mise tool list",
+    )),
+  );
+  const download = await planMise(ctx, config);
+  if (download) early.push(download);
+  const binary = miseBinaryFor(ctx);
+  const present = await exists(binary);
+  const names = wanted.map(([name]) => name);
+  const env = cleanEnv(ctx.env);
+  const missing = present ? miseMissing(binary, env, ctx.home, names) : names;
+  if (missing.length && (present || download))
+    late.push({
+      kind: "tools",
+      binary,
+      names: missing,
+      env,
+      cwd: ctx.home,
+      label: "developer tools (mise)",
+    });
+  return { early, late };
 }
 
 /** Fetch a pinned file into the cache (reusing a verified copy), then install it. */
@@ -1577,6 +1901,14 @@ export type Step =
     }
   | { kind: "remove"; path: string; label: string }
   | {
+      kind: "tools";
+      binary: string;
+      names: string[];
+      env: Record<string, string>;
+      cwd: string;
+      label: string;
+    }
+  | {
       kind: "download";
       url: string;
       sha256: string;
@@ -1599,7 +1931,7 @@ export type Step =
 
 type ContentStep = Exclude<
   Step,
-  { kind: "directory" | "remove" | "command" | "download" }
+  { kind: "directory" | "remove" | "command" | "download" | "tools" }
 >;
 
 async function contentStep<K extends ContentStep["kind"]>(
@@ -1847,6 +2179,8 @@ export async function plan(
     [ctx.typesFile, "snshah"],
     [ctx.installedTheme, "snshah"],
     [ctx.poshBinary, "snshah"],
+    [ctx.miseBinary, "snshah"],
+    [ctx.miseToolsFile, "snshah"],
     [ctx.installedScript, "snshah"],
     [ctx.receipt, "snshah"],
     [join(ctx.dataDir, "snshah.selftest.ts"), "snshah"],
@@ -1866,6 +2200,8 @@ export async function plan(
     );
   const posh = await planPosh(ctx, config);
   if (posh) steps.push(posh);
+  const tools = await planTools(ctx, config);
+  steps.push(...tools.early);
 
   // Marked blocks are accumulated per file, so a startup block and any
   // number of profile blocks in the same file compose instead of clobbering.
@@ -2084,7 +2420,7 @@ export async function plan(
         "snshah launcher",
       )),
     );
-  return [...before, ...steps, ...after, ...cli];
+  return [...before, ...steps, ...after, ...cli, ...tools.late];
 }
 
 // ---------------------------------------------------------------------------
@@ -2286,6 +2622,25 @@ async function applySteps(steps: readonly Step[]): Promise<void> {
       case "download":
         await download(step);
         break;
+      case "tools": {
+        const r = Bun.spawnSync([step.binary, "install"], {
+          env: step.env,
+          cwd: step.cwd,
+          stdin: "ignore",
+          stdout: 2, // progress goes to stderr, keeping --json stdout clean
+          stderr: 2,
+        });
+        if (r.exitCode !== 0)
+          throw new Error(
+            `${step.label}: mise install exited ${r.exitCode}. Fix the error above (GitHub rate limits clear when GITHUB_TOKEN is set), then re-run snshah apply.`,
+          );
+        const still = miseMissing(step.binary, step.env, step.cwd, step.names);
+        if (still.length)
+          throw new Error(
+            `${step.label}: ${still.join(", ")} still not installed after mise install.`,
+          );
+        break;
+      }
       case "command": {
         const exe = resolveExecutable(step.run[0]!, step.env);
         if (!exe)
@@ -2361,6 +2716,8 @@ export type ShellOp =
   | { kind: "alias"; name: string; value: AliasValue }
   | { kind: "mkcd" }
   | { kind: "wrap"; command: string; wrapper: string }
+  | { kind: "mise"; binary: string }
+  | { kind: "direnv" }
   | { kind: "prompt"; theme: string; binary: string };
 
 export function shellOps(
@@ -2381,6 +2738,17 @@ export function shellOps(
     name: workspacesDefaults.variable,
     value: workspacesRoot(ctx, config),
   });
+  // Tells a server you ssh into which kind of computer you are on (see snshah ssh copy).
+  ops.push({
+    kind: "env-default",
+    name: "LC_SNSHAH_OS",
+    value:
+      ctx.platform === "macos"
+        ? "macos"
+        : ctx.platform === "windows"
+          ? "windows"
+          : "linux",
+  });
   for (const secret of config.secrets ?? [])
     if (secret.scope === "shell")
       ops.push({ kind: "env", name: secret.variable, value: secret.value });
@@ -2393,6 +2761,8 @@ export function shellOps(
       for (const command of secret.commands) wrapped.add(command);
   for (const command of [...wrapped].sort())
     ops.push({ kind: "wrap", command, wrapper: wrapperFor(ctx, shell) });
+  if (toolManagerOn(config)) ops.push({ kind: "mise", binary: ctx.miseBinary });
+  if (config.tools?.direnv !== false) ops.push({ kind: "direnv" });
   if ((config.prompt ?? { kind: "oh-my-posh" }).kind === "oh-my-posh") {
     const custom =
       config.prompt?.kind === "oh-my-posh" ? config.prompt.theme : undefined;
@@ -2466,6 +2836,15 @@ function renderPosix(shell: "bash" | "zsh", op: ShellOp): string[] {
       return [
         `${defined(op.command)} || ${op.command}() { ${quotePosix(op.wrapper)} exec ${op.command} "$@"; }`,
       ];
+    case "mise":
+      return [
+        // Activate mise unless this shell already did; prefer a mise on PATH.
+        `if [ -z "\${MISE_SHELL-}" ]; then __snshah_mise=$(command -v mise 2>/dev/null) || __snshah_mise=${quotePosix(op.binary)}; if [ -x "$__snshah_mise" ]; then eval "$("$__snshah_mise" activate ${shell})"; fi; unset __snshah_mise; fi`,
+      ];
+    case "direnv":
+      return [
+        `if command -v direnv >/dev/null 2>&1 && ! type _direnv_hook >/dev/null 2>&1; then eval "$(direnv hook ${shell})"; fi`,
+      ];
     case "prompt":
       return [
         // Prefer an oh-my-posh on PATH; fall back to the copy snshah installed.
@@ -2503,6 +2882,14 @@ function renderFish(op: ShellOp): string[] {
     case "wrap":
       return [
         `functions -q ${op.command}; or function ${op.command} --wraps ${op.command}; ${quoteFish(op.wrapper)} exec ${op.command} $argv; end`,
+      ];
+    case "mise":
+      return [
+        `if not set -q MISE_SHELL; set -l __snshah_mise (command -s mise); or set __snshah_mise ${quoteFish(op.binary)}; if test -x "$__snshah_mise"; $__snshah_mise activate fish | source; end; end`,
+      ];
+    case "direnv":
+      return [
+        `if command -sq direnv; and not functions -q __direnv_export_eval; direnv hook fish | source; end`,
       ];
     case "prompt":
       return [
@@ -2544,6 +2931,14 @@ function renderPwsh(op: ShellOp): string[] {
     case "wrap":
       return [
         `if (${undefinedCommand(op.command)}) { function global:${op.command} { & ${quotePwsh(op.wrapper)} exec ${op.command} @args } }`,
+      ];
+    case "mise":
+      return [
+        `if (-not $env:MISE_SHELL) { $__snshahMise = (Get-Command mise -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1).Source; if (-not $__snshahMise -and (Test-Path -LiteralPath ${quotePwsh(op.binary)})) { $__snshahMise = ${quotePwsh(op.binary)} }; if ($__snshahMise) { (& $__snshahMise activate pwsh) -join "\`n" | Invoke-Expression }; Remove-Variable __snshahMise -ErrorAction SilentlyContinue }`,
+      ];
+    case "direnv":
+      return [
+        `if ((Get-Command direnv -CommandType Application -ErrorAction SilentlyContinue) -and -not $global:__snshahDirenv) { $global:__snshahDirenv = $true; (& direnv hook pwsh) -join "\`n" | Invoke-Expression }`,
       ];
     case "prompt":
       return [
@@ -2927,6 +3322,8 @@ type Tool = {
   name: string;
   /** How to ask for its version; "--version" when unset. */
   versionArgs?: readonly string[];
+  /** The mise tool that provides it, when mise can. */
+  mise?: string;
   purpose: string;
   required: boolean;
   linuxOnly?: boolean;
@@ -2979,6 +3376,7 @@ const tools: Tool[] = [
   },
   {
     name: "gh",
+    mise: "gh",
     purpose: "GitHub sign-in",
     required: false,
     advice: {
@@ -2994,6 +3392,7 @@ const tools: Tool[] = [
   },
   {
     name: "rg",
+    mise: "ripgrep",
     purpose: "fast search",
     required: false,
     advice: {
@@ -3009,6 +3408,7 @@ const tools: Tool[] = [
   },
   {
     name: "fzf",
+    mise: "fzf",
     purpose: "fuzzy finder",
     required: false,
     advice: {
@@ -3024,6 +3424,7 @@ const tools: Tool[] = [
   },
   {
     name: "jq",
+    mise: "jq",
     purpose: "JSON on the command line",
     required: false,
     advice: {
@@ -3035,6 +3436,95 @@ const tools: Tool[] = [
       brew: "jq",
       winget: "jqlang.jq",
       omarchy: "jq",
+    },
+  },
+  {
+    name: "mise",
+    purpose: "developer tool manager",
+    required: false,
+    advice: {
+      pacman: "mise",
+      apk: "mise",
+      brew: "mise",
+      winget: "jdx.mise",
+      omarchy: "mise",
+    },
+  },
+  {
+    name: "direnv",
+    mise: "direnv",
+    purpose: "per-directory environments (.envrc)",
+    required: false,
+    advice: {
+      apt: "direnv",
+      dnf: "direnv",
+      pacman: "direnv",
+      apk: "direnv",
+      zypper: "direnv",
+      brew: "direnv",
+      winget: "direnv.direnv",
+      omarchy: "direnv",
+    },
+  },
+  {
+    name: "fd",
+    mise: "fd",
+    purpose: "fast find",
+    required: false,
+    advice: {
+      apt: "fd-find",
+      dnf: "fd-find",
+      pacman: "fd",
+      apk: "fd",
+      zypper: "fd",
+      brew: "fd",
+      winget: "sharkdp.fd",
+      omarchy: "fd",
+    },
+  },
+  {
+    name: "bat",
+    mise: "bat",
+    purpose: "cat with syntax highlighting",
+    required: false,
+    advice: {
+      apt: "bat",
+      dnf: "bat",
+      pacman: "bat",
+      apk: "bat",
+      zypper: "bat",
+      brew: "bat",
+      winget: "sharkdp.bat",
+      omarchy: "bat",
+    },
+  },
+  {
+    name: "yq",
+    mise: "yq",
+    purpose: "YAML on the command line",
+    required: false,
+    advice: {
+      pacman: "go-yq",
+      brew: "yq",
+      winget: "MikeFarah.yq",
+      omarchy: "go-yq",
+      fallback:
+        "snshah apply   # installs yq with mise (distro yq packages are a different tool)",
+    },
+  },
+  {
+    name: "delta",
+    mise: "delta",
+    purpose: "readable git diffs",
+    required: false,
+    advice: {
+      apt: "git-delta",
+      dnf: "git-delta",
+      pacman: "git-delta",
+      apk: "delta",
+      brew: "git-delta",
+      winget: "dandavison.delta",
+      omarchy: "git-delta",
     },
   },
   {
@@ -3179,32 +3669,80 @@ function systemName(ctx: Context): string {
   }
 }
 
+/** The one thing to do next, with the command to paste. */
+type NextStep = { title: string; command: string };
+
+const githubSignIn =
+  "gh auth login --web --git-protocol https && gh auth setup-git";
+
+/** Without a network call: a token in the environment, or a saved login. */
+export function githubSignedIn(ctx: Context): boolean {
+  for (const name of ["GH_TOKEN", "GITHUB_TOKEN"])
+    if (ctx.env[name]) return true;
+  const dir =
+    ctx.env.GH_CONFIG_DIR && isAbsolute(ctx.env.GH_CONFIG_DIR)
+      ? ctx.env.GH_CONFIG_DIR
+      : join(xdgConfigHome(ctx), "gh");
+  try {
+    return readFileSync(join(dir, "hosts.yml"), "utf8").includes("github.com");
+  } catch {
+    return false;
+  }
+}
+
+function xdgConfigHome(ctx: Context): string {
+  return xdg(ctx.env, ctx.home, "XDG_CONFIG_HOME", ".config");
+}
+
+/** Authoritative check, used by doctor: asks gh for a token without printing it. */
+function ghHasToken(gh: string, env: Env): boolean {
+  if (env.GH_TOKEN || env.GITHUB_TOKEN) return true;
+  try {
+    return (
+      Bun.spawnSync([gh, "auth", "token"], {
+        env: cleanEnv(env),
+        stdin: "ignore",
+        stdout: "ignore",
+        stderr: "ignore",
+        timeout: 10_000,
+      }).exitCode === 0
+    );
+  } catch {
+    return false;
+  }
+}
+
 async function doctor(ctx: Context): Promise<{
   checks: Check[];
   advice: string[];
+  next: NextStep[];
   platform: Platform;
   system: string;
   manager?: PackageManager;
 }> {
   const checks: Check[] = [];
-  const PATH = ctx.env.PATH ?? "";
+  const envPath = ctx.env.PATH ?? "";
+  // Tools mise installs are found through its shims, as in an activated shell.
+  const PATH = [ctx.miseShims, envPath].join(delimiter);
   checks.push({
     check: "bun",
     status: versionAtLeast(Bun.version, minimumBun) ? "ok" : "missing",
     detail: `runtime (needs ${minimumBun} or newer)`,
     version: Bun.version,
   });
+  let config: WorkshopConfig = defaultConfig;
   try {
-    const { privateSource: source, profiles } = await loadEffective(ctx);
+    const effective = await loadEffective(ctx);
+    config = effective.config;
     checks.push({
       check: "profiles",
       status: "ok",
-      detail: `${profiles.filter((p) => p.matched).length} of ${profiles.length} profile.d file(s) match this machine`,
+      detail: `${effective.profiles.filter((p) => p.matched).length} of ${effective.profiles.length} profile.d file(s) match this machine`,
     });
     checks.push({
       check: "config",
-      status: source ? "ok" : "warn",
-      detail: source
+      status: effective.privateSource ? "ok" : "warn",
+      detail: effective.privateSource
         ? `${tilde(ctx, ctx.configFile)} is valid`
         : "not created yet; run snshah apply",
     });
@@ -3215,9 +3753,9 @@ async function doctor(ctx: Context): Promise<{
       detail: (error as Error).message,
     });
   }
-  const onPath = PATH.split(delimiter).some(
-    (d) => resolve(d) === resolve(ctx.binDir),
-  );
+  const onPath = envPath
+    .split(delimiter)
+    .some((d) => resolve(d) === resolve(ctx.binDir));
   checks.push({
     check: "path",
     status: onPath ? "ok" : "warn",
@@ -3225,48 +3763,109 @@ async function doctor(ctx: Context): Promise<{
       ? `${tilde(ctx, ctx.binDir)} is on PATH`
       : `${tilde(ctx, ctx.binDir)} is not on PATH yet; open a new shell after snshah apply`,
   });
+
   const manager = detectManager(ctx);
-  const missing: Tool[] = [];
+  const wanted = new Map(wantedTools(config));
+  const missing: Tool[] = []; // need a system package
+  const byApply: string[] = []; // `snshah apply` will install these
+  const inList = new Set<string>();
+  const find = (tool: Tool): string | null =>
+    Bun.which(tool.name, { PATH }) ??
+    (tool.name === "oh-my-posh" && existsSync(ctx.poshBinary)
+      ? ctx.poshBinary
+      : tool.name === "mise" && existsSync(ctx.miseBinary)
+        ? ctx.miseBinary
+        : null);
+  const row = (
+    name: string,
+    purpose: string,
+    found: string | null,
+    level: Check["status"],
+    args?: readonly string[],
+  ) =>
+    checks.push({
+      check: name,
+      status: found ? "ok" : level,
+      detail: found ? purpose : `not installed (${purpose})`,
+      ...(found ? { version: toolVersion(found, args ?? ["--version"]) } : {}),
+    });
+  const poshByApply = !!(await planPosh(ctx, config).catch(() => undefined));
+  const miseByApply =
+    toolManagerOn(config) && !!miseTarget() && !miseOnPath(ctx);
   for (const tool of tools) {
     if (tool.linuxOnly && !(ctx.platform === "linux" || ctx.platform === "wsl"))
       continue;
-    const found =
-      Bun.which(tool.name, { PATH }) ??
-      (tool.name === "oh-my-posh" && existsSync(ctx.poshBinary)
-        ? ctx.poshBinary
-        : null);
-    if (!found) missing.push(tool);
-    checks.push({
-      check: tool.name,
-      status: found ? "ok" : tool.required ? "missing" : "warn",
-      detail: found ? tool.purpose : `not installed (${tool.purpose})`,
-      ...(found
-        ? { version: toolVersion(found, tool.versionArgs ?? ["--version"]) }
-        : {}),
-    });
+    if (tool.mise) inList.add(tool.mise);
+    const found = find(tool);
+    const level = tool.required ? "missing" : "warn";
+    const providedByMise =
+      !!tool.mise && wanted.has(tool.mise) && toolManagerOn(config);
+    row(tool.name, tool.purpose, found, level, tool.versionArgs);
+    if (found) continue;
+    if (tool.name === "oh-my-posh" && poshByApply) byApply.push("Oh My Posh");
+    else if (tool.name === "mise" && miseByApply) byApply.push("mise");
+    else if (providedByMise) byApply.push(tool.mise!);
+    else missing.push(tool);
   }
-  // snshah installs Oh My Posh itself where it can; advise apply, not a package.
-  let poshByApply = false;
-  try {
-    poshByApply = !!(await planPosh(ctx, (await loadEffective(ctx)).config));
-  } catch {
-    /* config errors are reported above */
+  // Tools you added to `tools` that doctor has no row for.
+  for (const [name] of wanted) {
+    if (inList.has(name) || /[:/@]/.test(name)) continue;
+    const found = Bun.which(name, { PATH }) ?? null;
+    row(name, "from your tools list", found, "warn");
+    if (!found) byApply.push(name);
   }
+
+  const next: NextStep[] = [];
+  const gh = Bun.which("gh", { PATH });
+  if (gh) {
+    const signedIn = ghHasToken(gh, ctx.env);
+    const helper =
+      capture(
+        ["git", "config", "--get-all", "credential.https://github.com.helper"],
+        { env: ctx.env },
+      )?.includes("gh") ?? false;
+    if (!signedIn) {
+      checks.push({
+        check: "github",
+        status: "warn",
+        detail:
+          "not signed in; git clone, push and gh will fail on private repositories until you sign in",
+      });
+      next.push({
+        title: "Sign in to GitHub before git or gh fail on you:",
+        command: githubSignIn,
+      });
+    } else if (!helper) {
+      checks.push({
+        check: "github",
+        status: "warn",
+        detail: "signed in, but git is not set up to use that login",
+      });
+      next.push({
+        title: "Let git use your GitHub login:",
+        command: "gh auth setup-git",
+      });
+    } else {
+      checks.push({
+        check: "github",
+        status: "ok",
+        detail: "signed in, and git uses that login",
+      });
+    }
+  }
+
   const advice: string[] = [];
-  const hasSudo = isWindows || !!Bun.which("sudo", { PATH });
+  const hasSudo = isWindows || !!Bun.which("sudo", { PATH: envPath });
   const viaManager = missing
-    .filter((t) => !(t.name === "oh-my-posh" && poshByApply))
     .filter((t) => manager && t.advice[manager])
     .map((t) => t.advice[manager!]!);
+  if (byApply.length)
+    advice.push(
+      `snshah apply   # installs ${byApply.join(", ")} for you in your account, no sudo`,
+    );
   if (manager && viaManager.length)
     advice.push(installCommand(manager, viaManager, hasSudo));
   for (const tool of missing) {
-    if (tool.name === "oh-my-posh" && poshByApply) {
-      advice.push(
-        `snshah apply   # installs the pinned Oh My Posh ${ohMyPosh.version} for you, no sudo`,
-      );
-      continue;
-    }
     if (manager && tool.advice[manager]) continue;
     advice.push(
       tool.advice.fallback ??
@@ -3276,10 +3875,18 @@ async function doctor(ctx: Context): Promise<{
   return {
     checks,
     advice,
+    next,
     platform: ctx.platform,
     system: systemName(ctx),
     manager,
   };
+}
+
+function printNext(next: readonly NextStep[]): void {
+  for (const step of next) {
+    say(step.title, "pending");
+    console.log(`  ${step.command}`);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -3426,6 +4033,10 @@ export type State = {
   version: 1;
   /** The CLI version whose first interactive shell already ran doctor. */
   doctorRanFor?: string;
+  /** When the daily "sign in to GitHub" reminder last showed. */
+  githubReminderAt?: string;
+  /** The SSH connection whose password-login hint already showed. */
+  sshHintFor?: string;
   update: UpdateCheck;
 };
 const emptyState: State = { version: 1, update: { kind: "never" } };
@@ -3463,6 +4074,9 @@ export async function readState(ctx: Context): Promise<State> {
       isObject(v) &&
       v.version === 1 &&
       (v.doctorRanFor === undefined || typeof v.doctorRanFor === "string") &&
+      (v.githubReminderAt === undefined ||
+        typeof v.githubReminderAt === "string") &&
+      (v.sshHintFor === undefined || typeof v.sshHintFor === "string") &&
       isUpdateCheck(v.update)
     )
       return v as State;
@@ -3523,7 +4137,7 @@ async function checkForUpdate(
  * in a detached background process whose answer the next shell prints.
  * SNSHAH_GREET=0 turns it off.
  */
-async function greet(ctx: Context): Promise<void> {
+async function greet(ctx: Context, config: WorkshopConfig): Promise<void> {
   if (ctx.env.SNSHAH_GREET === "0") return;
   try {
     let state = await readState(ctx);
@@ -3548,6 +4162,50 @@ async function greet(ctx: Context): Promise<void> {
       });
       process.stderr.write(r.stdout);
       process.stderr.write(r.stderr);
+    }
+    const tty =
+      !!process.stderr.isTTY && !ctx.env.NO_COLOR && ctx.env.TERM !== "dumb";
+    const colorEnv = tty ? { SNSHAH_COLOR: "1", FORCE_COLOR: "1" } : {};
+    // Over SSH with a password: show how to copy a key, the same text as `snshah ssh copy`.
+    if (ctx.env.SNSHAH_SSH_HINT !== "0" && ctx.env.SSH_CONNECTION) {
+      const id = createHash("sha256")
+        .update(ctx.env.SSH_CONNECTION)
+        .digest("hex")
+        .slice(0, 16);
+      if (state.sshHintFor !== id) {
+        state = { ...state, sshHintFor: id };
+        await writeState(ctx, state);
+        const session = await detectSession(ctx);
+        if (session.kind === "ssh" && usedPassword(session.method)) {
+          const r = Bun.spawnSync([...self, "ssh", "copy", "--hint"], {
+            env: { ...ctx.env, ...colorEnv },
+            stdin: "ignore",
+            stdout: "pipe",
+            stderr: "pipe",
+          });
+          process.stderr.write(r.stdout);
+          process.stderr.write(r.stderr);
+        }
+      }
+    }
+    // GitHub: remind about signing in, at most once a day, until it is done.
+    const ghWanted =
+      (toolManagerOn(config) &&
+        config.tools?.gh !== undefined &&
+        config.tools.gh !== false) ||
+      !!Bun.which("gh", { PATH: ctx.env.PATH ?? "" });
+    const lastReminder = Date.parse(state.githubReminderAt ?? "");
+    if (
+      ghWanted &&
+      !githubSignedIn(ctx) &&
+      !(Date.now() - lastReminder < 24 * 3600 * 1000)
+    ) {
+      state = { ...state, githubReminderAt: new Date().toISOString() };
+      await writeState(ctx, state);
+      const y = (t: string) => (tty ? `\x1b[33m${t}\x1b[0m` : t);
+      process.stderr.write(
+        `${y("snshah: GitHub is not signed in yet; git and gh will fail on private repositories until you do.")}\n  ${githubSignIn}\n`,
+      );
     }
     const u = state.update;
     const installed = await installedRevision(ctx);
@@ -3576,6 +4234,1067 @@ async function greet(ctx: Context): Promise<void> {
   } catch {
     /* a greeting must never break a shell */
   }
+}
+
+// ---------------------------------------------------------------------------
+// ssh: keys, copying a key to a server, hosts, and the password-login hint
+// ---------------------------------------------------------------------------
+
+export const clientOses = ["linux", "macos", "windows"] as const;
+export type ClientOs = (typeof clientOses)[number];
+export type LoginMethod =
+  "publickey" | "password" | "keyboard-interactive" | "unknown";
+export type SshSession =
+  | { kind: "local" }
+  | {
+      kind: "ssh";
+      client: string;
+      clientPort: number;
+      server: string;
+      serverPort: number;
+      method: LoginMethod;
+      evidence: "login-record" | "sshd-log" | "no-authorized-keys" | "none";
+    };
+export type SshTarget = { user: string; host: string; port: number };
+export type PublicKey = {
+  type: string;
+  blob: string;
+  comment: string;
+  options?: string;
+};
+
+export const usedPassword = (method: LoginMethod): boolean =>
+  method === "password" || method === "keyboard-interactive";
+
+const publicKeyTypes: readonly string[] = [
+  "ssh-ed25519",
+  "ssh-rsa",
+  "ecdsa-sha2-nistp256",
+  "ecdsa-sha2-nistp384",
+  "ecdsa-sha2-nistp521",
+  "sk-ssh-ed25519@openssh.com",
+  "sk-ecdsa-sha2-nistp256@openssh.com",
+];
+
+/** One authorized_keys or .pub line: optional options, type, base64 blob, comment. */
+export function parsePublicKey(line: string): PublicKey | undefined {
+  const text = line.trim();
+  if (!text || text.startsWith("#")) return;
+  const tokens = text.split(/\s+/);
+  const at = tokens.findIndex((t) => publicKeyTypes.includes(t));
+  if (at < 0) return;
+  const type = tokens[at]!;
+  const blob = tokens[at + 1];
+  if (!blob || !/^[A-Za-z0-9+/]+={0,3}$/.test(blob)) return;
+  const raw = Buffer.from(blob, "base64");
+  // The blob starts with its own length-prefixed type name; it must agree.
+  if (
+    raw.length < 4 ||
+    raw.subarray(4, 4 + raw.readUInt32BE(0)).toString() !== type
+  )
+    return;
+  return {
+    type,
+    blob,
+    comment: tokens.slice(at + 2).join(" "),
+    ...(at > 0 ? { options: tokens.slice(0, at).join(" ") } : {}),
+  };
+}
+
+/** OpenSSH's SHA256 fingerprint of a key blob. */
+export function fingerprint(blob: string): string {
+  return (
+    "SHA256:" +
+    createHash("sha256")
+      .update(Buffer.from(blob, "base64"))
+      .digest("base64")
+      .replace(/=+$/, "")
+  );
+}
+
+export function parseSshConnection(
+  value: string | undefined,
+):
+  | Omit<Extract<SshSession, { kind: "ssh" }>, "kind" | "method" | "evidence">
+  | undefined {
+  const [client, clientPort, server, serverPort] = (value ?? "")
+    .trim()
+    .split(/\s+/);
+  const cp = Number(clientPort);
+  const sp = Number(serverPort);
+  if (!client || !server || !Number.isInteger(cp) || !Number.isInteger(sp))
+    return;
+  return { client, clientPort: cp, server, serverPort: sp };
+}
+
+function loginMethod(token: string | undefined): LoginMethod | undefined {
+  if (!token) return;
+  if (token === "publickey") return "publickey";
+  if (token === "password") return "password";
+  if (token.startsWith("keyboard-interactive")) return "keyboard-interactive";
+  return "unknown";
+}
+
+/** sshd's ExposeAuthInfo file starts each line with the method that succeeded. */
+export function methodFromAuthInfo(
+  text: string | undefined,
+): LoginMethod | undefined {
+  return loginMethod(text?.trim().split(/\s+/)[0]);
+}
+
+/** The method sshd logged for exactly this connection (client address and port). */
+export function methodFromLog(
+  text: string,
+  user: string,
+  client: string,
+  clientPort: number,
+): LoginMethod | undefined {
+  const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp(
+    `Accepted (\\S+) for ${escape(user)} from ${escape(client)} port ${clientPort}\\b`,
+  );
+  let found: LoginMethod | undefined;
+  for (const line of text.split("\n")) {
+    const m = re.exec(line);
+    if (m) found = loginMethod(m[1]);
+  }
+  return found;
+}
+
+function recentAuthLog(): string {
+  if (isWindows) return "";
+  try {
+    const r = Bun.spawnSync(
+      [
+        "journalctl",
+        "-u",
+        "ssh",
+        "-u",
+        "sshd",
+        "--since",
+        "-15min",
+        "-o",
+        "cat",
+        "--no-pager",
+        "-q",
+      ],
+      { stdin: "ignore", stdout: "pipe", stderr: "ignore", timeout: 3000 },
+    );
+    if (r.exitCode === 0 && r.stdout.length) return r.stdout.toString();
+  } catch {
+    /* no journalctl */
+  }
+  for (const file of ["/var/log/auth.log", "/var/log/secure"]) {
+    try {
+      return readFileSync(file, "utf8").slice(-300_000);
+    } catch {
+      /* not readable */
+    }
+  }
+  return "";
+}
+
+const sshDir = (ctx: Context) => join(ctx.home, ".ssh");
+const authorizedKeysFile = (ctx: Context) =>
+  join(sshDir(ctx), "authorized_keys");
+const sshUser = (ctx: Context) =>
+  ctx.env.USER || ctx.env.LOGNAME || ctx.env.USERNAME || userInfo().username;
+
+export async function authorizedKeys(ctx: Context): Promise<PublicKey[]> {
+  return ((await readText(authorizedKeysFile(ctx))) ?? "")
+    .split("\n")
+    .map(parsePublicKey)
+    .filter((k): k is PublicKey => !!k);
+}
+
+/** How this shell got here: local, or over SSH with a key or a password (best evidence first). */
+export async function detectSession(ctx: Context): Promise<SshSession> {
+  const c = parseSshConnection(ctx.env.SSH_CONNECTION);
+  if (!c) return { kind: "local" };
+  const base = { kind: "ssh" as const, ...c };
+  const record = ctx.env.SSH_USER_AUTH
+    ? methodFromAuthInfo(await readText(ctx.env.SSH_USER_AUTH))
+    : undefined;
+  if (record) return { ...base, method: record, evidence: "login-record" };
+  const logged = methodFromLog(
+    recentAuthLog(),
+    sshUser(ctx),
+    c.client,
+    c.clientPort,
+  );
+  if (logged) return { ...base, method: logged, evidence: "sshd-log" };
+  // With no authorized keys, a key cannot have been what let you in.
+  if (!(await authorizedKeys(ctx)).length)
+    return { ...base, method: "password", evidence: "no-authorized-keys" };
+  return { ...base, method: "unknown", evidence: "none" };
+}
+
+/**
+ * The client's OS, only from what the client itself sent. snshah on the
+ * client exports LC_SNSHAH_OS (an LC_* name that default ssh and sshd configs
+ * already send and accept); iTerm2 sends LC_TERMINAL.
+ */
+export function detectClientOs(
+  env: Env,
+): { os: ClientOs; evidence: string } | undefined {
+  const sent = (env.LC_SNSHAH_OS ?? env.SNSHAH_CLIENT_OS)?.toLowerCase();
+  if (member(clientOses, sent))
+    return { os: sent, evidence: "sent by the client's snshah" };
+  if (env.LC_TERMINAL === "iTerm2")
+    return { os: "macos", evidence: "iTerm2 terminal" };
+  return undefined;
+}
+
+/** `user@host`, `host`, or `user@host:port`-free; the port is separate. */
+export function parseTarget(
+  text: string,
+  defaultUser: string,
+  port = 22,
+): SshTarget {
+  const at = text.lastIndexOf("@");
+  const user = at >= 0 ? text.slice(0, at) : defaultUser;
+  const host = at >= 0 ? text.slice(at + 1) : text;
+  const word = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
+  if (!word.test(user) || !word.test(host))
+    throw new UsageError(`${text} is not a valid [user@]host.`);
+  if (!Number.isInteger(port) || port < 1 || port > 65535)
+    throw new UsageError(`${port} is not a valid port.`);
+  return { user, host, port };
+}
+
+export type CopyStep = { note: string; command: string };
+
+/** What to type, on a machine of this OS, to put its key into `target`. */
+export function copyCommands(os: ClientOs, t: SshTarget): CopyStep[] {
+  const dest = `${t.user}@${t.host}`;
+  const p = t.port !== 22 ? ` -p ${t.port}` : "";
+  const test: CopyStep = {
+    note: "Check that it works without a password:",
+    command: `ssh -o PreferredAuthentications=publickey${p} ${dest} true && echo "key login works"`,
+  };
+  switch (os) {
+    case "linux":
+    case "macos":
+      return [
+        {
+          note: "Create a key if you don't have one (skip if ~/.ssh/id_ed25519.pub exists):",
+          command: "ssh-keygen -t ed25519 -a 100",
+        },
+        {
+          note: `Copy your key into ${dest} (safe to run twice):`,
+          command: `ssh-copy-id -i ~/.ssh/id_ed25519.pub${p} ${dest}`,
+        },
+        test,
+        ...(os === "macos"
+          ? [
+              {
+                note: "Optional: let the macOS keychain remember the passphrase:",
+                command: "ssh-add --apple-use-keychain ~/.ssh/id_ed25519",
+              },
+            ]
+          : []),
+      ];
+    case "windows":
+      return [
+        {
+          note: "Create a key if you don't have one (skip if $env:USERPROFILE\\.ssh\\id_ed25519.pub exists):",
+          command: "ssh-keygen -t ed25519 -a 100",
+        },
+        {
+          note: `Copy your key into ${dest} (PowerShell; safe to run twice):`,
+          command: `$k = (Get-Content "$env:USERPROFILE\\.ssh\\id_ed25519.pub").Trim(); ssh${p} ${dest} "umask 077; mkdir -p ~/.ssh; touch ~/.ssh/authorized_keys; grep -qF '$($k.Split(' ')[1])' ~/.ssh/authorized_keys || echo '$k' >> ~/.ssh/authorized_keys"`,
+        },
+        test,
+        {
+          note: "Optional: have Windows remember the passphrase (admin PowerShell for the first line):",
+          command:
+            "Get-Service ssh-agent | Set-Service -StartupType Automatic; Start-Service ssh-agent; ssh-add $env:USERPROFILE\\.ssh\\id_ed25519",
+        },
+      ];
+    default:
+      return assertNever(os);
+  }
+}
+
+/** The shell command that adds one key to the server's authorized_keys, once. */
+export function authorizeScript(key: PublicKey): string {
+  const comment = key.comment.replace(/[^A-Za-z0-9@._ -]/g, "_");
+  const line = `${key.type} ${key.blob}${comment ? ` ${comment}` : ""}`;
+  return `umask 077; mkdir -p ~/.ssh; touch ~/.ssh/authorized_keys; grep -qF '${key.blob}' ~/.ssh/authorized_keys || printf '%s\\n' '${line}' >> ~/.ssh/authorized_keys`;
+}
+
+type KeyRow = {
+  path: string;
+  type: string;
+  fingerprint: string;
+  comment: string;
+  privateKey: "present" | "missing";
+  problem?: string;
+};
+
+export async function listKeys(ctx: Context): Promise<KeyRow[]> {
+  const dir = sshDir(ctx);
+  let files: string[] = [];
+  try {
+    files = readdirSync(dir)
+      .filter((f) => f.endsWith(".pub"))
+      .sort();
+  } catch {
+    return [];
+  }
+  const rows: KeyRow[] = [];
+  for (const file of files) {
+    const key = parsePublicKey((await readText(join(dir, file))) ?? "");
+    if (!key) continue;
+    const priv = join(dir, file.slice(0, -4));
+    const hasPrivate = existsSync(priv);
+    const mode = hasPrivate ? await fileMode(priv) : undefined;
+    rows.push({
+      path: tilde(ctx, join(dir, file)),
+      type: key.type.replace(/^ssh-/, "").replace("ecdsa-sha2-", "ecdsa-"),
+      fingerprint: fingerprint(key.blob),
+      comment: key.comment,
+      privateKey: hasPrivate ? "present" : "missing",
+      ...(mode !== undefined && (mode & 0o077) !== 0
+        ? {
+            problem: `${tilde(ctx, priv)} is readable by others (mode ${mode.toString(8)}); run chmod 600 ${tilde(ctx, priv)}`,
+          }
+        : {}),
+    });
+  }
+  return rows;
+}
+
+/** Add public keys to ~/.ssh/authorized_keys once each (matched by key, not comment). */
+export async function authorizeKeys(
+  ctx: Context,
+  lines: readonly string[],
+  options: { tag?: string; allowOptions?: boolean } = {},
+): Promise<{ added: number; present: number; invalid: number }> {
+  const file = authorizedKeysFile(ctx);
+  let text = (await readText(file)) ?? "";
+  const known = new Set(
+    text
+      .split("\n")
+      .map(parsePublicKey)
+      .filter((k): k is PublicKey => !!k)
+      .map((k) => k.blob),
+  );
+  const result = { added: 0, present: 0, invalid: 0 };
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line || line.startsWith("#")) continue;
+    const key = parsePublicKey(line);
+    if (!key || (key.options && !options.allowOptions)) {
+      result.invalid++;
+      continue;
+    }
+    if (known.has(key.blob)) {
+      result.present++;
+      continue;
+    }
+    known.add(key.blob);
+    const out = key.comment || !options.tag ? line : `${line} ${options.tag}`;
+    text += `${text === "" || text.endsWith("\n") ? "" : "\n"}${out}\n`;
+    result.added++;
+  }
+  if (result.added) {
+    await mkdir(sshDir(ctx), { recursive: true, mode: 0o700 });
+    await writeAtomic(file, text, 0o600);
+  }
+  if (!isWindows && existsSync(file)) {
+    if ((await fileMode(sshDir(ctx))) !== 0o700)
+      await chmod(sshDir(ctx), 0o700);
+    if ((await fileMode(file)) !== 0o600) await chmod(file, 0o600);
+  }
+  return result;
+}
+
+// --- ~/.ssh/config host blocks, one marked block per alias
+
+const hostMarks = (alias: string) => ({
+  begin: `# >>> snshah ssh host ${alias} >>>`,
+  end: `# <<< snshah ssh host ${alias} <<<`,
+});
+const aliasWord = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+
+export function hostBlock(
+  alias: string,
+  t: SshTarget,
+  identity?: string,
+): string {
+  const { begin, end } = hostMarks(alias);
+  return [
+    begin,
+    `Host ${alias}`,
+    `    HostName ${t.host}`,
+    `    User ${t.user}`,
+    ...(t.port !== 22 ? [`    Port ${t.port}`] : []),
+    ...(identity
+      ? [`    IdentityFile ${identity}`, "    IdentitiesOnly yes"]
+      : []),
+    "    SendEnv LC_SNSHAH_OS",
+    end,
+  ].join("\n");
+}
+
+export function listHostAliases(config: string): string[] {
+  return [...config.matchAll(/^# >>> snshah ssh host (\S+) >>>$/gm)].map(
+    (m) => m[1]!,
+  );
+}
+
+export function removeHostBlock(config: string, alias: string): string {
+  const { begin, end } = hostMarks(alias);
+  const lines = config.split("\n");
+  const first = lines.indexOf(begin);
+  const last = lines.indexOf(end);
+  if (first < 0 || last <= first) return config;
+  const rest = [...lines.slice(0, first), ...lines.slice(last + 1)];
+  return rest.join("\n").replace(/\n{3,}/g, "\n\n");
+}
+
+// --- sshd settings, read only (advice, never changes)
+
+/** First value wins, as in sshd; stops at the first Match block. Follows simple Include globs. */
+export function parseSshdConfig(
+  read: (path: string) => string | undefined,
+  list: (dir: string) => string[],
+  file = "/etc/ssh/sshd_config",
+): Map<string, string> {
+  const out = new Map<string, string>();
+  const visit = (path: string, depth: number): boolean => {
+    const text = read(path);
+    if (text === undefined || depth > 3) return true;
+    for (const raw of text.split("\n")) {
+      const line = raw.trim();
+      if (!line || line.startsWith("#")) continue;
+      const [word, ...rest] = line.split(/\s+/);
+      const key = word!.toLowerCase();
+      if (key === "match") return false;
+      if (key === "include") {
+        for (const pattern of rest) {
+          const full = pattern.startsWith("/")
+            ? pattern
+            : join(dirname(file), pattern);
+          const base = basename(full);
+          const rx = new RegExp(
+            "^" +
+              base
+                .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+                .replace(/\*/g, ".*")
+                .replace(/\?/g, ".") +
+              "$",
+          );
+          for (const name of list(dirname(full))
+            .filter((n) => rx.test(n))
+            .sort())
+            if (!visit(join(dirname(full), name), depth + 1)) return false;
+        }
+        continue;
+      }
+      if (!out.has(key)) out.set(key, rest.join(" ").toLowerCase());
+    }
+    return true;
+  };
+  visit(file, 0);
+  return out;
+}
+
+function readSshd(): Map<string, string> | undefined {
+  if (isWindows) return undefined;
+  try {
+    readFileSync("/etc/ssh/sshd_config", "utf8");
+  } catch {
+    return undefined;
+  }
+  return parseSshdConfig(
+    (p) => {
+      try {
+        return readFileSync(p, "utf8");
+      } catch {
+        return undefined;
+      }
+    },
+    (d) => {
+      try {
+        return readdirSync(d);
+      } catch {
+        return [];
+      }
+    },
+  );
+}
+
+// --- commands
+
+function sshTarget(
+  ctx: Context,
+  text: string | undefined,
+  port?: string,
+): SshTarget {
+  const p = port === undefined ? undefined : Number(port);
+  if (text !== undefined) return parseTarget(text, sshUser(ctx), p ?? 22);
+  // On the server: the address the client used to reach this machine.
+  const c = parseSshConnection(ctx.env.SSH_CONNECTION);
+  if (c) return { user: sshUser(ctx), host: c.server, port: p ?? c.serverPort };
+  let host = hostname();
+  for (const list of Object.values(networkInterfaces()))
+    for (const a of list ?? [])
+      if (a.family === "IPv4" && !a.internal) {
+        host = a.address;
+        break;
+      }
+  return { user: sshUser(ctx), host, port: p ?? 22 };
+}
+
+const osLabel: Record<ClientOs, string> = {
+  linux: "🐧 Linux",
+  macos: "🍎 macOS",
+  windows: "🪟 Windows (PowerShell)",
+};
+
+function paint(
+  name: "cyan" | "green" | "yellow" | "red" | "dim" | "bold",
+  text: string,
+): string {
+  return chalk ? chalk[name](text) : text;
+}
+
+/** The one rendering of "how to copy a key here", shared by `ssh copy` and the login hint. */
+export function printCopyHelp(
+  target: SshTarget,
+  oses: readonly ClientOs[],
+  options: { evidence?: string; banner?: string; local?: boolean },
+): void {
+  const dest = `${target.user}@${target.host}`;
+  if (options.banner)
+    console.log(paint("yellow", paint("bold", options.banner)));
+  console.log(
+    paint(
+      "cyan",
+      options.local
+        ? `Copy your key into ${dest}:`
+        : `To copy a key into ${dest}, run these on your own computer:`,
+    ),
+  );
+  if (options.evidence) console.log(paint("dim", `  (${options.evidence})`));
+  else if (oses.length > 1)
+    console.log(
+      paint(
+        "dim",
+        "  (I can't tell which kind of computer you are on, so here are all three)",
+      ),
+    );
+  for (const os of oses) {
+    console.log("");
+    console.log(paint("bold", osLabel[os]));
+    copyCommands(os, target).forEach((step, i) => {
+      console.log(paint("green", `  ${i + 1}. ${step.note}`));
+      console.log(`       ${step.command}`);
+    });
+  }
+}
+
+const localOs = (ctx: Context): ClientOs =>
+  ctx.platform === "macos"
+    ? "macos"
+    : ctx.platform === "windows"
+      ? "windows"
+      : "linux";
+
+async function sshStatus(ctx: Context): Promise<void> {
+  const rows: Check[] = [];
+  const session = await detectSession(ctx);
+  const next: NextStep[] = [];
+  if (session.kind === "local") {
+    rows.push({
+      check: "session",
+      status: "ok",
+      detail: "local console (not an SSH login)",
+    });
+  } else {
+    const how: Record<LoginMethod, string> = {
+      publickey: "an SSH key",
+      password: "a password",
+      "keyboard-interactive": "a password (keyboard-interactive)",
+      unknown: "an unknown method",
+    };
+    rows.push({
+      check: "session",
+      status: usedPassword(session.method) ? "warn" : "ok",
+      detail: `logged in over SSH from ${session.client} with ${how[session.method]}${session.evidence === "no-authorized-keys" ? " (this account has no authorized keys, so it was not a key)" : ""}`,
+    });
+    if (usedPassword(session.method))
+      next.push({
+        title:
+          "You signed in with a password. Set up a key, from your own computer:",
+        command: "snshah ssh copy",
+      });
+  }
+  const keys = await listKeys(ctx);
+  if (!keys.length) {
+    rows.push({
+      check: "keys",
+      status: "warn",
+      detail: `no key pair in ${tilde(ctx, sshDir(ctx))}`,
+    });
+    next.push({
+      title: "Create one on this machine:",
+      command: "snshah ssh new",
+    });
+  }
+  for (const k of keys)
+    rows.push({
+      check: "key",
+      status: k.problem || k.privateKey === "missing" ? "warn" : "ok",
+      detail:
+        `${k.type} ${k.fingerprint} ${k.comment}`.trim() +
+        (k.privateKey === "missing" ? " (no private key beside it)" : ""),
+    });
+  for (const k of keys)
+    if (k.problem)
+      rows.push({ check: "mode", status: "warn", detail: k.problem });
+  const agent = ctx.env.SSH_AUTH_SOCK;
+  if (!agent) {
+    rows.push({
+      check: "agent",
+      status: "warn",
+      detail: "no ssh-agent in this shell, so you retype key passphrases",
+    });
+  } else if (Bun.which("ssh-add")) {
+    const r = Bun.spawnSync(["ssh-add", "-l"], {
+      env: cleanEnv(ctx.env),
+      stdin: "ignore",
+      stdout: "pipe",
+      stderr: "ignore",
+      timeout: 5000,
+    });
+    const n =
+      r.exitCode === 0 ? r.stdout.toString().trim().split("\n").length : 0;
+    rows.push({
+      check: "agent",
+      status: n ? "ok" : "warn",
+      detail: n
+        ? `${n} key(s) loaded`
+        : "running, but no keys loaded; run ssh-add",
+    });
+  }
+  const authorized = await authorizedKeys(ctx);
+  rows.push({
+    check: "authorized",
+    status: "ok",
+    detail: `${authorized.length} key(s) can log in to this account (snshah ssh authorized)`,
+  });
+  const sshd = readSshd();
+  if (sshd) {
+    const passwords = (sshd.get("passwordauthentication") ?? "yes") !== "no";
+    rows.push({
+      check: "sshd",
+      status: passwords ? "warn" : "ok",
+      detail: passwords
+        ? "this machine's SSH server still accepts passwords (snshah ssh harden)"
+        : "this machine's SSH server accepts keys only",
+    });
+  }
+  printChecks(rows);
+  printNext(next);
+}
+
+async function sshKeys(ctx: Context, json: boolean): Promise<void> {
+  const keys = await listKeys(ctx);
+  if (json) return console.log(JSON.stringify(keys, null, 2));
+  if (!keys.length) {
+    say(
+      `No key pair in ${tilde(ctx, sshDir(ctx))}. Create one with snshah ssh new.`,
+      "pending",
+    );
+    return;
+  }
+  for (const k of keys) {
+    say(
+      `${k.path}  ${k.type}  ${k.fingerprint}  ${k.comment}`,
+      k.problem ? "pending" : "success",
+    );
+    if (k.problem) console.log(`  ${k.problem}`);
+    const line = (
+      (await readText(join(ctx.home, k.path.slice(1)))) ?? ""
+    ).trim();
+    console.log(`  ${paint("dim", "public key (safe to share):")}`);
+    console.log(`  ${line}`);
+  }
+}
+
+async function sshNew(
+  ctx: Context,
+  options: { name: string; comment?: string },
+): Promise<void> {
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(options.name))
+    throw new UsageError(`${options.name} is not a valid key file name.`);
+  const priv = join(sshDir(ctx), options.name);
+  if (existsSync(priv)) {
+    say(`${tilde(ctx, priv)} already exists; nothing to do.`, "success");
+    return;
+  }
+  if (!Bun.which("ssh-keygen"))
+    throw new Error(
+      "ssh-keygen is not installed. Install the OpenSSH client (see snshah doctor).",
+    );
+  await mkdir(sshDir(ctx), { recursive: true, mode: 0o700 });
+  const comment = options.comment ?? `${sshUser(ctx)}@${hostname()}`;
+  say(
+    `Creating ${tilde(ctx, priv)}. Choose a passphrase when asked.`,
+    "action",
+  );
+  const code = run(
+    ["ssh-keygen", "-t", "ed25519", "-a", "100", "-C", comment, "-f", priv],
+    { env: ctx.env },
+  );
+  if (code !== 0)
+    throw new Error("ssh-keygen did not finish; no key was created.");
+  say(`Created. Public key (safe to share):`, "success");
+  console.log(`  ${((await readText(priv + ".pub")) ?? "").trim()}`);
+}
+
+async function sshCopy(
+  ctx: Context,
+  targetText: string | undefined,
+  o: {
+    os?: string;
+    port?: string;
+    key?: string;
+    run?: boolean;
+    hint?: boolean;
+  },
+): Promise<void> {
+  const target = sshTarget(ctx, targetText, o.port);
+  if (o.os !== undefined && o.os !== "all" && !member(clientOses, o.os))
+    throw new UsageError("--os must be linux, macos, windows or all.");
+  // With a target you are on the client, so its OS is known; on the server it is not.
+  let oses: readonly ClientOs[];
+  let evidence: string | undefined;
+  if (o.os === "all") oses = clientOses;
+  else if (member(clientOses, o.os)) {
+    oses = [o.os];
+    evidence = `${o.os}, as you asked`;
+  } else if (targetText !== undefined) {
+    oses = [localOs(ctx)];
+    evidence = `this computer is ${osLabel[localOs(ctx)]}`;
+  } else {
+    const seen = detectClientOs(ctx.env);
+    oses = seen ? [seen.os] : clientOses;
+    evidence = seen
+      ? `your computer looks like ${osLabel[seen.os]}: ${seen.evidence}. Use --os all for the others`
+      : undefined;
+  }
+  if (o.run) {
+    if (targetText === undefined)
+      throw new UsageError(
+        "Run it on the computer you want to log in from: snshah ssh copy user@server --run",
+      );
+    await runCopy(ctx, target, o.key);
+    return;
+  }
+  printCopyHelp(target, oses, {
+    evidence,
+    local: targetText !== undefined,
+    banner: o.hint
+      ? "🔐 You signed in with a password. SSH keys are safer, and you will not have to type it again."
+      : undefined,
+  });
+  if (targetText !== undefined)
+    console.log(
+      paint(
+        "dim",
+        `\nOr let snshah do it from here: snshah ssh copy ${target.user}@${target.host}${target.port !== 22 ? ` -p ${target.port}` : ""} --run`,
+      ),
+    );
+  else if (o.hint)
+    console.log(
+      paint(
+        "dim",
+        "\nThis hint shows once per login. Silence it with SNSHAH_SSH_HINT=0. More: snshah ssh",
+      ),
+    );
+}
+
+async function runCopy(
+  ctx: Context,
+  target: SshTarget,
+  keyPath?: string,
+): Promise<void> {
+  if (!Bun.which("ssh"))
+    throw new Error(
+      "ssh is not installed. Install the OpenSSH client (see snshah doctor).",
+    );
+  let pub = keyPath ? resolve(expandHome(ctx, keyPath)) : undefined;
+  if (!pub) {
+    const first = (await listKeys(ctx))[0];
+    if (!first) {
+      await sshNew(ctx, { name: "id_ed25519" });
+      pub = join(sshDir(ctx), "id_ed25519.pub");
+    } else pub = resolve(expandHome(ctx, first.path));
+  }
+  const key = parsePublicKey((await readText(pub)) ?? "");
+  if (!key || key.options)
+    throw new Error(`${tilde(ctx, pub)} does not hold a public key.`);
+  const dest = `${target.user}@${target.host}`;
+  say(
+    `Copying ${tilde(ctx, pub)} into ${dest}. Type its password once when asked.`,
+    "action",
+  );
+  const code = run(
+    [
+      "ssh",
+      ...(target.port !== 22 ? ["-p", String(target.port)] : []),
+      dest,
+      authorizeScript(key),
+    ],
+    { env: ctx.env },
+  );
+  if (code !== 0) throw new Error("The key was not copied.");
+  await sshTest(ctx, target, pub.slice(0, -4));
+}
+
+async function sshTest(
+  ctx: Context,
+  target: SshTarget,
+  identity?: string,
+): Promise<void> {
+  if (!Bun.which("ssh"))
+    throw new Error(
+      "ssh is not installed. Install the OpenSSH client (see snshah doctor).",
+    );
+  const dest = `${target.user}@${target.host}`;
+  const r = Bun.spawnSync(
+    [
+      "ssh",
+      "-o",
+      "BatchMode=yes",
+      "-o",
+      "PreferredAuthentications=publickey",
+      "-o",
+      "ConnectTimeout=8",
+      ...(identity ? ["-i", identity, "-o", "IdentitiesOnly=yes"] : []),
+      ...(target.port !== 22 ? ["-p", String(target.port)] : []),
+      dest,
+      "true",
+    ],
+    {
+      env: cleanEnv(ctx.env),
+      stdin: "ignore",
+      stdout: "pipe",
+      stderr: "pipe",
+      timeout: 20_000,
+    },
+  );
+  if (r.exitCode === 0) {
+    say(`Key login to ${dest} works.`, "success");
+    return;
+  }
+  const why = r.stderr.toString().trim().split("\n").pop() ?? "";
+  say(`Key login to ${dest} did not work: ${why}`, "error");
+  console.log(
+    `  Copy a key first: snshah ssh copy ${dest}${target.port !== 22 ? ` -p ${target.port}` : ""} --run`,
+  );
+  process.exitCode = 1;
+}
+
+async function sshAuthorize(
+  ctx: Context,
+  o: { key?: string; file?: string; github?: string; stdin?: boolean },
+): Promise<void> {
+  const chosen = [
+    o.key,
+    o.file,
+    o.github,
+    o.stdin ? "stdin" : undefined,
+  ].filter((x) => x !== undefined);
+  if (chosen.length !== 1)
+    throw new UsageError(
+      "Give exactly one of --key, --file, --github or --stdin.",
+    );
+  let lines: string[];
+  let tag: string | undefined;
+  let allowOptions = true;
+  if (o.key !== undefined) lines = [o.key];
+  else if (o.file !== undefined)
+    lines = ((await readText(resolve(expandHome(ctx, o.file)))) ?? "").split(
+      "\n",
+    );
+  else if (o.stdin) lines = (await Bun.stdin.text()).split("\n");
+  else {
+    const user = o.github!;
+    if (!/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/.test(user))
+      throw new UsageError(`${user} is not a valid GitHub user name.`);
+    const response = await fetch(`https://github.com/${user}.keys`, {
+      headers: { "User-Agent": "snshah" },
+    });
+    if (!response.ok)
+      throw new Error(
+        `GitHub has no keys for ${user} (HTTP ${response.status}).`,
+      );
+    lines = (await response.text()).split("\n");
+    tag = `github:${user}`;
+    allowOptions = false; // keys from the network never carry options
+  }
+  const r = await authorizeKeys(ctx, lines, { tag, allowOptions });
+  if (!r.added && !r.present && !r.invalid)
+    throw new UsageError("No public keys found in the input.");
+  if (r.invalid)
+    say(
+      `${r.invalid} line(s) were not valid public keys and were skipped.`,
+      "pending",
+    );
+  say(
+    r.added
+      ? `Added ${r.added} key(s) to ${tilde(ctx, authorizedKeysFile(ctx))}.`
+      : "No changes needed.",
+    "success",
+  );
+  if (r.present) console.log(`  ${r.present} key(s) were already there.`);
+}
+
+async function sshAuthorized(ctx: Context, json: boolean): Promise<void> {
+  const keys = await authorizedKeys(ctx);
+  const rows = keys.map((k) => ({
+    type: k.type,
+    fingerprint: fingerprint(k.blob),
+    comment: k.comment,
+    ...(k.options ? { options: k.options } : {}),
+  }));
+  if (json) return console.log(JSON.stringify(rows, null, 2));
+  if (!rows.length) {
+    say(
+      `No keys in ${tilde(ctx, authorizedKeysFile(ctx))}; only passwords can log in here.`,
+      "pending",
+    );
+    return;
+  }
+  for (const r of rows)
+    say(
+      `${r.type}  ${r.fingerprint}  ${r.comment}${r.options ? `  [${r.options}]` : ""}`,
+      "success",
+    );
+}
+
+async function sshHarden(ctx: Context): Promise<void> {
+  const sshd = readSshd();
+  const rows: Check[] = [];
+  if (!sshd) {
+    rows.push({
+      check: "sshd",
+      status: "warn",
+      detail:
+        "cannot read /etc/ssh/sshd_config here (no SSH server, or not allowed)",
+    });
+  } else {
+    const passwords = (sshd.get("passwordauthentication") ?? "yes") !== "no";
+    rows.push({
+      check: "passwords",
+      status: passwords ? "warn" : "ok",
+      detail: passwords
+        ? "the SSH server accepts passwords"
+        : "the SSH server accepts keys only",
+    });
+    const root = sshd.get("permitrootlogin") ?? "prohibit-password";
+    rows.push({
+      check: "root",
+      status: root === "yes" ? "warn" : "ok",
+      detail: `root login: ${root}`,
+    });
+    rows.push({
+      check: "records",
+      status: sshd.get("exposeauthinfo") === "yes" ? "ok" : "warn",
+      detail:
+        sshd.get("exposeauthinfo") === "yes"
+          ? "ExposeAuthInfo is on, so snshah knows exactly how you logged in"
+          : "ExposeAuthInfo is off; turning it on lets snshah tell password logins from key logins exactly",
+    });
+  }
+  printChecks(rows);
+  const service = detectManager(ctx) === "apt" ? "ssh" : "sshd";
+  say(
+    "Only after `snshah ssh test <user@host>` shows key login works, and with this session still open:",
+    "pending",
+  );
+  console.log(
+    [
+      "  sudo tee /etc/ssh/sshd_config.d/10-snshah.conf >/dev/null <<'EOF'",
+      "  PasswordAuthentication no",
+      "  KbdInteractiveAuthentication no",
+      "  ExposeAuthInfo yes",
+      "  EOF",
+      `  sudo sshd -t && sudo systemctl reload ${service}`,
+    ].join("\n"),
+  );
+  console.log(
+    paint(
+      "dim",
+      "  snshah prints this and never runs it. Test from a second terminal before you close the first.",
+    ),
+  );
+}
+
+async function sshHostAdd(
+  ctx: Context,
+  alias: string,
+  targetText: string,
+  o: { port?: string; identity?: string },
+): Promise<void> {
+  if (!aliasWord.test(alias))
+    throw new UsageError(`${alias} is not a valid host alias.`);
+  const target = parseTarget(
+    targetText,
+    sshUser(ctx),
+    o.port === undefined ? 22 : Number(o.port),
+  );
+  if (
+    o.identity !== undefined &&
+    !/^[A-Za-z0-9~/][A-Za-z0-9._/~-]*$/.test(o.identity)
+  )
+    throw new UsageError(`${o.identity} is not a plain path.`);
+  const file = join(sshDir(ctx), "config");
+  const { begin, end } = hostMarks(alias);
+  const current = (await readText(file)) ?? "";
+  const next = upsertBlock(
+    current,
+    begin,
+    end,
+    hostBlock(alias, target, o.identity),
+  );
+  if (next === current)
+    return say(`${alias} is already set up. No changes needed.`, "success");
+  await mkdir(sshDir(ctx), { recursive: true, mode: 0o700 });
+  await writeAtomic(file, next, 0o600);
+  say(
+    `Saved ${alias} in ${tilde(ctx, file)}. Connect with: ssh ${alias}`,
+    "success",
+  );
+}
+
+async function sshHostList(ctx: Context): Promise<void> {
+  const config = (await readText(join(sshDir(ctx), "config"))) ?? "";
+  const aliases = listHostAliases(config);
+  if (!aliases.length)
+    return say(
+      "No hosts saved by snshah. Add one with snshah ssh host add <alias> <user@host>.",
+      "pending",
+    );
+  for (const a of aliases) say(a, "success");
+}
+
+async function sshHostRemove(ctx: Context, alias: string): Promise<void> {
+  const file = join(sshDir(ctx), "config");
+  const current = (await readText(file)) ?? "";
+  const next = removeHostBlock(current, alias);
+  if (next === current)
+    return say(
+      `${alias} is not saved by snshah. No changes needed.`,
+      "success",
+    );
+  await writeAtomic(file, next, 0o600);
+  say(`Removed ${alias}.`, "success");
 }
 
 // ---------------------------------------------------------------------------
@@ -3655,6 +5374,8 @@ function describeStep(ctx: Context, step: Step): string {
       return `create ${step.label}: ${tilde(ctx, step.path)} [directory]`;
     case "remove":
       return `remove ${step.label}: ${tilde(ctx, step.path)} [remove]`;
+    case "tools":
+      return `install ${step.label}: ${step.names.join(", ")} [tools]`;
     case "download":
       return `${step.create ? "install" : "update"} ${step.label}: ${tilde(ctx, step.path)} (SHA-256 checked) [download]`;
     case "command":
@@ -3673,7 +5394,9 @@ function describeStep(ctx: Context, step: Step): string {
 function stepJson(ctx: Context, s: Step) {
   return s.kind === "command"
     ? { kind: s.kind, label: s.label, run: s.run }
-    : { kind: s.kind, label: s.label, path: tilde(ctx, s.path) };
+    : s.kind === "tools"
+      ? { kind: s.kind, label: s.label, tools: s.names }
+      : { kind: s.kind, label: s.label, path: tilde(ctx, s.path) };
 }
 
 function printExplain(ctx: Context, e: Effective, json: boolean): void {
@@ -3721,7 +5444,7 @@ function printSteps(ctx: Context, steps: readonly Step[], json: boolean): void {
 type CommanderCommand = {
   name(): string;
   commands: CommanderCommand[];
-  command(name: string): CommanderCommand;
+  command(name: string, opts?: { isDefault?: boolean }): CommanderCommand;
   description(text: string): CommanderCommand;
   option(
     flags: string,
@@ -3839,7 +5562,8 @@ export async function buildCli(ctx: Context): Promise<CommanderCommand> {
               `Applied ${steps.length} change(s). Open a new shell to pick them up.`,
               "success",
             );
-          const { advice, system, manager } = await doctor(ctx);
+          const { advice, next, system, manager } = await doctor(ctx);
+          printNext(next);
           if (advice.length) {
             say(
               `Some tools snshah uses are missing. To install on ${system}${manager ? ` (${manager})` : ""}:`,
@@ -3868,6 +5592,7 @@ export async function buildCli(ctx: Context): Promise<CommanderCommand> {
         );
         for (const line of report.advice) console.log(`  ${line}`);
       }
+      printNext(report.next);
       if (report.checks.some((c) => c.status === "missing"))
         process.exitCode = 1;
     });
@@ -3939,9 +5664,10 @@ export async function buildCli(ctx: Context): Promise<CommanderCommand> {
         applySteps(
           (await plan(ctx)).filter(
             (s) =>
-              s.path === ctx.configFile ||
-              s.path === ctx.typesFile ||
-              s.path === ctx.configDir,
+              s.kind !== "tools" &&
+              (s.path === ctx.configFile ||
+                s.path === ctx.typesFile ||
+                s.path === ctx.configDir),
           ),
         ),
       );
@@ -4065,6 +5791,128 @@ export async function buildCli(ctx: Context): Promise<CommanderCommand> {
     .argument("<name>", "registry name")
     .action(async (name: string) => gitRemove(ctx, name));
 
+  const ssh = program
+    .command("ssh")
+    .description(
+      "SSH keys, copying a key to a server, saved hosts, and server hardening advice",
+    );
+  ssh
+    .command("status", { isDefault: true })
+    .description(
+      "How you logged in, your keys, the agent, who can log in here, and what to do next",
+    )
+    .action(async () => sshStatus(ctx));
+  ssh
+    .command("keys")
+    .description("List your keys with fingerprints and the public key to share")
+    .option("--json", "print JSON")
+    .action(async (o: { json?: boolean }) => sshKeys(ctx, !!o.json));
+  ssh
+    .command("new")
+    .description(
+      "Create an ed25519 key if you don't have one (asks for a passphrase)",
+    )
+    .option("--name <file>", "key file name in ~/.ssh", "id_ed25519")
+    .option("--comment <text>", "key comment (default user@host)")
+    .action(async (o: { name: string; comment?: string }) => sshNew(ctx, o));
+  ssh
+    .command("copy")
+    .description(
+      "Show how to copy your key into a server, for your kind of computer (or all three)",
+    )
+    .argument(
+      "[target]",
+      "user@host; leave out on the server to use this machine",
+    )
+    .option("--os <os>", "linux, macos, windows or all")
+    .option("-p, --port <n>", "the server's SSH port")
+    .option("--key <path>", "public key to copy with --run")
+    .option(
+      "--run",
+      "do it from here: copy the key, then test it (run on your own computer)",
+    )
+    .option(
+      "--hint",
+      "lead with the password-login banner (what shells show at login)",
+    )
+    .action(
+      async (
+        target: string | undefined,
+        o: {
+          os?: string;
+          port?: string;
+          key?: string;
+          run?: boolean;
+          hint?: boolean;
+        },
+      ) => sshCopy(ctx, target, o),
+    );
+  ssh
+    .command("authorize")
+    .description("Add a public key to this account's authorized_keys (once)")
+    .option("--key <line>", "the public key text")
+    .option("--file <path>", "a file of public keys, such as id_ed25519.pub")
+    .option("--github <user>", "the keys published at github.com/<user>.keys")
+    .option("--stdin", "read public keys from standard input")
+    .action(
+      async (o: {
+        key?: string;
+        file?: string;
+        github?: string;
+        stdin?: boolean;
+      }) => sshAuthorize(ctx, o),
+    );
+  ssh
+    .command("authorized")
+    .description("List the keys that can log in to this account")
+    .option("--json", "print JSON")
+    .action(async (o: { json?: boolean }) => sshAuthorized(ctx, !!o.json));
+  ssh
+    .command("test")
+    .description("Check that key login (no password) works to a server")
+    .argument("<target>", "user@host")
+    .option("-p, --port <n>", "the server's SSH port")
+    .option("-i, --identity <file>", "private key to try")
+    .action(async (target: string, o: { port?: string; identity?: string }) =>
+      sshTest(
+        ctx,
+        sshTarget(ctx, target, o.port),
+        o.identity ? resolve(expandHome(ctx, o.identity)) : undefined,
+      ),
+    );
+  ssh
+    .command("harden")
+    .description(
+      "Show this machine's SSH server settings and how to turn passwords off (never changes anything)",
+    )
+    .action(async () => sshHarden(ctx));
+  const sshHost = ssh
+    .command("host")
+    .description("Saved hosts in ~/.ssh/config (one marked block each)");
+  sshHost
+    .command("add")
+    .description("Save an alias so `ssh <alias>` works")
+    .argument("<alias>", "short name")
+    .argument("<target>", "user@host")
+    .option("-p, --port <n>", "SSH port")
+    .option("-i, --identity <file>", "key to use, such as ~/.ssh/id_ed25519")
+    .action(
+      async (
+        alias: string,
+        target: string,
+        o: { port?: string; identity?: string },
+      ) => sshHostAdd(ctx, alias, target, o),
+    );
+  sshHost
+    .command("list")
+    .description("List saved aliases")
+    .action(async () => sshHostList(ctx));
+  sshHost
+    .command("remove")
+    .description("Forget an alias")
+    .argument("<alias>", "short name")
+    .action(async (alias: string) => sshHostRemove(ctx, alias));
+
   program
     .command("update")
     .description(
@@ -4118,15 +5966,12 @@ export async function buildCli(ctx: Context): Promise<CommanderCommand> {
   return program;
 }
 
-export function commandTree(program: CommanderCommand): string[] {
-  const names: string[] = [];
-  for (const command of program.commands) {
-    if (command.commands.length)
-      for (const sub of command.commands)
-        names.push(`${command.name()} ${sub.name()}`);
-    else names.push(command.name());
-  }
-  return names;
+export function commandTree(program: CommanderCommand, prefix = ""): string[] {
+  return program.commands.flatMap((command) =>
+    command.commands.length
+      ? commandTree(command, `${prefix}${command.name()} `)
+      : [`${prefix}${command.name()}`],
+  );
 }
 
 export async function main(argv: string[]): Promise<number> {
@@ -4142,7 +5987,7 @@ export async function main(argv: string[]): Promise<number> {
       process.stdout.write(
         renderShell(argv[1], shellOps(ctx, config, argv[1])),
       );
-      if (argv[2] === "--greet") await greet(ctx);
+      if (argv[2] === "--greet") await greet(ctx, config);
       return 0;
     }
     if (argv[0] === "exec") return await execWithSecrets(ctx, argv.slice(1));
