@@ -288,6 +288,15 @@ run changes nothing.
 - **FR-035**: Over SSH the owner's client MUST be able to send its answer in
   `LC_SNSHAH_FONTS`, which wins over anything the server can see.
 
+### Reloading the current shell
+
+- **FR-036**: After a successful `snshah update` or `snshah apply`, bash,
+  zsh and fish MUST re-source snshah's init in the running shell through the
+  `snshah` shell function (never for `--check`, `--json`, `--help`); where
+  that can't be done (PowerShell, or a shell that hasn't loaded the function
+  yet) the CLI MUST print the exact command for the user's shell and say that
+  logging out and in also works.
+
 ### Model of record
 
 - **FR-017**: `ontology/workshop.ttl` MUST state the Workshop's version,
@@ -355,6 +364,7 @@ run changes nothing.
 | FR-018, FR-019, FR-021 | Shahid N. Shah, direct statement, 2026-11-27 (profile.d, type-safe merge, command hooks with env passthrough) |
 | FR-020, FR-022 | Shahid N. Shah, direct statement, 2026-11-27 (environment selectors first, fingerprint when needed, hostnames allowed); private-only rule proposed by Claude |
 | FR-023 | Shahid N. Shah, decision, 2026-11-27 ("Yes, pinned and checksummed") |
+| FR-036 | Shahid N. Shah, direct statement, 2026-11-27 (`snshah update` should re-source the profile, or explain how) |
 | FR-033 to FR-035 | Shahid N. Shah, direct statement, 2026-11-27 (Nerd Fonts in Windows Terminal; `snshah ux fonts`) |
 | FR-027 to FR-032 | Shahid N. Shah, direct statements, 2026-11-27 (mise, tools, GitHub sign-in, `snshah ssh`) |
 | FR-024 to FR-026 | Shahid N. Shah, direct statements, 2026-11-27 (Debian 13 acceptance run) |

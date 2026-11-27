@@ -299,6 +299,19 @@ the bootstrap and `snshah git clone shah` put it in
 asks, and applies it. The new CLI replaces the old one only after the rest
 of the apply succeeds.
 
+**Picking up changes in the shell you are in.** A program can't change its
+parent shell, so in bash, zsh and fish `snshah` is a small shell function
+that, after a successful `snshah update` or `snshah apply`, re-sources
+snshah's init in that shell (`--check`, `--json` and `--help` don't). New
+aliases, tools, PATH entries and prompt changes show up at once. An alias
+you changed (rather than added) keeps its old definition until a new shell,
+because init never overrides what you already have. PowerShell can't define
+that function safely, and a shell where the function isn't loaded yet (the
+first update from an older version) gets the exact line to run instead:
+`eval "$(snshah shell bash)"`, `snshah shell fish | source` or
+`snshah shell pwsh | Out-String | Invoke-Expression`. Logging out and in
+always works.
+
 ## Maintaining it
 
 See [`AGENTS.md`](AGENTS.md).

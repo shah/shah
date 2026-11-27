@@ -148,7 +148,7 @@ type Covers<T extends readonly string[], U extends string> = [
   ? true
   : ["missing", Exclude<U, T[number]>];
 
-export const cliVersion = "0.4.2";
+export const cliVersion = "0.4.3";
 export const minimumBun = "1.4.0";
 /** The Oh My Posh release snshah installs when none is on PATH, by Bun-style target. */
 export const ohMyPosh = {
@@ -2720,6 +2720,7 @@ export type ShellOp =
   | { kind: "env"; name: string; value: string }
   | { kind: "alias"; name: string; value: AliasValue }
   | { kind: "mkcd" }
+  | { kind: "reload" }
   | { kind: "wrap"; command: string; wrapper: string }
   | { kind: "mise"; binary: string }
   | { kind: "direnv" }
@@ -2764,6 +2765,7 @@ export function shellOps(
   for (const [name, value] of Object.entries(config.aliases ?? {}))
     ops.push({ kind: "alias", name, value });
   ops.push({ kind: "mkcd" });
+  ops.push({ kind: "reload" });
   const wrapped = new Set<string>();
   for (const secret of config.secrets ?? [])
     if (secret.scope === "command")
@@ -2841,6 +2843,12 @@ function renderPosix(shell: "bash" | "zsh", op: ShellOp): string[] {
       return [
         `${defined("mkcd")} || mkcd() { mkdir -p -- "$1" && cd -- "$1"; }`,
       ];
+    case "reload":
+      // After a successful `snshah update` or `snshah apply`, re-source this init in
+      // the shell you are in. Always redefined, so a reload refreshes the function too.
+      return [
+        `snshah() { SNSHAH_RELOAD=1 command snshah "$@"; __snshah_rc=$?; if [ "$__snshah_rc" -eq 0 ]; then case "$1" in update|apply) case " $* " in *" --check "*|*" --json "*|*" --help "*|*" -h "*) ;; *) eval "$(command snshah shell ${shell})" ;; esac ;; esac; fi; return "$__snshah_rc"; }`,
+      ];
     case "wrap":
       return [
         `${defined(op.command)} || ${op.command}() { ${quotePosix(op.wrapper)} exec ${op.command} "$@"; }`,
@@ -2887,6 +2895,10 @@ function renderFish(op: ShellOp): string[] {
     case "mkcd":
       return [
         "functions -q mkcd; or function mkcd; mkdir -p -- $argv[1]; and cd -- $argv[1]; end",
+      ];
+    case "reload":
+      return [
+        `function snshah --description 'snshah; re-sources this shell after update or apply'; env SNSHAH_RELOAD=1 snshah $argv; set -l __snshah_rc $status; if test $__snshah_rc -eq 0; and contains -- "$argv[1]" update apply; and not contains -- --check $argv; and not contains -- --json $argv; and not contains -- --help $argv; command snshah shell fish | source; end; return $__snshah_rc; end`,
       ];
     case "wrap":
       return [
@@ -2937,6 +2949,10 @@ function renderPwsh(op: ShellOp): string[] {
       return [
         `if (${undefinedCommand("mkcd")}) { function global:mkcd { param([string]$Path) New-Item -ItemType Directory -Force -Path $Path | Out-Null; Set-Location -LiteralPath $Path } }`,
       ];
+    case "reload":
+      // A function can't define things in the global scope PowerShell shows you,
+      // so pwsh gets advice from the CLI instead (see reloadAdvice).
+      return [];
     case "wrap":
       return [
         `if (${undefinedCommand(op.command)}) { function global:${op.command} { & ${quotePwsh(op.wrapper)} exec ${op.command} @args } }`,
@@ -3950,6 +3966,40 @@ export function exposeAuthInfoAdvice(
       ? `echo 'ExposeAuthInfo yes' | sudo tee ${dropIn ? "/etc/ssh/sshd_config.d/50-snshah.conf" : "-a /etc/ssh/sshd_config"} >/dev/null && sudo systemctl reload ${service}`
       : `su -c "${body}"`,
   };
+}
+
+/** Which shell the user is probably in, for the one-line reload command. */
+export function guessShell(env: Env): Shell {
+  const name = basename(env.SHELL ?? "").replace(/\.exe$/, "");
+  if (member(shells, name)) return name;
+  return isWindows || env.PSModulePath ? "pwsh" : "bash";
+}
+
+/** A child process can't change its parent shell: the snshah function does it, or we say how. */
+export function reloadCommand(shell: Shell): string {
+  switch (shell) {
+    case "bash":
+    case "zsh":
+      return `eval "$(snshah shell ${shell})"`;
+    case "fish":
+      return "snshah shell fish | source";
+    case "pwsh":
+      return "snshah shell pwsh | Out-String | Invoke-Expression";
+    default:
+      return assertNever(shell);
+  }
+}
+
+function reloadAdvice(ctx: Context): void {
+  if (ctx.env.SNSHAH_RELOAD === "1") {
+    say("🔄 Reloading snshah in this shell...", "action");
+    return;
+  }
+  say("🔁 To use the changes in this shell, run:", "action");
+  console.log(`  ${reloadCommand(guessShell(ctx.env))}`);
+  console.log(
+    "  or log out and back in (new shells pick them up by themselves).",
+  );
 }
 
 function printNext(next: readonly NextStep[]): void {
@@ -5955,11 +6005,10 @@ export async function buildCli(ctx: Context): Promise<CommanderCommand> {
             ),
           );
         else {
-          if (steps.length)
-            say(
-              `Applied ${steps.length} change(s). Open a new shell to pick them up.`,
-              "success",
-            );
+          if (steps.length) {
+            say(`Applied ${steps.length} change(s).`, "success");
+            reloadAdvice(ctx);
+          }
           const { advice, next, system, manager } = await doctor(ctx);
           printNext(next);
           if (advice.length) {

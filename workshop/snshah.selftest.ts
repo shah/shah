@@ -529,6 +529,64 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
       );
     }
 
+    // After `snshah apply` or `update`, the snshah function re-sources this
+    // shell, so a change shows up without a new login.
+    {
+      const rh = join(root, "reload-home");
+      await mkdir(join(rh, ".config", "snshah", "profile.d"), {
+        recursive: true,
+      });
+      const src = join(root, "reload-profile.ts");
+      await writeFile(
+        src,
+        'export const selector = { kind: "always" };\nexport const config = { aliases: { reloadprobe: "echo reloaded" } };\n',
+      );
+      const re = { ...baseEnv(rh), PROFILE_SRC: src };
+      cli(["apply", "--yes"], undefined, re);
+      const copy = `cp "$PROFILE_SRC" "$HOME/.config/snshah/profile.d/70-reload.ts"`;
+      const reloadLive: Record<string, string[]> = {
+        bash: [
+          "bash",
+          "-ic",
+          `echo "FN=$(type -t snshah)"; echo "BEFORE=$(type -t reloadprobe)"; ${copy}; snshah apply --yes >/dev/null 2>&1; echo "AFTER=$(type -t reloadprobe)"`,
+        ],
+        zsh: [
+          "zsh",
+          "-ic",
+          `echo "FN=\${$(whence -w snshah)#*: }"; echo "BEFORE=\${$(whence -w reloadprobe)#*: }"; ${copy}; snshah apply --yes >/dev/null 2>&1; echo "AFTER=\${$(whence -w reloadprobe)#*: }"`,
+        ],
+        fish: [
+          "fish",
+          "-ic",
+          `echo FN=(type -t snshah); echo BEFORE=(type -t reloadprobe); ${copy}; snshah apply --yes >/dev/null 2>&1; echo AFTER=(type -t reloadprobe)`,
+        ],
+      };
+      for (const [shell, argv] of Object.entries(reloadLive)) {
+        if (!Bun.which(argv[0]!)) continue;
+        await rm(join(rh, ".config", "snshah", "profile.d", "70-reload.ts"), {
+          force: true,
+        });
+        const r = sh(argv, root, re);
+        check(
+          `interactive ${shell}: snshah apply re-sources the running shell`,
+          /FN=function/i.test(r.out) &&
+            !/BEFORE=(alias|function)/i.test(r.out) &&
+            /AFTER=(alias|function)/i.test(r.out),
+          r.out + r.err,
+        );
+      }
+      await rm(join(rh, ".config", "snshah", "profile.d", "70-reload.ts"), {
+        force: true,
+      });
+      check(
+        "reload advice names the command for your shell",
+        mod.reloadCommand("zsh") === 'eval "$(snshah shell zsh)"' &&
+          mod.reloadCommand("fish") === "snshah shell fish | source" &&
+          mod.reloadCommand("pwsh").includes("Invoke-Expression") &&
+          mod.guessShell({ SHELL: "/usr/bin/fish" }) === "fish",
+      );
+    }
+
     // Shell greeting: doctor on first use per version, update check hourly.
     {
       const greetHome = join(root, "greet-home");
