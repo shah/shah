@@ -136,7 +136,7 @@ type Covers<T extends readonly string[], U extends string> = [
   ? true
   : ["missing", Exclude<U, T[number]>];
 
-export const cliVersion = "0.2.1";
+export const cliVersion = "0.2.2";
 export const minimumBun = "1.4.0";
 /** The Oh My Posh release snshah installs when none is on PATH, by Bun-style target. */
 export const ohMyPosh = {
@@ -2925,6 +2925,8 @@ async function setSecret(
 type Advice = Partial<Record<PackageManager, string>> & { fallback?: string };
 type Tool = {
   name: string;
+  /** How to ask for its version; "--version" when unset. */
+  versionArgs?: readonly string[];
   purpose: string;
   required: boolean;
   linuxOnly?: boolean;
@@ -2963,6 +2965,7 @@ const tools: Tool[] = [
   },
   {
     name: "oh-my-posh",
+    versionArgs: ["version"],
     purpose: "prompt theme",
     required: false,
     advice: {
@@ -3050,6 +3053,7 @@ const tools: Tool[] = [
   },
   {
     name: "socat",
+    versionArgs: ["-V"],
     purpose: "Claude Code sandbox",
     required: false,
     linuxOnly: true,
@@ -3133,7 +3137,31 @@ type Check = {
   check: string;
   status: "ok" | "warn" | "missing";
   detail: string;
+  /** The installed version, for checks that are tools. */
+  version?: string;
 };
+
+/** First dotted version number a tool prints, e.g. "2.47.3" from "git version 2.47.3". */
+export function parseVersion(text: string): string | undefined {
+  return /\d+(?:\.\d+)+/.exec(text)?.[0];
+}
+
+function toolVersion(path: string, args: readonly string[]): string {
+  try {
+    const r = Bun.spawnSync([path, ...args], {
+      stdin: "ignore",
+      stdout: "pipe",
+      stderr: "pipe",
+      timeout: 5000,
+    });
+    return (
+      parseVersion(`${r.stdout.toString()}\n${r.stderr.toString()}`) ??
+      "unknown version"
+    );
+  } catch {
+    return "unknown version";
+  }
+}
 
 /** A human name for this OS, so advice says where it applies. */
 function systemName(ctx: Context): string {
@@ -3163,7 +3191,8 @@ async function doctor(ctx: Context): Promise<{
   checks.push({
     check: "bun",
     status: versionAtLeast(Bun.version, minimumBun) ? "ok" : "missing",
-    detail: `Bun ${Bun.version} (needs ${minimumBun} or newer)`,
+    detail: `runtime (needs ${minimumBun} or newer)`,
+    version: Bun.version,
   });
   try {
     const { privateSource: source, profiles } = await loadEffective(ctx);
@@ -3211,6 +3240,9 @@ async function doctor(ctx: Context): Promise<{
       check: tool.name,
       status: found ? "ok" : tool.required ? "missing" : "warn",
       detail: found ? tool.purpose : `not installed (${tool.purpose})`,
+      ...(found
+        ? { version: toolVersion(found, tool.versionArgs ?? ["--version"]) }
+        : {}),
     });
   }
   // snshah installs Oh My Posh itself where it can; advise apply, not a package.
@@ -3499,11 +3531,17 @@ async function greet(ctx: Context): Promise<void> {
     if (state.doctorRanFor !== cliVersion) {
       state = { ...state, doctorRanFor: cliVersion };
       await writeState(ctx, state);
-      process.stderr.write(
-        `snshah ${cliVersion}: first run in a shell, checking this machine (snshah doctor)\n`,
-      );
+      // The shell is about to get these PATH entries from the init code it
+      // evaluates, so doctor sees the PATH the user will actually have.
+      const bunBin = join(ctx.env.BUN_INSTALL || join(ctx.home, ".bun"), "bin");
+      const color =
+        !!process.stderr.isTTY && !ctx.env.NO_COLOR && ctx.env.TERM !== "dumb";
       const r = Bun.spawnSync([...self, "doctor"], {
-        env: ctx.env,
+        env: {
+          ...ctx.env,
+          PATH: [ctx.binDir, bunBin, ctx.env.PATH ?? ""].join(delimiter),
+          ...(color ? { SNSHAH_COLOR: "1", FORCE_COLOR: "1" } : {}),
+        },
         stdin: "ignore",
         stdout: "pipe",
         stderr: "pipe",
@@ -3551,7 +3589,7 @@ type Chalk = {
 } & { level: number };
 let chalk: Chalk | undefined;
 const interactive =
-  !!process.stdout.isTTY &&
+  (!!process.stdout.isTTY || process.env.SNSHAH_COLOR === "1") &&
   process.env.TERM !== "dumb" &&
   !process.env.NO_COLOR;
 
@@ -3588,6 +3626,27 @@ function say(
     error: chalk.red,
   }[style];
   console.log(`${icon} ${color(message)}`);
+}
+
+/** One line per check: icon, bold name, version in cyan, detail dimmed. */
+function printChecks(checks: readonly Check[]): void {
+  const width = Math.max(...checks.map((c) => c.check.length));
+  const vwidth = Math.max(0, ...checks.map((c) => (c.version ?? "").length));
+  for (const c of checks) {
+    if (!interactive || !chalk) {
+      console.log(`${c.check}${c.version ? ` ${c.version}` : ""}: ${c.detail}`);
+      continue;
+    }
+    const icon = { ok: "✅", warn: "🟡", missing: "❌" }[c.status];
+    const name = { ok: chalk.green, warn: chalk.yellow, missing: chalk.red }[
+      c.status
+    ];
+    const version = (c.version ?? "").padEnd(vwidth);
+    const detail = c.status === "ok" ? chalk.dim(c.detail) : name(c.detail);
+    console.log(
+      `${icon} ${chalk.bold(name(c.check.padEnd(width)))}  ${chalk.cyan(version)}  ${detail}`,
+    );
+  }
 }
 
 function describeStep(ctx: Context, step: Step): string {
@@ -3801,15 +3860,7 @@ export async function buildCli(ctx: Context): Promise<CommanderCommand> {
     .action(async (o: { json?: boolean }) => {
       const report = await doctor(ctx);
       if (o.json) return console.log(JSON.stringify(report, null, 2));
-      for (const c of report.checks)
-        say(
-          `${c.check}: ${c.detail}`,
-          c.status === "ok"
-            ? "success"
-            : c.status === "warn"
-              ? "pending"
-              : "error",
-        );
+      printChecks(report.checks);
       if (report.advice.length) {
         say(
           `To install on ${report.system}${report.manager ? ` (${report.manager})` : ""}:`,

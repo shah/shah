@@ -464,7 +464,7 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
       check(
         "first greeted shell runs doctor (on stderr only)",
         g1.code === 0 &&
-          g1.err.includes("snshah doctor") &&
+          g1.err.includes("checkouts and updates") &&
           g1.out === plain.out,
         g1.out + g1.err,
       );
@@ -492,7 +492,7 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
       check(
         "second greeted shell skips doctor and the fresh update check",
         g2.code === 0 &&
-          !g2.err.includes("snshah doctor") &&
+          !g2.err.includes("checkouts and updates") &&
           g2.out === plain.out,
         g2.err,
       );
@@ -984,6 +984,27 @@ export const hooks = [
       cli(["doctor", "--json"]),
     );
     check("doctor reports checks", !!doc && doc.checks.length > 0);
+    const docChecks =
+      (doc as { checks?: Array<{ check: string; version?: string }> })
+        ?.checks ?? [];
+    check(
+      "doctor reports a version for every tool it finds",
+      ["bun", "git"].every((t) =>
+        /^\d+(\.\d+)+$/.test(
+          docChecks.find((c) => c.check === t)?.version ?? "",
+        ),
+      ),
+      JSON.stringify(docChecks),
+    );
+    check(
+      "parseVersion reads common --version formats",
+      mod.parseVersion("git version 2.47.3") === "2.47.3" &&
+        mod.parseVersion("jq-1.7.1") === "1.7.1" &&
+        mod.parseVersion(
+          "socat by Gerhard Rieger\nsocat version 1.8.0.3 on Jan",
+        ) === "1.8.0.3" &&
+        mod.parseVersion("0.60 (debian)") === "0.60",
+    );
 
     // bootstrap.sh from this checkout, twice, in a fresh HOME.
     if (process.platform !== "win32" && Bun.which("sh")) {

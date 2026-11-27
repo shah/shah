@@ -56,7 +56,7 @@ binaries it installs itself are pinned, checksummed user-space releases
 | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
 | The CLI and its launcher                       | `$XDG_DATA_HOME/snshah/`, `~/.local/bin/snshah` (plus `snshah.cmd` on Windows)                                           |
 | Private typed config (mode 0600, never in Git) | `$XDG_CONFIG_HOME/snshah/snshah.conf.ts` and its generated `snshah.auto.d.ts`                                            |
-| Oh My Posh theme                               | `$XDG_DATA_HOME/snshah/snshah.omp.json`, from [`snshah.omp.json`](snshah.omp.json)                                       |
+| Oh My Posh theme                               | `$XDG_DATA_HOME/snshah/snshah.omp.json`, from [`snshah.omp.json`](snshah.omp.json) (the coach theme, unmodified)         |
 | Oh My Posh 33.4.1, only if none is on PATH     | `$XDG_DATA_HOME/snshah/bin/oh-my-posh`, SHA-256 checked (turn off with `prompt: { kind: "oh-my-posh", install: false }`) |
 | Profiles from this repository                  | `$XDG_DATA_HOME/snshah/profile.d/`, from [`profile.d/`](profile.d/)                                                      |
 | Install receipt, lock and `state.json`         | `$XDG_STATE_HOME/snshah/`                                                                                                |

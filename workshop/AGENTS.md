@@ -46,6 +46,10 @@ Rules for a person or an AI agent changing anything in `workshop/`.
 - Pin npm dependencies (`commander`, `chalk`, `@clack/prompts`) by exact
   version in `snshah.ts`. `snshah shell` and `snshah exec` must not load
   them.
+- `snshah.omp.json` is the coach theme from
+  github.com/strategy-coach/workspaces-host
+  (`dot_config/oh-my-posh/coach.omp.json`), kept byte-for-byte. Don't edit
+  or reformat it; `.prettierignore` keeps `bun fmt` away from it.
 - Install the CLI files last, so a failed apply keeps the old CLI working.
 
 ## Before every push
