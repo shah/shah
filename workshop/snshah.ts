@@ -106,6 +106,8 @@ export type Selector =
   | { kind: "distro"; id: string }
   | { kind: "omarchy" }
   | { kind: "has"; command: string }
+  /** A system service. `installed` (default) is cheap; `running` asks the service manager. Only for profiles that contribute commands. */
+  | { kind: "service"; name: string; state?: "installed" | "running" }
   | { kind: "env"; name: string; equals?: string }
   | { kind: "hostname"; is: string }
   | { kind: "machine"; fingerprint: string }
@@ -162,7 +164,7 @@ type Covers<T extends readonly string[], U extends string> = [
   ? true
   : ["missing", Exclude<U, T[number]>];
 
-export const cliVersion = "0.9.1";
+export const cliVersion = "0.10.0";
 export const minimumBun = "1.4.0";
 /** The Oh My Posh release snshah installs when none is on PATH, by Bun-style target. */
 export const ohMyPosh = {
@@ -288,6 +290,7 @@ export const selectorKinds = [
   "distro",
   "omarchy",
   "has",
+  "service",
   "env",
   "hostname",
   "machine",
@@ -329,7 +332,6 @@ export const commandNames = [
   "doctor",
   "context",
   "commands",
-  "vscode",
   "shell",
   "exec",
   "config path",
@@ -472,7 +474,6 @@ export const commandEffects: Record<CommandName, Effect> = {
   doctor: "query",
   context: "query",
   commands: "query",
-  vscode: "change",
   shell: "emit",
   exec: "emit",
   "config path": "query",
@@ -575,9 +576,9 @@ export default {
 // Small utilities
 // ---------------------------------------------------------------------------
 
-class UsageError extends Error {}
+export class UsageError extends Error {}
 type Env = Record<string, string | undefined>;
-type JsonObject = { [key: string]: unknown };
+export type JsonObject = { [key: string]: unknown };
 
 function isObject(value: unknown): value is JsonObject {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -1115,6 +1116,38 @@ async function saveConfigBlock(
 // ---------------------------------------------------------------------------
 
 export type Origin = "repo" | "private";
+/** What a profile's command group gets to use: the core's helpers, nothing else. */
+export type ExtApi = {
+  ctx: Context;
+  say: typeof say;
+  tilde: typeof tilde;
+  readText: typeof readText;
+  writeAtomic: typeof writeAtomic;
+  capture: typeof capture;
+  run: typeof run;
+  fillDefaults: typeof fillDefaults;
+  isObject: typeof isObject;
+  assertNever: typeof assertNever;
+  detectedAgent: typeof detectedAgent;
+  UsageError: typeof UsageError;
+};
+/**
+ * A command group a profile.d file contributes (`export const commands`).
+ * The group is a root command (`snshah <group> ...`); its code lives in a
+ * module under workshop/ext that loads only when the group runs.
+ */
+export type CommandGroup = {
+  /** Root command name; may not shadow a core command. */
+  group: string;
+  summary: string;
+  /** Every leaf command under the group (relative, "" for the group itself) and what it does. */
+  effects: Record<string, Effect>;
+  /** Plain words for when the profile's selector matches, shown when it does not. */
+  activatesWhen: string;
+  /** What to do to get it, shown when inactive. */
+  advice?: string;
+  load: () => Promise<{ register(group: CommanderCommand, api: ExtApi): void }>;
+};
 export type LoadedProfile = {
   id: string;
   origin: Origin;
@@ -1122,6 +1155,7 @@ export type LoadedProfile = {
   selector: Selector;
   config: Contribution;
   hooks: Hook[];
+  commands?: CommandGroup;
 };
 /** Facts plus lazy lookups, so a shell start never pays for what no selector asks. */
 export type FactSource = {
@@ -1131,6 +1165,7 @@ export type FactSource = {
   hostname: string;
   machine: () => string;
   has: (command: string) => boolean;
+  service: (name: string, state: "installed" | "running") => boolean;
   env: Env;
 };
 
@@ -1222,6 +1257,7 @@ export function validateFacts(value: unknown): asserts value is Facts {
 
 export function factSource(ctx: Context): FactSource {
   const PATH = ctx.env.PATH ?? "";
+  const probes = new Map<string, boolean>();
   const fake = ctx.env.SNSHAH_FACTS;
   if (fake) {
     const facts: unknown = JSON.parse(readFileSync(fake, "utf8"));
@@ -1234,6 +1270,12 @@ export function factSource(ctx: Context): FactSource {
       machine: () => facts.machine,
       has: (c) =>
         facts.commands ? facts.commands.includes(c) : !!Bun.which(c, { PATH }),
+      // A faked machine has no service manager: `installed` follows the command list.
+      service: (name, state) =>
+        state === "installed" &&
+        (facts.commands
+          ? facts.commands.includes(name)
+          : !!Bun.which(name, { PATH })),
       env: ctx.env,
     };
   }
@@ -1246,8 +1288,56 @@ export function factSource(ctx: Context): FactSource {
     hostname: hostname().toLowerCase(),
     machine: () => (fingerprint ??= machineFingerprint()),
     has: (c) => !!Bun.which(c, { PATH }),
+    service: (name, state) => {
+      const key = `${name}:${state}`;
+      if (!probes.has(key))
+        probes.set(
+          key,
+          state === "running"
+            ? serviceRunning(ctx, name)
+            : serviceInstalled(ctx, name),
+        );
+      return probes.get(key)!;
+    },
     env: ctx.env,
   };
+}
+
+/** Directories where daemons live but a user's PATH often lacks. */
+const sbinDirectories = ["/usr/sbin", "/sbin", "/usr/local/sbin"];
+
+function serviceInstalled(ctx: Context, name: string): boolean {
+  const PATH = [ctx.env.PATH ?? "", ...sbinDirectories].join(delimiter);
+  if (Bun.which(name, { PATH })) return true;
+  if (ctx.platform !== "linux" && ctx.platform !== "wsl") return false;
+  try {
+    return run(["systemctl", "cat", `${name}.service`], { quiet: true }) === 0;
+  } catch {
+    return false;
+  }
+}
+
+function serviceRunning(ctx: Context, name: string): boolean {
+  try {
+    switch (ctx.platform) {
+      case "linux":
+      case "wsl":
+        return (
+          run(["systemctl", "is-active", "--quiet", name], { quiet: true }) ===
+          0
+        );
+      case "macos":
+        return (capture(["launchctl", "list"]) ?? "")
+          .split("\n")
+          .some((l) => l.trim().split(/\s+/).at(-1)?.endsWith(name) ?? false);
+      case "windows":
+        return (capture(["sc.exe", "query", name]) ?? "").includes("RUNNING");
+      default:
+        return assertNever(ctx.platform);
+    }
+  } catch {
+    return false;
+  }
 }
 
 export function factsOf(source: FactSource): Facts {
@@ -1272,6 +1362,8 @@ export function matches(selector: Selector, facts: FactSource): boolean {
       return facts.omarchy;
     case "has":
       return facts.has(selector.command);
+    case "service":
+      return facts.service(selector.name, selector.state ?? "installed");
     case "env": {
       const value = facts.env[selector.name];
       return selector.equals === undefined
@@ -1319,6 +1411,15 @@ export function validateSelector(
       return str("id");
     case "has":
       return str("command");
+    case "service":
+      str("name");
+      if (
+        value.state !== undefined &&
+        value.state !== "installed" &&
+        value.state !== "running"
+      )
+        fail(`${at}.state`, "must be installed or running");
+      return;
     case "env":
       str("name");
       if (value.equals !== undefined && typeof value.equals !== "string")
@@ -1443,6 +1544,69 @@ export function validateHooks(
   });
 }
 
+function hasServiceSelector(selector: Selector): boolean {
+  switch (selector.kind) {
+    case "service":
+      return true;
+    case "all":
+    case "any":
+      return selector.of.some(hasServiceSelector);
+    case "not":
+      return hasServiceSelector(selector.selector);
+    case "always":
+    case "platform":
+    case "distro":
+    case "omarchy":
+    case "has":
+    case "env":
+    case "hostname":
+    case "machine":
+      return false;
+    default:
+      return assertNever(selector);
+  }
+}
+
+const effectKinds = ["query", "change", "advice", "emit", "run"] as const;
+const groupName = /^[a-z][a-z0-9-]*$/;
+/** Root commands snshah itself owns; a profile cannot take one. */
+function coreRoots(): Set<string> {
+  return new Set([...commandNames.map((n) => n.split(" ")[0]!), "help"]);
+}
+function validateCommandGroup(value: unknown): CommandGroup {
+  if (!isObject(value)) fail("commands", "must be an object");
+  const text = (key: string) => {
+    if (typeof value[key] !== "string" || !value[key])
+      fail(`commands.${key}`, "must be a non-empty string");
+    return value[key] as string;
+  };
+  const group = text("group");
+  if (!groupName.test(group))
+    fail("commands.group", "must be lowercase letters, digits and dashes");
+  if (coreRoots().has(group))
+    fail("commands.group", `${group} is a core command; pick another name`);
+  if (!isObject(value.effects) || !Object.keys(value.effects).length)
+    fail("commands.effects", "must map each leaf command to its effect");
+  for (const [leaf, effect] of Object.entries(value.effects))
+    if (!member(effectKinds, effect))
+      fail(
+        `commands.effects.${leaf || '""'}`,
+        `must be one of ${effectKinds.join(", ")}`,
+      );
+  if (typeof value.load !== "function")
+    fail("commands.load", "must be a function returning import(...)");
+  if (value.advice !== undefined && typeof value.advice !== "string")
+    fail("commands.advice", "must be a string");
+  return {
+    group,
+    summary: text("summary"),
+    effects: value.effects as Record<string, Effect>,
+    activatesWhen: text("activatesWhen"),
+    ...(value.advice ? { advice: value.advice as string } : {}),
+    load: value.load as CommandGroup["load"],
+  };
+}
+
 async function loadProfileDir(
   dir: string,
   origin: Origin,
@@ -1478,8 +1642,11 @@ async function loadProfileDir(
     }
     try {
       for (const key of Object.keys(module))
-        if (!["selector", "config", "hooks"].includes(key))
-          fail(key, "is not a profile export (use selector, config, hooks)");
+        if (!["selector", "config", "hooks", "commands"].includes(key))
+          fail(
+            key,
+            "is not a profile export (use selector, config, hooks, commands)",
+          );
       validateSelector(module.selector, origin);
       const config = module.config ?? {};
       validateConfig(config);
@@ -1487,13 +1654,26 @@ async function loadProfileDir(
         fail("config.secrets", "secrets belong only in snshah.conf.ts");
       const hooks = module.hooks ?? [];
       validateHooks(hooks, origin);
+      const commands =
+        module.commands === undefined
+          ? undefined
+          : validateCommandGroup(module.commands);
+      if (
+        hasServiceSelector(module.selector as Selector) &&
+        (Object.keys(config).length || hooks.length)
+      )
+        fail(
+          "selector",
+          "a service selector probes the machine, so it is only allowed on a profile that just contributes commands (no config, no hooks)",
+        );
       loaded.push({
         id,
         origin,
         file: path,
-        selector: module.selector,
+        selector: module.selector as Selector,
         config,
         hooks,
+        ...(commands ? { commands } : {}),
       });
     } catch (error) {
       throw new Error(`${where}: ${(error as Error).message}`);
@@ -1601,6 +1781,9 @@ export async function loadEffective(ctx: Context): Promise<Effective> {
   const profiles: Effective["profiles"] = [];
   const hooks: Effective["hooks"] = [];
   const use = (p: LoadedProfile) => {
+    // A commands-only profile has nothing to apply; its selector is checked
+    // only when its commands are asked about (see loadExtGroups).
+    if (p.commands && !Object.keys(p.config).length && !p.hooks.length) return;
     const matched = matches(p.selector, facts);
     profiles.push({ id: p.id, origin: p.origin, matched });
     if (!matched) return;
@@ -1633,6 +1816,38 @@ export async function loadEffective(ctx: Context): Promise<Effective> {
     hooks,
     overrides,
   };
+}
+
+export type ExtGroup = {
+  profile: string;
+  origin: Origin;
+  spec: CommandGroup;
+  /** Whether the profile's selector matches this machine (probed once, on first ask). */
+  active(): boolean;
+};
+export async function loadExtGroups(ctx: Context): Promise<ExtGroup[]> {
+  const facts = factSource(ctx);
+  const profiles = [
+    ...(await loadProfileDir(repoProfileSource(), "repo")),
+    ...(await loadProfileDir(ctx.profileDir, "private")),
+  ].filter((p) => p.commands);
+  const seen = new Map<string, string>();
+  return profiles.map((p) => {
+    const spec = p.commands!;
+    const before = seen.get(spec.group);
+    if (before)
+      throw new Error(
+        `${p.origin} profile ${p.id}: command group ${spec.group} is already provided by ${before}.`,
+      );
+    seen.set(spec.group, `${p.origin}:${p.id}`);
+    let active: boolean | undefined;
+    return {
+      profile: `${p.origin}:${p.id}`,
+      origin: p.origin,
+      spec,
+      active: () => (active ??= matches(p.selector, facts)),
+    };
+  });
 }
 
 /** The base environment every command hook gets, before `pass`, `set` and `secrets`. */
@@ -2501,6 +2716,36 @@ export async function plan(
           kind: "remove",
           path: join(ctx.repoProfileDir, file),
           label: `retired repo profile ${file}`,
+        });
+  }
+  // Command modules profiles load lazily, beside profile.d so "../ext/x.ts" resolves.
+  const extSource = join(import.meta.dir, "ext");
+  const extTarget = join(ctx.dataDir, "ext");
+  if (resolve(extSource) !== resolve(extTarget)) {
+    const shippedExt = existsSyncDir(extSource)
+      ? readdirSync(extSource)
+          .filter((f) => f.endsWith(".ts"))
+          .sort()
+      : [];
+    for (const file of shippedExt)
+      cli.push(
+        ...(await contentStep(
+          "file",
+          join(extTarget, file),
+          await readFile(join(extSource, file), "utf8"),
+          0o644,
+          `profile command module ${file}`,
+        )),
+      );
+    const installedExt = existsSyncDir(extTarget)
+      ? readdirSync(extTarget).filter((f) => f.endsWith(".ts"))
+      : [];
+    for (const file of installedExt)
+      if (!shippedExt.includes(file))
+        cli.push({
+          kind: "remove",
+          path: join(extTarget, file),
+          label: `retired profile command module ${file}`,
         });
   }
   const tests = await readText(join(import.meta.dir, "snshah.selftest.ts"));
@@ -4559,171 +4804,6 @@ function printAgentContext(c: AgentContext): void {
 }
 
 // ---------------------------------------------------------------------------
-// vscode: creature comforts for VS Code's user settings (fill-only)
-// ---------------------------------------------------------------------------
-
-/** Keys snshah fills when you haven't set them. Existing values are never changed. */
-export const vscodeDefaults: JsonObject = {
-  "terminal.integrated.fontFamily":
-    "'MesloLGM Nerd Font Mono', 'MesloLGM Nerd Font', monospace",
-  "terminal.integrated.shellIntegration.enabled": true,
-  "terminal.integrated.scrollback": 10000,
-  "files.insertFinalNewline": true,
-  "files.trimTrailingWhitespace": true,
-};
-
-export const vscodeExtensions = [
-  "anthropic.claude-code",
-  "oven.bun-vscode",
-  "mkhl.direnv",
-  "tamasfe.even-better-toml",
-  "redhat.vscode-yaml",
-] as const;
-
-export function vscodeSettingsPath(ctx: Context): string {
-  switch (ctx.platform) {
-    case "macos":
-      return join(
-        ctx.home,
-        "Library",
-        "Application Support",
-        "Code",
-        "User",
-        "settings.json",
-      );
-    case "windows":
-      return join(
-        ctx.env.APPDATA || join(ctx.home, "AppData", "Roaming"),
-        "Code",
-        "User",
-        "settings.json",
-      );
-    case "linux":
-    case "wsl":
-      return join(
-        xdg(ctx.env, ctx.home, "XDG_CONFIG_HOME", ".config"),
-        "Code",
-        "User",
-        "settings.json",
-      );
-    default:
-      return assertNever(ctx.platform);
-  }
-}
-
-export type VscodeFill =
-  | { kind: "fill"; next: string; added: string[] }
-  | { kind: "current" }
-  /** The file has comments or trailing commas, which snshah won't rewrite. */
-  | { kind: "commented"; missing: JsonObject };
-
-export function vscodeFill(previous: string | undefined): VscodeFill {
-  let current: unknown;
-  try {
-    current = previous?.trim() ? JSON.parse(previous) : {};
-  } catch {
-    const missing: JsonObject = {};
-    for (const [key, value] of Object.entries(vscodeDefaults))
-      if (!previous!.includes(`"${key}"`)) missing[key] = value;
-    return { kind: "commented", missing };
-  }
-  if (!isObject(current))
-    throw new UsageError("VS Code settings.json must hold a JSON object.");
-  const next = fillDefaults(current, vscodeDefaults);
-  const added = Object.keys(next).filter((k) => !(k in current));
-  return added.length
-    ? { kind: "fill", next: JSON.stringify(next, null, 2) + "\n", added }
-    : { kind: "current" };
-}
-
-async function vscode(
-  ctx: Context,
-  options: { yes: boolean; json: boolean },
-): Promise<number> {
-  const path = vscodeSettingsPath(ctx);
-  const previous = await readText(path);
-  const fill = vscodeFill(previous);
-  const PATH = ctx.env.PATH ?? "";
-  const codeBinary = Bun.which("code", { PATH });
-  const installed = codeBinary
-    ? (capture([codeBinary, "--list-extensions"]) ?? "")
-        .split("\n")
-        .map((l) => l.trim().toLowerCase())
-    : [];
-  const missingExtensions = codeBinary
-    ? vscodeExtensions.filter((e) => !installed.includes(e))
-    : [...vscodeExtensions];
-  const remote = !!ctx.env.SSH_CONNECTION;
-  const report = {
-    settings: tilde(ctx, path),
-    settingsStatus: fill.kind,
-    wouldAdd:
-      fill.kind === "fill"
-        ? fill.added
-        : fill.kind === "commented"
-          ? Object.keys(fill.missing)
-          : [],
-    codeOnPath: !!codeBinary,
-    missingExtensions,
-    remote,
-  };
-  if (options.json) {
-    console.log(JSON.stringify(report, null, 2));
-    return 0;
-  }
-  if (remote)
-    say(
-      "You are on a server over SSH. VS Code's settings and terminal font live on your own computer: run `snshah vscode` there. (Over Remote-SSH, VS Code draws the terminal with the client's fonts.)",
-      "pending",
-    );
-  say(`VS Code user settings: ${tilde(ctx, path)}`, "action");
-  switch (fill.kind) {
-    case "current":
-      say("Already has snshah's settings. No changes needed.", "success");
-      break;
-    case "commented":
-      say(
-        "That file has comments, so snshah won't rewrite it. Add these keys yourself:",
-        "pending",
-      );
-      console.log(JSON.stringify(fill.missing, null, 2).replace(/^/gm, "   "));
-      break;
-    case "fill":
-      if (!options.yes) {
-        say(
-          `Would add (never changing what you set): ${fill.added.join(", ")}`,
-          "pending",
-        );
-        say("Nothing was changed. To add them: snshah vscode --yes", "pending");
-      } else {
-        await writeAtomic(path, fill.next, 0o644);
-        say(
-          `Added ${fill.added.join(", ")}. Reload VS Code windows to see them.`,
-          "success",
-        );
-      }
-      break;
-    default:
-      return assertNever(fill);
-  }
-  if (!codeBinary)
-    say(
-      "The `code` command is not on PATH, so extensions can't be checked. In VS Code: Command Palette > Shell Command: Install 'code' command in PATH.",
-      "pending",
-    );
-  else if (missingExtensions.length) {
-    say("Useful extensions you don't have yet (run what you want):", "pending");
-    for (const id of missingExtensions)
-      console.log(`   code --install-extension ${id}`);
-  } else say("All recommended extensions are installed.", "success");
-  if (fill.kind !== "current" || missingExtensions.length)
-    console.log(
-      "Fonts: the terminal font setting needs a Nerd Font on this computer. Install: oh-my-posh font install Meslo, then run: snshah ux fonts installed",
-    );
-  return 0;
-}
-
-// ---------------------------------------------------------------------------
 // wt: git worktrees for parallel work (agents especially), next to the repo
 // ---------------------------------------------------------------------------
 
@@ -4956,35 +5036,79 @@ export type CommandInfo = {
   name: string;
   description: string;
   effect: Effect;
-  /** True when the command takes --json. */
+  /** True when the command takes --json (for an inactive group: whether it must). */
   json: boolean;
   arguments: string[];
   options: Array<{ flags: string; description: string }>;
+  /** "core", or "profile:<origin>:<id>" for a command a profile contributes. */
+  source: string;
+  /** False for a profile's command whose profile does not match this machine. */
+  active: boolean;
+  activatesWhen?: string;
 };
 
-export function commandInfos(program: CommanderCommand): CommandInfo[] {
-  const walk = (command: CommanderCommand, prefix: string): CommandInfo[] =>
-    command.commands.flatMap((c) =>
-      c.commands.length
-        ? walk(c, `${prefix}${c.name()} `)
-        : [
-            {
-              name: `${prefix}${c.name()}`,
-              description: c.description(),
-              effect: commandEffects[`${prefix}${c.name()}` as CommandName],
-              json: c.options.some((o) => o.long === "--json"),
-              arguments: c.registeredArguments.map(
-                (a) =>
-                  `${a.required ? "<" : "["}${a.name()}${a.required ? ">" : "]"}`,
-              ),
-              options: c.options.map((o) => ({
-                flags: o.flags,
-                description: o.description,
-              })),
+export function commandInfos(
+  program: CommanderCommand,
+  groups: ExtGroup[] = [],
+): CommandInfo[] {
+  const owned = new Map(groups.map((g) => [g.spec.group, g]));
+  const info = (
+    c: CommanderCommand,
+    name: string,
+    effect: Effect,
+    group?: ExtGroup,
+  ): CommandInfo => ({
+    name,
+    description: c.description(),
+    effect,
+    json: c.options.some((o) => o.long === "--json"),
+    arguments: c.registeredArguments.map(
+      (a) => `${a.required ? "<" : "["}${a.name()}${a.required ? ">" : "]"}`,
+    ),
+    options: c.options.map((o) => ({
+      flags: o.flags,
+      description: o.description,
+    })),
+    source: group ? `profile:${group.profile}` : "core",
+    active: true,
+    ...(group ? { activatesWhen: group.spec.activatesWhen } : {}),
+  });
+  const walk = (list: CommanderCommand[], prefix: string): CommandInfo[] =>
+    list.flatMap((c) => {
+      const name = `${prefix}${c.name()}`;
+      return c.commands.length
+        ? walk(c.commands, `${name} `)
+        : [info(c, name, commandEffects[name as CommandName])];
+    });
+  const core = walk(
+    program.commands.filter((c) => !owned.has(c.name())),
+    "",
+  ).filter((c) => c.effect !== undefined);
+  const contributed: CommandInfo[] = [];
+  for (const group of groups) {
+    const root = program.commands.find((c) => c.name() === group.spec.group);
+    const live = root && group.active() ? leavesOf(root) : undefined;
+    for (const [leaf, effect] of Object.entries(group.spec.effects)) {
+      const name = leaf ? `${group.spec.group} ${leaf}` : group.spec.group;
+      const command = live?.find(([n]) => n === leaf)?.[1];
+      contributed.push(
+        command
+          ? { ...info(command, name, effect, group) }
+          : {
+              name,
+              description: group.spec.summary,
+              effect,
+              json: effect === "query",
+              arguments: [],
+              options: [],
+              source: `profile:${group.profile}`,
+              active: false,
+              activatesWhen: group.spec.activatesWhen,
             },
-          ],
-    );
-  return walk(program, "").filter((c) => c.effect !== undefined);
+      );
+    }
+  }
+  return [...core, ...contributed];
 }
 
 // ---------------------------------------------------------------------------
@@ -7676,7 +7800,7 @@ function printSteps(ctx: Context, steps: readonly Step[], json: boolean): void {
 // CLI
 // ---------------------------------------------------------------------------
 
-type CommanderCommand = {
+export type CommanderCommand = {
   name(): string;
   commands: CommanderCommand[];
   command(
@@ -7703,7 +7827,10 @@ type CommanderCommand = {
   parseAsync(argv: string[]): Promise<unknown>;
 };
 
-export async function buildCli(ctx: Context): Promise<CommanderCommand> {
+export async function buildCli(
+  ctx: Context,
+  ext: { groups: ExtGroup[]; only?: string } = { groups: [] },
+): Promise<CommanderCommand> {
   const { Command } = (await import(`commander@${dependencies.commander}`)) as {
     Command: new (name?: string) => CommanderCommand;
   };
@@ -7844,24 +7971,13 @@ export async function buildCli(ctx: Context): Promise<CommanderCommand> {
     )
     .option("--json", "print JSON")
     .action((o: { json?: boolean }) => {
-      const infos = commandInfos(program);
+      const infos = commandInfos(program, ext.groups);
       if (o.json) return console.log(JSON.stringify(infos, null, 2));
       const width = Math.max(...infos.map((c) => c.name.length));
       for (const c of infos)
         console.log(
           `${c.name.padEnd(width)}  ${c.effect.padEnd(6)} ${c.json ? "json" : "    "}  ${c.description}`,
         );
-    });
-
-  program
-    .command("vscode")
-    .description(
-      "Fill VS Code user settings (Nerd Font terminal, shell integration) and list recommended extensions; previews unless --yes",
-    )
-    .option("-y, --yes", "write the settings")
-    .option("--json", "print what it found, change nothing")
-    .action(async (o: { yes?: boolean; json?: boolean }) => {
-      process.exitCode = await vscode(ctx, { yes: !!o.yes, json: !!o.json });
     });
 
   program
@@ -8395,7 +8511,82 @@ export async function buildCli(ctx: Context): Promise<CommanderCommand> {
       });
     });
 
+  await registerExtGroups(program, ctx, ext);
   return program;
+}
+
+/** Leaf commands under a group, relative to it ("" when the group is itself the command). */
+function leavesOf(
+  command: CommanderCommand,
+): Array<[string, CommanderCommand]> {
+  const walk = (
+    c: CommanderCommand,
+    prefix: string,
+  ): Array<[string, CommanderCommand]> =>
+    c.commands.length
+      ? c.commands.flatMap((child) =>
+          walk(child, `${prefix}${prefix ? " " : ""}${child.name()}`),
+        )
+      : [[prefix, c]];
+  return walk(command, "");
+}
+
+async function registerExtGroups(
+  program: CommanderCommand,
+  ctx: Context,
+  ext: { groups: ExtGroup[]; only?: string },
+): Promise<void> {
+  const api: ExtApi = {
+    ctx,
+    say,
+    tilde,
+    readText,
+    writeAtomic,
+    capture,
+    run,
+    fillDefaults,
+    isObject,
+    assertNever,
+    detectedAgent,
+    UsageError,
+  };
+  for (const group of ext.groups) {
+    if (ext.only && group.spec.group !== ext.only) continue;
+    const command = program.command(group.spec.group);
+    if (!group.active()) {
+      const how = group.spec.advice ? ` ${group.spec.advice}` : "";
+      command
+        .description(
+          `${group.spec.summary} (inactive: needs ${group.spec.activatesWhen})`,
+        )
+        .argument("[args...]")
+        .allowUnknownOption()
+        .action(() => {
+          throw new UsageError(
+            `snshah ${group.spec.group} is provided by the ${group.profile} profile, which turns on when ${group.spec.activatesWhen}.${how}`,
+          );
+        });
+      continue;
+    }
+    command.description(group.spec.summary);
+    const module = await group.spec.load();
+    module.register(command, api);
+    const leaves = leavesOf(command);
+    const have = leaves.map(([name]) => name).sort();
+    const want = Object.keys(group.spec.effects).sort();
+    if (JSON.stringify(have) !== JSON.stringify(want))
+      throw new Error(
+        `${group.profile}: commands [${have.join(", ")}] do not match the effects it declares [${want.join(", ")}].`,
+      );
+    for (const [name, leaf] of leaves)
+      if (
+        group.spec.effects[name] === "query" &&
+        !leaf.options.some((o) => o.long === "--json")
+      )
+        throw new Error(
+          `${group.profile}: ${group.spec.group} ${name} is a query, so it must take --json.`,
+        );
+  }
 }
 
 export function commandTree(program: CommanderCommand, prefix = ""): string[] {
@@ -8437,7 +8628,22 @@ export async function main(argv: string[]): Promise<number> {
         `snshah needs Bun ${minimumBun} or newer; this is ${Bun.version}.`,
       );
     await loadChalk();
-    const program = await buildCli(ctx);
+    // Profile-contributed commands load only when asked for: a core command
+    // never imports a profile's module, and a group's code loads only when
+    // that group (or help / commands) runs.
+    const root = argv.find((a) => !a.startsWith("-"));
+    const core = coreRoots();
+    let groups: ExtGroup[] = [];
+    if (!root || !core.has(root) || root === "help" || root === "commands") {
+      try {
+        groups = await loadExtGroups(ctx);
+      } catch (error) {
+        if (root && !core.has(root)) throw error;
+        console.error(`snshah: ${(error as Error).message}`);
+      }
+    }
+    const only = root && !core.has(root) ? root : undefined;
+    const program = await buildCli(ctx, { groups, only });
     await program.parseAsync(["bun", "snshah", ...argv]);
     return typeof process.exitCode === "number" ? process.exitCode : 0;
   } catch (error) {

@@ -254,7 +254,7 @@ run changes nothing.
   `query`, `change`, `advice`, `emit` or `run`; every `query` MUST take
   `--json`; `snshah commands [--json]` MUST list them. Exit codes: 0 success,
   1 failure, 2 usage error.
-- **FR-047**: `snshah vscode` MUST preview by default, fill only unset keys
+- **FR-047**: `snshah vscode` (a profile-contributed group, FR-050) MUST preview by default, fill only unset keys
   of VS Code's user settings, never rewrite a file with comments, and only
   advise about extensions.
 - **FR-048**: `snshah wt new|ls|prune` MUST keep worktrees at
@@ -263,6 +263,27 @@ run changes nothing.
   previewing unless `--yes`.
 - **FR-049**: CI MUST run the format check, the self-test and the ontology
   check on Linux, macOS and Windows.
+- **FR-050**: A repository or private profile MAY export `commands`: a
+  command group (a root command name that is not a core command, a summary,
+  the effect of every leaf command, and `activatesWhen` and optional `advice`
+  in plain words) with a `load` function that imports its code from
+  `workshop/ext/`. The group MUST exist for `snshah <group>` only through its
+  profile; a directory profile (`.snshah.profile.ts`) MUST NOT export it. Two
+  profiles providing one group, or a group named like a core command, MUST
+  be refused.
+- **FR-051**: The `service` selector (`{ kind: "service", name, state? }`)
+  MUST match when the service is installed (a command on PATH, or a unit the
+  service manager knows) or, with `state: "running"`, running. It probes the
+  machine, so a profile using it MUST NOT also set `config` or `hooks`, and a
+  commands-only profile MUST NOT be probed at shell start.
+- **FR-052**: Core commands MUST NOT import a profile's command module. A
+  group's code MUST load only when that group, `help` or `commands` runs. An
+  inactive group MUST still be listed, exit 2 when run, and say when it turns
+  on and what to do. `commands --json` MUST show each command's `source`,
+  `active` and `activatesWhen`, and a group's leaf commands and every query's
+  `--json` MUST match what it declared.
+- **FR-053**: `snshah apply` MUST install `workshop/ext/*.ts` beside the
+  installed profile.d and remove retired ones.
 
 ### Profiles (profile.d)
 
@@ -445,6 +466,7 @@ run changes nothing.
 | FR-018, FR-019, FR-021 | Shahid N. Shah, direct statement, 2026-11-27 (profile.d, type-safe merge, command hooks with env passthrough)                                                |
 | FR-020, FR-022         | Shahid N. Shah, direct statement, 2026-11-27 (environment selectors first, fingerprint when needed, hostnames allowed); private-only rule proposed by Claude |
 | FR-023                 | Shahid N. Shah, decision, 2026-11-27 ("Yes, pinned and checksummed")                                                                                         |
+| FR-050 to FR-053       | Shahid N. Shah, direct statements, 2026-11-27 (a `service` selector so a profile contributes commands when its tool is present, "so the core stays lean")    |
 | FR-042 to FR-049       | Shahid N. Shah, direct statements, 2026-11-27 (`snshah uninstall`; agent-first improvements: agent mode, `context`, `vscode`, `wt`, `commands`, CI)          |
 | FR-037 to FR-041       | Shahid N. Shah, direct statement, 2026-11-27 (`exa` by default with `tree`; `.snshah.profile.ts` per-directory profiles; `snshah profile safe`)              |
 | FR-036                 | Shahid N. Shah, direct statement, 2026-11-27 (`snshah update` should re-source the profile, or explain how)                                                  |

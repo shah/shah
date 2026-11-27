@@ -41,7 +41,10 @@ Rules for a person or an AI agent changing anything in `workshop/`.
   Bumping either means new checksums from the release and the matching
   `ontology/workshop.ttl` value.
 - `workshop/profile.d/*.ts` holds environment setups only. Each file exports
-  a typed `selector` and `config` and/or `hooks`, nothing else. Never use
+  a typed `selector` and `config` and/or `hooks`, and optionally `commands`
+  (a command group whose code lives in `workshop/ext/` and loads lazily; keep
+  the profile file thin). A `service` selector is allowed only on a
+  commands-only profile, never alongside `config` or `hooks`. Never use
   `hostname` or `machine` selectors, or `env.secrets`, here: they belong in
   the private profile.d. Every file is listed as a `ws:Profile` in
   `ontology/workshop.ttl` with its top-level selector kind.

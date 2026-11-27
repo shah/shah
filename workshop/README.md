@@ -219,7 +219,8 @@ export const hooks = [
 ```
 
 - **Selectors** are `always`, `platform`, `distro`, `omarchy`, `has`
-  (a command on PATH), `env`, `hostname`, `machine` (a hashed machine
+  (a command on PATH), `service` (installed or running; for command-only
+  profiles), `env`, `hostname`, `machine` (a hashed machine
   fingerprint, see `snshah whoami`), and `all`, `any`, `not` to combine
   them. `hostname` and `machine` are allowed only in the private
   directory, because this repository is public.
@@ -235,6 +236,30 @@ export const hooks = [
 - `snshah whoami` prints the facts selectors match against.
   `snshah plan --explain` shows which profiles match and which layer set
   each value. `snshah plan --as facts.json` plans as if on another machine.
+
+### Profiles that contribute commands
+
+A profile can also export `commands`, so a feature switches itself on where
+its tool is, and the core stays lean. `profile.d/vscode.ts` is the model:
+
+```ts
+export const selector = { kind: "has", command: "code" } satisfies Selector;
+export const commands = {
+  group: "vscode", // snshah vscode
+  summary: "Fill VS Code settings and list recommended extensions",
+  effects: { "": "change" }, // every leaf command: query, change, advice, emit or run
+  activatesWhen: "VS Code is here (`code` on PATH)",
+  advice: "In VS Code: Shell Command: Install 'code' command in PATH.",
+  load: () => import("../ext/vscode.ts"), // loads only when the group runs
+} satisfies CommandGroup;
+```
+
+The module exports `register(group, api)` and adds its commands to the
+group. Where the selector doesn't match, `snshah <group>` still shows in
+`snshah commands` as inactive, and running it says when it turns on and
+exits 2. Core commands never import these modules, and a profile with a
+`service` selector may not also set `config` or `hooks`, because those run
+at every shell start. Directory profiles can't contribute commands.
 
 ## Per-directory profiles: `.snshah.profile.ts`
 
@@ -338,24 +363,24 @@ the bootstrap and `snshah git clone shah` put it in
 
 ## Commands
 
-| Command                                                   | What it does                                                                                     |
-| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `snshah plan [--json] [--explain] [--as FACTS]`           | Show what `apply` would change. Read-only.                                                       |
-| `snshah whoami [--json]`                                  | Print the facts profile selectors match against.                                                 |
-| `snshah apply [--yes] [--json]`                           | Bring this machine to the desired state.                                                         |
-| `snshah doctor [--json]`                                  | Check tools and print install commands for this distribution and package manager.                |
-| `snshah context [--json]`                                 | Where am I? OS, shell, tools, git state, profiles, sandbox, problems.                            |
-| `snshah commands [--json]`                                | Every command, what it does to the machine, and whether it takes `--json`.                       |
-| `snshah vscode [--yes] [--json]`                          | Fill VS Code user settings (fill-only) and list recommended extensions.                          |
-| `snshah wt new\|ls\|prune`                                | Git worktrees next to the repository, one per branch.                                            |
-| `snshah shell <shell> [--greet]`                          | Print init code for bash, zsh, fish or pwsh.                                                     |
-| `snshah exec <command> [args]`                            | Run a command with its command-scoped secrets.                                                   |
-| `snshah config path\|check\|edit\|set-secret`             | Manage the private config.                                                                       |
-| `snshah git root\|add\|list\|path\|clone\|update\|remove` | Manage checkouts.                                                                                |
-| `snshah ssh <subcommand>`                                 | SSH keys, key copying and hosts (see above).                                                     |
-| `snshah update [--check [--quiet]] [--yes] [--ref REF]`   | Fetch the checkout, preview, fast-forward, apply. `--check` only says whether one is newer.      |
-| `snshah uninstall [--yes] [--purge]`                      | Remove snshah. Lists what would go; `--yes` does it; `--purge` also deletes your private config. |
-| `snshah test [--remote REF]`                              | Self-test in a temporary HOME.                                                                   |
+| Command                                                   | What it does                                                                                      |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `snshah plan [--json] [--explain] [--as FACTS]`           | Show what `apply` would change. Read-only.                                                        |
+| `snshah whoami [--json]`                                  | Print the facts profile selectors match against.                                                  |
+| `snshah apply [--yes] [--json]`                           | Bring this machine to the desired state.                                                          |
+| `snshah doctor [--json]`                                  | Check tools and print install commands for this distribution and package manager.                 |
+| `snshah context [--json]`                                 | Where am I? OS, shell, tools, git state, profiles, sandbox, problems.                             |
+| `snshah commands [--json]`                                | Every command, what it does to the machine, and whether it takes `--json`.                        |
+| `snshah vscode [--yes] [--json]`                          | Fill VS Code settings (fill-only), list extensions. Present where VS Code is (a profile command). |
+| `snshah wt new\|ls\|prune`                                | Git worktrees next to the repository, one per branch.                                             |
+| `snshah shell <shell> [--greet]`                          | Print init code for bash, zsh, fish or pwsh.                                                      |
+| `snshah exec <command> [args]`                            | Run a command with its command-scoped secrets.                                                    |
+| `snshah config path\|check\|edit\|set-secret`             | Manage the private config.                                                                        |
+| `snshah git root\|add\|list\|path\|clone\|update\|remove` | Manage checkouts.                                                                                 |
+| `snshah ssh <subcommand>`                                 | SSH keys, key copying and hosts (see above).                                                      |
+| `snshah update [--check [--quiet]] [--yes] [--ref REF]`   | Fetch the checkout, preview, fast-forward, apply. `--check` only says whether one is newer.       |
+| `snshah uninstall [--yes] [--purge]`                      | Remove snshah. Lists what would go; `--yes` does it; `--purge` also deletes your private config.  |
+| `snshah test [--remote REF]`                              | Self-test in a temporary HOME.                                                                    |
 
 `snshah update` runs `git fetch` in the install checkout, shows the plan the
 new commit would make (from a temporary worktree), asks, fast-forwards the
@@ -413,8 +438,9 @@ font, shell integration, scrollback, and final newline and trailing
 whitespace handling. A settings file with comments is never rewritten; it
 prints the keys for you to add. It also lists recommended extensions that are
 missing (Claude Code, Bun, direnv, TOML, YAML) as `code --install-extension`
-lines. Run it on the computer whose VS Code you look at: over Remote-SSH the
-terminal font comes from that computer.
+lines. Over SSH it fills the server's Machine settings instead (no terminal
+font: the VS Code on your own computer draws that, so run it there too). The
+command exists where VS Code does (`code` on PATH or a VS Code terminal).
 
 **CI.** `.github/workflows/workshop.yml` runs the format check, the
 self-test and the ontology check on Linux, macOS and Windows. The Windows job

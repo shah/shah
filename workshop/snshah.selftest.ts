@@ -673,11 +673,13 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
     // commands: every command is classified, and every query takes --json.
     {
       const infos = json<
-        Array<{ name: string; effect: string; json: boolean }>
+        Array<{ name: string; effect: string; json: boolean; source: string }>
       >(cli(["commands", "--json"]));
+      // (profile-contributed groups are checked in their own block below)
       check(
         "commands --json lists every command with an effect",
-        infos?.length === mod.commandNames.length &&
+        infos?.filter((c) => c.source === "core").length ===
+          mod.commandNames.length &&
           !!infos?.every(
             (c) =>
               c.effect in { query: 1, change: 1, advice: 1, emit: 1, run: 1 },
@@ -718,8 +720,10 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
     {
       const vh = join(root, "vscode-home");
       await mkdir(vh);
-      const ve = baseEnv(vh);
-      const settings = mod.vscodeSettingsPath(mod.makeContext(ve));
+      // The vscode group turns on where VS Code is: here, a VS Code terminal.
+      const ve = { ...baseEnv(vh), VSCODE_IPC_HOOK_CLI: "/dev/null" };
+      const vscodeExt = await import(join(dirname(script), "ext", "vscode.ts"));
+      const settings = vscodeExt.vscodeSettingsPath(mod.makeContext(ve));
       await mkdir(dirname(settings), { recursive: true });
       await writeFile(
         settings,
@@ -777,10 +781,178 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
         ...ve,
         SSH_CONNECTION: "192.0.2.10 50000 192.0.2.20 22",
       });
+      const machine = vscodeExt.vscodeSettingsPath(
+        mod.makeContext({ ...ve, SSH_CONNECTION: "x" }),
+        true,
+      );
+      const filled = cli(["vscode", "--yes"], undefined, {
+        ...ve,
+        SSH_CONNECTION: "192.0.2.10 50000 192.0.2.20 22",
+      });
+      const machineSettings = JSON.parse(await readFile(machine, "utf8"));
       check(
-        "over SSH it says to run it on your own computer",
-        server.out.includes("on your own computer"),
-        server.out,
+        "over SSH it fills the server's Machine settings, leaves the font to your own computer",
+        server.out.includes("on your own computer") &&
+          filled.code === 0 &&
+          machineSettings["terminal.integrated.scrollback"] === 10000 &&
+          !("terminal.integrated.fontFamily" in machineSettings),
+        server.out + filled.out + filled.err,
+      );
+
+      // Not in VS Code: the group is there but inactive, says why, exits 2.
+      const away = cli(["vscode"], undefined, baseEnv(vh));
+      check(
+        "without VS Code, snshah vscode explains when it turns on and exits 2",
+        away.code === 2 &&
+          away.err.includes("turns on when") &&
+          away.err.includes("code"),
+        away.out + away.err,
+      );
+    }
+
+    // Profile-contributed commands: a profile's selector turns a command group on.
+    if (process.platform !== "win32") {
+      const ph = join(root, "ext-home");
+      const pdir = join(ph, ".config", "snshah", "profile.d");
+      await mkdir(pdir, { recursive: true });
+      const pe = baseEnv(ph);
+      const bin = join(ph, "bin");
+      await mkdir(bin);
+      const marker = join(ph, "ext-loaded");
+      const extFile = join(ph, "probe-ext.ts");
+      await writeFile(
+        extFile,
+        `import { appendFileSync } from "node:fs";
+appendFileSync(${JSON.stringify(marker)}, "loaded\\n");
+export function register(group, api) {
+  group.option("--json", "print JSON").action((o) => {
+    console.log(o.json ? JSON.stringify({ ok: true }) : "probe ran");
+  });
+}
+`,
+      );
+      const profile = (name: string, body: string) =>
+        writeFile(join(pdir, name), body, { mode: 0o600 });
+      await profile(
+        "70-probe.ts",
+        `export const selector = { kind: "service", name: "snshah-probe-tool" };
+export const commands = {
+  group: "probe",
+  summary: "Probe command",
+  effects: { "": "query" },
+  activatesWhen: "snshah-probe-tool is installed",
+  advice: "Install snshah-probe-tool.",
+  load: () => import(${JSON.stringify(extFile)}),
+};
+`,
+      );
+      const off = cli(["probe"], undefined, pe);
+      check(
+        "a profile's command group is inactive until its service is there; it says how to turn it on and exits 2",
+        off.code === 2 &&
+          off.err.includes("snshah-probe-tool is installed") &&
+          off.err.includes("Install snshah-probe-tool."),
+        off.out + off.err,
+      );
+      const listed = json<
+        Array<{ name: string; source: string; active: boolean }>
+      >(cli(["commands", "--json"], undefined, pe));
+      const entry = listed?.find((c) => c.name === "probe");
+      check(
+        "commands --json shows the inactive group with its source",
+        !!entry && !entry.active && entry.source === "profile:private:70-probe",
+        JSON.stringify(entry),
+      );
+      check("an inactive group never imported its module", !existsSync(marker));
+      await writeFile(join(bin, "snshah-probe-tool"), "#!/bin/sh\n", {
+        mode: 0o755,
+      });
+      const withTool = { ...pe, PATH: `${bin}${delimiter}${pe.PATH ?? ""}` };
+      const on = cli(["probe"], undefined, withTool);
+      check(
+        "putting the tool on PATH turns the group on",
+        on.code === 0 && on.out.includes("probe ran"),
+        on.out + on.err,
+      );
+      check(
+        "probe --json works",
+        json<{ ok: boolean }>(cli(["probe", "--json"], undefined, withTool))
+          ?.ok === true,
+      );
+      const before = existsSync(marker)
+        ? (await readFile(marker, "utf8")).length
+        : 0;
+      cli(["config", "path", "--json"], undefined, withTool);
+      cli(["doctor", "--json"], undefined, withTool);
+      const after = existsSync(marker)
+        ? (await readFile(marker, "utf8")).length
+        : 0;
+      check(
+        "core commands never load a profile's module (lazy)",
+        before > 0 && after === before,
+      );
+      const active = json<Array<{ name: string; active: boolean }>>(
+        cli(["commands", "--json"], undefined, withTool),
+      )?.find((c) => c.name === "probe");
+      check("commands --json reports it active", active?.active === true);
+      const sizeNow = (await readFile(marker, "utf8")).length;
+      const shellStart = cli(["shell", "bash"], undefined, withTool);
+      check(
+        "a shell start does not probe or load command groups",
+        shellStart.code === 0 &&
+          (await readFile(marker, "utf8")).length === sizeNow,
+        shellStart.err,
+      );
+
+      // Refused: a core name, a service selector that also sets config, a duplicate group.
+      await profile(
+        "71-shadow.ts",
+        `export const selector = { kind: "always" };
+export const commands = { group: "apply", summary: "x", effects: { "": "change" }, activatesWhen: "always", load: () => import(${JSON.stringify(extFile)}) };
+`,
+      );
+      const shadow = cli(["context", "--json"], undefined, withTool);
+      const shadowed = cli(["probe"], undefined, withTool);
+      check(
+        "a profile cannot take a core command's name",
+        shadowed.code === 1 && shadowed.err.includes("core command"),
+        shadow.err + shadowed.err,
+      );
+      await rm(join(pdir, "71-shadow.ts"));
+      await profile(
+        "72-costly.ts",
+        `export const selector = { kind: "service", name: "sshd", state: "running" };
+export const config = { env: { X: "1" } };
+`,
+      );
+      const costly = cli(["plan", "--json"], undefined, withTool);
+      check(
+        "a service selector is refused where it would run at every shell start",
+        costly.code !== 0 && costly.err.includes("service selector"),
+        costly.err,
+      );
+      await rm(join(pdir, "72-costly.ts"));
+      await profile(
+        "73-twin.ts",
+        `export const selector = { kind: "always" };
+export const commands = { group: "probe", summary: "x", effects: { "": "change" }, activatesWhen: "always", load: () => import(${JSON.stringify(extFile)}) };
+`,
+      );
+      const twin = cli(["probe"], undefined, withTool);
+      check(
+        "two profiles cannot provide the same group",
+        twin.code === 1 && twin.err.includes("already provided"),
+        twin.err,
+      );
+      await rm(join(pdir, "73-twin.ts"));
+
+      // Facts: service selectors on this machine.
+      const facts = mod.factSource(mod.makeContext(withTool));
+      check(
+        "service installed follows PATH; a made-up service is neither installed nor running",
+        facts.service("snshah-probe-tool", "installed") &&
+          !facts.service("snshah-no-such-service", "installed") &&
+          !facts.service("snshah-no-such-service", "running"),
       );
     }
 

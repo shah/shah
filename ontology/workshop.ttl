@@ -15,7 +15,7 @@ ws:snshah a ws:Toolkit ;
     doap:programming-language "TypeScript" ;
     dcterms:creator "Shahid Shah" ;
     eid:path "workshop/snshah.ts" ;
-    ws:version "0.9.1" ;
+    ws:version "0.10.0" ;
     ws:idempotent true ;
     ws:runtime ws:bun ;
     ws:upstream "shah/shah@main" ;
@@ -31,7 +31,7 @@ ws:snshah a ws:Toolkit ;
     ws:secretScope ws:scope-command , ws:scope-shell ;
     ws:makesStep ws:step-directory , ws:step-file , ws:step-seed , ws:step-block , ws:step-json-fill , ws:step-toml-fill ,
         ws:step-remove , ws:step-command , ws:step-download , ws:step-tools ;
-    ws:selectsBy ws:selector-always , ws:selector-platform , ws:selector-distro , ws:selector-omarchy , ws:selector-has , ws:selector-env , ws:selector-hostname , ws:selector-machine , ws:selector-all , ws:selector-any , ws:selector-not ;
+    ws:selectsBy ws:selector-always , ws:selector-platform , ws:selector-distro , ws:selector-omarchy , ws:selector-has , ws:selector-service , ws:selector-env , ws:selector-hostname , ws:selector-machine , ws:selector-all , ws:selector-any , ws:selector-not ;
     ws:hooksWith ws:hook-file , ws:hook-block , ws:hook-command ;
     ws:hasProfile ws:profile-10-omarchy ,
         ws:profile-20-debian-bat ,
@@ -39,7 +39,8 @@ ws:snshah a ws:Toolkit ;
         ws:profile-20-fedora ,
         ws:profile-30-macos ,
         ws:profile-30-windows ,
-        ws:profile-30-wsl ;
+        ws:profile-30-wsl ,
+        ws:profile-vscode ;
     ws:installs ws:bin-oh-my-posh , ws:bin-mise ;
     ws:toolManager ws:bin-mise ;
     ws:defaultTool "gh" , "ripgrep" , "fd" , "bat" , "fzf" , "jq" , "yq" , "delta" , "direnv" , "eza" ;
@@ -50,7 +51,7 @@ ws:snshah a ws:Toolkit ;
     ws:dependsOn ws:dep-commander , ws:dep-chalk , ws:dep-clack ;
     ws:usesPath ws:path-config , ws:path-types , ws:path-profiles , ws:path-script , ws:path-repoProfiles , ws:path-theme ,
         ws:path-posh , ws:path-mise , ws:path-receipt , ws:path-state , ws:path-downloads , ws:path-bin ;
-    ws:hasCommand ws:cmd-plan , ws:cmd-whoami , ws:cmd-apply , ws:cmd-doctor , ws:cmd-context , ws:cmd-commands , ws:cmd-vscode , ws:cmd-shell , ws:cmd-exec ,
+    ws:hasCommand ws:cmd-plan , ws:cmd-whoami , ws:cmd-apply , ws:cmd-doctor , ws:cmd-context , ws:cmd-commands , ws:cmd-shell , ws:cmd-exec ,
         ws:cmd-config-path , ws:cmd-config-check , ws:cmd-config-edit , ws:cmd-config-set-secret ,
         ws:cmd-git-root , ws:cmd-git-add , ws:cmd-git-list , ws:cmd-git-path , ws:cmd-git-clone , ws:cmd-git-update , ws:cmd-git-remove ,
         ws:cmd-ssh-status , ws:cmd-ssh-keys , ws:cmd-ssh-new , ws:cmd-ssh-copy , ws:cmd-ssh-authorize , ws:cmd-ssh-authorized , ws:cmd-ssh-test , ws:cmd-ssh-harden , ws:cmd-ssh-host-add , ws:cmd-ssh-host-list , ws:cmd-ssh-host-remove , ws:cmd-profile-list , ws:cmd-profile-prune , ws:cmd-profile-show , ws:cmd-profile-allow , ws:cmd-profile-deny , ws:cmd-profile-init , ws:cmd-profile-check , ws:cmd-profile-why , ws:cmd-profile-load , ws:cmd-ux-fonts-status , ws:cmd-ux-fonts-installed , ws:cmd-ux-fonts-missing , ws:cmd-ux-fonts-reset , ws:cmd-ux-fonts-install , ws:cmd-wt-new , ws:cmd-wt-ls , ws:cmd-wt-prune , ws:cmd-uninstall , ws:cmd-update , ws:cmd-test .
@@ -70,7 +71,6 @@ ws:cmd-whoami a ws:Command ; ws:name "whoami" ; rdfs:comment "Print the facts pr
 ws:cmd-apply a ws:Command ; ws:name "apply" ; rdfs:comment "Converge to the desired state; a second run changes nothing." .
 ws:cmd-doctor a ws:Command ; ws:name "doctor" ; rdfs:comment "Detect tools and advise installs; never installs." .
 ws:cmd-commands a ws:Command ; ws:name "commands" ; rdfs:comment "Every command with its effect on the machine (query, change, advice, emit, run) and whether it takes --json." .
-ws:cmd-vscode a ws:Command ; ws:name "vscode" ; rdfs:comment "Fill VS Code user settings (fill-only) and list recommended extensions. Previews unless --yes." .
 ws:cmd-context a ws:Command ; ws:name "context" ; rdfs:comment "One call that says where you are: OS, shell, tools, git state, profiles, sandbox, problems. --json for agents." .
 ws:cmd-shell a ws:Command ; ws:name "shell" ;
     rdfs:comment "Print init code for one shell. With --greet (what startup files pass), also run doctor on the first shell of each version and the hourly background update check." .
@@ -151,6 +151,7 @@ ws:selector-platform a ws:SelectorKind ; ws:name "platform" .
 ws:selector-distro a ws:SelectorKind ; ws:name "distro" .
 ws:selector-omarchy a ws:SelectorKind ; ws:name "omarchy" .
 ws:selector-has a ws:SelectorKind ; ws:name "has" .
+ws:selector-service a ws:SelectorKind ; ws:name "service" ; rdfs:comment "A system service is installed or running. Probes the machine, so only profiles that contribute commands (no config, no hooks) may use it." .
 ws:selector-env a ws:SelectorKind ; ws:name "env" .
 ws:selector-hostname a ws:SelectorKind ; ws:name "hostname" ; ws:privateOnly true .
 ws:selector-machine a ws:SelectorKind ; ws:name "machine" .
@@ -176,6 +177,8 @@ ws:profile-30-windows a ws:Profile ; ws:name "30-windows" ; eid:path "workshop/p
     ws:selectorKind ws:selector-platform ; rdfs:comment "Windows PowerShell: `which` for people with Unix fingers. Other shells get nothing." .
 ws:profile-30-wsl a ws:Profile ; ws:name "30-wsl" ; eid:path "workshop/profile.d/30-wsl.ts" ;
     ws:selectorKind ws:selector-platform ; rdfs:comment "WSL: reach the Windows clipboard and Explorer with familiar names." .
+ws:profile-vscode a ws:Profile ; ws:name "vscode" ; eid:path "workshop/profile.d/vscode.ts" ;
+    ws:selectorKind ws:selector-any ; ws:providesGroup "vscode" ; rdfs:comment "snshah vscode: VS Code settings and extensions, present where VS Code is (code on PATH or a VS Code terminal)." .
 
 ws:bin-oh-my-posh a ws:PinnedBinary ; ws:name "oh-my-posh" ; ws:pinnedVersion "33.4.1" ;
     rdfs:comment "Installed under $XDG_DATA_HOME/snshah/bin only when no oh-my-posh is on PATH and the prompt allows it." .

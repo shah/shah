@@ -110,6 +110,8 @@ ws:hooksWith a owl:ObjectProperty ; rdfs:domain ws:Toolkit ; rdfs:range ws:HookK
 ws:hasProfile a owl:ObjectProperty ; rdfs:domain ws:Toolkit ; rdfs:range ws:Profile .
 ws:selectorKind a owl:ObjectProperty ; rdfs:domain ws:Profile ; rdfs:range ws:SelectorKind ;
     rdfs:comment "The kind of the profile's top-level exported selector." .
+ws:providesGroup a owl:DatatypeProperty ; rdfs:domain ws:Profile ; rdfs:range xsd:string ;
+    rdfs:comment "The root command a profile.d file contributes through its `commands` export." .
 ws:privateOnly a owl:DatatypeProperty ; rdfs:domain ws:SelectorKind ; rdfs:range xsd:boolean ;
     rdfs:comment "True when only private profile.d files may use this selector (it names a machine)." .
 ws:toolManager a owl:ObjectProperty ; rdfs:domain ws:Toolkit ; rdfs:range ws:PinnedBinary ;

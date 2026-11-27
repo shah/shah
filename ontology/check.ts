@@ -211,6 +211,11 @@ for (const id of shipped) {
     problems.push(
       `profile ${id}: ontology selector ${modeled} vs file ${mod.selector?.kind}`,
     );
+  const modeledGroup = iri ? one(iri, `${WS}providesGroup`) : undefined;
+  if (modeledGroup !== mod.commands?.group)
+    problems.push(
+      `profile ${id}: ontology group ${modeledGroup} vs file ${mod.commands?.group}`,
+    );
   for (const kind of kindsIn(mod.selector))
     if (privateOnly.has(kind))
       problems.push(
