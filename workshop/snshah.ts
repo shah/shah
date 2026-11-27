@@ -15,6 +15,7 @@ import {
   existsSync,
   readFileSync,
   readdirSync,
+  realpathSync,
   statSync,
 } from "node:fs";
 import {
@@ -161,7 +162,7 @@ type Covers<T extends readonly string[], U extends string> = [
   ? true
   : ["missing", Exclude<U, T[number]>];
 
-export const cliVersion = "0.9.0";
+export const cliVersion = "0.9.1";
 export const minimumBun = "1.4.0";
 /** The Oh My Posh release snshah installs when none is on PATH, by Bun-style target. */
 export const ohMyPosh = {
@@ -3353,10 +3354,20 @@ function repoPath(
 
 type CheckoutState = "missing" | "clean" | "dirty" | "not-a-checkout";
 
+/** Same file or directory once symlinks are followed (macOS /tmp, a symlinked ~/Work). */
+function samePath(a: string, b: string): boolean {
+  try {
+    return realpathSync(a) === realpathSync(b);
+  } catch {
+    return resolve(a) === resolve(b);
+  }
+}
+
 function checkoutState(path: string): CheckoutState {
   if (!existsSync(path)) return "missing";
   const top = capture(["git", "-C", path, "rev-parse", "--show-toplevel"]);
-  if (!top || resolve(top) !== resolve(path)) return "not-a-checkout";
+  // Compare real paths: the workspaces root may be (or sit under) a symlink, and git reports the real one.
+  if (!top || !samePath(top, path)) return "not-a-checkout";
   return capture(["git", "-C", path, "status", "--porcelain"]) === ""
     ? "clean"
     : "dirty";
@@ -4993,7 +5004,9 @@ export function sourceCheckout():
   if (!top) return undefined;
   // The installed copy can sit inside some other repository (a dotfiles repo
   // in $HOME, say); only a checkout whose workshop/ is this very file counts.
-  if (resolve(top, upstream.directory, "snshah.ts") !== import.meta.path)
+  if (
+    !samePath(resolve(top, upstream.directory, "snshah.ts"), import.meta.path)
+  )
     return undefined;
   const revision = capture(["git", "-C", top, "rev-parse", "HEAD"]);
   return revision && /^[0-9a-f]{40}$/.test(revision)

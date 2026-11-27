@@ -1,0 +1,4 @@
+# Same bytes on every OS: the self-test, formatters and shell scripts compare text exactly.
+* text=auto eol=lf
+*.ps1 text eol=lf
+*.png binary

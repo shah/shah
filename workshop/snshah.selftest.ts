@@ -14,7 +14,7 @@ import {
   stat,
   writeFile,
 } from "node:fs/promises";
-import { cpSync, existsSync } from "node:fs";
+import { cpSync, existsSync, realpathSync } from "node:fs";
 import { generateKeyPairSync } from "node:crypto";
 import { tmpdir } from "node:os";
 import { delimiter, dirname, join } from "node:path";
@@ -1263,7 +1263,9 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
       const rc = await receiptOf(bootHome).catch(() => undefined);
       check(
         "the receipt names the checkout and its commit",
-        rc?.checkout === checkout && rc.revision === seedHead(),
+        !!rc &&
+          realpathSync(rc.checkout) === realpathSync(checkout) &&
+          rc.revision === seedHead(),
         JSON.stringify(rc),
       );
       const r2 = pipedBootstrap(e);
@@ -1410,6 +1412,37 @@ export async function selfTest({ script, remote }: Options): Promise<number> {
         bareRun.code !== 0 &&
           /not installed from a git checkout/.test(bareRun.out + bareRun.err),
         bareRun.out + bareRun.err,
+      );
+    }
+
+    // A workspaces root behind a symlink (macOS /tmp, a linked ~/Work) is still a checkout.
+    {
+      const sh1 = join(root, "sym-home");
+      const real = join(root, "sym-real");
+      const link = join(root, "sym-link");
+      await mkdir(sh1);
+      await mkdir(real);
+      await symlink(real, link);
+      const se = { ...baseEnv(sh1), WORKSPACES_HOME: link };
+      const add1 = cli(
+        ["git", "add", origin, "--name", "symfx"],
+        undefined,
+        se,
+      );
+      const add2 = cli(
+        ["git", "add", origin, "--name", "symfx"],
+        undefined,
+        se,
+      );
+      const list = cli(["git", "list"], undefined, se);
+      check(
+        "a checkout under a symlinked workspaces root is recognised",
+        add1.code === 0 &&
+          !add2.out.includes("is not a checkout") &&
+          !add2.err.includes("not a checkout") &&
+          !list.out.includes("not a checkout") &&
+          !list.err.includes("not a checkout"),
+        add1.out + add1.err + add2.out + add2.err + list.out + list.err,
       );
     }
 
