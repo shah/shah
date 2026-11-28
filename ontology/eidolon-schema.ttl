@@ -112,6 +112,8 @@ ws:selectorKind a owl:ObjectProperty ; rdfs:domain ws:Profile ; rdfs:range ws:Se
     rdfs:comment "The kind of the profile's top-level exported selector." .
 ws:providesGroup a owl:DatatypeProperty ; rdfs:domain ws:Profile ; rdfs:range xsd:string ;
     rdfs:comment "The root command a profile.d file contributes through its `commands` export." .
+ws:docPath a owl:DatatypeProperty ; rdfs:domain ws:Profile ; rdfs:range xsd:string ;
+    rdfs:comment "The markdown guide beside a profile: what it is, when it applies, how it works, install, use, turn off, troubleshooting. Linked from `snshah profile catalog`." .
 ws:privateOnly a owl:DatatypeProperty ; rdfs:domain ws:SelectorKind ; rdfs:range xsd:boolean ;
     rdfs:comment "True when only private profile.d files may use this selector (it names a machine)." .
 ws:toolManager a owl:ObjectProperty ; rdfs:domain ws:Toolkit ; rdfs:range ws:PinnedBinary ;

@@ -154,6 +154,25 @@ apply` fills only the Atuin settings you haven't set: no sync, no update
 - Agent shells get none of this. Turn Atuin or fzf off with
   `tools: { atuin: false }` or `tools: { fzf: false }`.
 
+## What each profile does: `snshah profile catalog`
+
+`workshop/profile.d/` holds the profiles that adapt snshah to a machine (a
+distribution, Omarchy, a file server, VS Code, local models). To see them:
+
+```sh
+snshah profile catalog            # all of them: active here, and what turns the others on
+snshah profile catalog share      # one in full: what it adds, how to use it, how to turn it on
+snshah profile catalog share --docs   # its full guide, read offline
+```
+
+Each profile has a guide, `profile.d/<name>.ts.md`, linked from the catalog on
+GitHub at the revision you have installed. A profile that needs something
+installed (Samba, rclone, age) lists package names per package manager, and the
+catalog prints the exact command for your machine. It prints it and never runs
+it, because installing a system service needs sudo and a decision. Your own
+profiles in `~/.config/snshah/profile.d/` show up too; add an `about` export and
+a `<name>.ts.md` beside the file and they get the same treatment.
+
 ## Agents, local models and backups
 
 - `snshah agent status` lists the agent CLIs (`claude`, `codex`) you have.

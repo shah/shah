@@ -168,7 +168,7 @@ type Covers<T extends readonly string[], U extends string> = [
   ? true
   : ["missing", Exclude<U, T[number]>];
 
-export const cliVersion = "0.16.0";
+export const cliVersion = "0.17.0";
 export const minimumBun = "1.4.0";
 /** The Oh My Posh release snshah installs when none is on PATH, by Bun-style target. */
 export const ohMyPosh = {
@@ -364,6 +364,7 @@ export const commandNames = [
   "ssh host list",
   "ssh host remove",
   "profile list",
+  "profile catalog",
   "profile prune",
   "profile show",
   "profile allow",
@@ -512,6 +513,7 @@ export const commandEffects: Record<CommandName, Effect> = {
   "ssh host list": "query",
   "ssh host remove": "change",
   "profile list": "query",
+  "profile catalog": "query",
   "profile prune": "change",
   "profile show": "query",
   "profile allow": "change",
@@ -1172,6 +1174,21 @@ export type CommandGroup = {
 };
 /** A tool a profile suggests for machines it matches. Only `snshah doctor` shows it; nothing is installed. */
 export type Recommendation = { tool: string; why: string };
+/** What `snshah profile catalog` says about a profile. Repo profiles must have it. */
+export type ProfileAbout = {
+  /** A few words naming it. */
+  title: string;
+  /** What it is and does, in a sentence or two. */
+  summary: string;
+  /** How to use it, in plain words. */
+  use: string;
+};
+/** Packages that provide what a profile needs, by package manager. `catalog` shows the command for this machine; nothing is run. */
+export type ProfileInstall = {
+  packages: Partial<Record<PackageManager, string[]>>;
+  /** What the packages can't say: services to start, steps that differ per machine. */
+  note?: string;
+};
 export type LoadedProfile = {
   id: string;
   origin: Origin;
@@ -1181,6 +1198,8 @@ export type LoadedProfile = {
   hooks: Hook[];
   commands?: CommandGroup;
   recommends?: Recommendation[];
+  about?: ProfileAbout;
+  install?: ProfileInstall;
 };
 /** Facts plus lazy lookups, so a shell start never pays for what no selector asks. */
 export type FactSource = {
@@ -1603,6 +1622,58 @@ function validateRecommends(value: unknown): Recommendation[] {
   });
 }
 
+function validateAbout(value: unknown): ProfileAbout | undefined {
+  if (value === undefined) return undefined;
+  if (!isObject(value)) fail("about", "must be { title, summary, use }");
+  const out: Record<string, string> = {};
+  for (const key of ["title", "summary", "use"] as const) {
+    const v = value[key];
+    if (typeof v !== "string" || !v.trim())
+      fail(`about.${key}`, "must be a non-empty string");
+    out[key] = (v as string).trim();
+  }
+  for (const key of Object.keys(value))
+    if (!["title", "summary", "use"].includes(key))
+      fail(`about.${key}`, "is not title, summary or use");
+  return out as ProfileAbout;
+}
+
+const packageName = /^[A-Za-z0-9][A-Za-z0-9._+@:-]*$/;
+function validateInstall(value: unknown): ProfileInstall | undefined {
+  if (value === undefined) return undefined;
+  if (!isObject(value) || !isObject(value.packages))
+    fail("install", "must be { packages: { <manager>: [names] }, note? }");
+  const packages: ProfileInstall["packages"] = {};
+  for (const [manager, names] of Object.entries(
+    value.packages as Record<string, unknown>,
+  )) {
+    if (!(packageManagers as readonly string[]).includes(manager))
+      fail(
+        `install.packages.${manager}`,
+        `is not a package manager snshah knows (${packageManagers.join(", ")})`,
+      );
+    if (
+      !Array.isArray(names) ||
+      !names.length ||
+      !names.every((n) => typeof n === "string" && packageName.test(n))
+    )
+      fail(
+        `install.packages.${manager}`,
+        "must be a non-empty array of package names",
+      );
+    packages[manager as PackageManager] = names as string[];
+  }
+  if (value.note !== undefined && typeof value.note !== "string")
+    fail("install.note", "must be a string");
+  for (const key of Object.keys(value))
+    if (!["packages", "note"].includes(key))
+      fail(`install.${key}`, "is not packages or note");
+  return {
+    packages,
+    ...(typeof value.note === "string" ? { note: value.note } : {}),
+  };
+}
+
 function hasServiceSelector(selector: Selector): boolean {
   switch (selector.kind) {
     case "service":
@@ -1703,13 +1774,19 @@ async function loadProfileDir(
     try {
       for (const key of Object.keys(module))
         if (
-          !["selector", "config", "hooks", "commands", "recommends"].includes(
-            key,
-          )
+          ![
+            "selector",
+            "config",
+            "hooks",
+            "commands",
+            "recommends",
+            "about",
+            "install",
+          ].includes(key)
         )
           fail(
             key,
-            "is not a profile export (use selector, config, hooks, commands, recommends)",
+            "is not a profile export (use selector, config, hooks, commands, recommends, about, install)",
           );
       validateSelector(module.selector, origin);
       const config = module.config ?? {};
@@ -1719,6 +1796,10 @@ async function loadProfileDir(
       const hooks = module.hooks ?? [];
       validateHooks(hooks, origin);
       const recommends = validateRecommends(module.recommends);
+      const about = validateAbout(module.about);
+      if (origin === "repo" && !about)
+        fail("about", "is required in a repo profile (see profile catalog)");
+      const install = validateInstall(module.install);
       const commands =
         module.commands === undefined
           ? undefined
@@ -1740,6 +1821,8 @@ async function loadProfileDir(
         hooks,
         ...(commands ? { commands } : {}),
         ...(recommends.length ? { recommends } : {}),
+        ...(about ? { about } : {}),
+        ...(install ? { install } : {}),
       });
     } catch (error) {
       throw new Error(`${where}: ${(error as Error).message}`);
@@ -3521,12 +3604,22 @@ export function bleFiles(home: string): string[] {
   ];
 }
 
-/** fzf's defaults, set only where you have not set them: fd as the source, previews with eza and bat. */
+/**
+ * fzf's defaults, set only where you have not set them: fd as the source,
+ * previews with eza and bat. fzf runs these in its own shell, where aliases
+ * don't exist, so a tool counts only if it is a real program (`fd`, or
+ * Debian's `fdfind`; `bat`, or `batcat`).
+ */
 function fzfEnvPosix(): string[] {
+  const find = (variable: string, names: string) =>
+    `${variable}=; for __snshah_c in ${names}; do case "$(command -v "$__snshah_c" 2>/dev/null)" in /*) ${variable}=$__snshah_c; break ;; esac; done`;
   return [
-    `if command -v fd >/dev/null 2>&1; then [ -n "\${FZF_DEFAULT_COMMAND-}" ] || export FZF_DEFAULT_COMMAND='fd --type f --hidden --follow --exclude .git'; [ -n "\${FZF_CTRL_T_COMMAND-}" ] || export FZF_CTRL_T_COMMAND='fd --hidden --follow --exclude .git'; [ -n "\${FZF_ALT_C_COMMAND-}" ] || export FZF_ALT_C_COMMAND='fd --type d --hidden --follow --exclude .git'; fi`,
-    `if command -v eza >/dev/null 2>&1; then [ -n "\${FZF_ALT_C_OPTS-}" ] || export FZF_ALT_C_OPTS="--preview 'eza --tree --level=2 --color=always {} | head -50'"; fi`,
-    `if command -v bat >/dev/null 2>&1; then [ -n "\${FZF_CTRL_T_OPTS-}" ] || export FZF_CTRL_T_OPTS="--preview 'bat --style=numbers --color=always --line-range :200 {} 2>/dev/null || eza --tree --level=1 --color=always {} 2>/dev/null'"; fi`,
+    find("__snshah_fd", "fd fdfind"),
+    find("__snshah_bat", "bat batcat"),
+    `if [ -n "$__snshah_fd" ]; then [ -n "\${FZF_DEFAULT_COMMAND-}" ] || export FZF_DEFAULT_COMMAND="$__snshah_fd --type f --hidden --follow --exclude .git"; [ -n "\${FZF_CTRL_T_COMMAND-}" ] || export FZF_CTRL_T_COMMAND="$__snshah_fd --hidden --follow --exclude .git"; [ -n "\${FZF_ALT_C_COMMAND-}" ] || export FZF_ALT_C_COMMAND="$__snshah_fd --type d --hidden --follow --exclude .git"; fi`,
+    `case "$(command -v eza 2>/dev/null)" in /*) [ -n "\${FZF_ALT_C_OPTS-}" ] || export FZF_ALT_C_OPTS="--preview 'eza --tree --level=2 --color=always {} | head -50'" ;; esac`,
+    `if [ -n "$__snshah_bat" ]; then [ -n "\${FZF_CTRL_T_OPTS-}" ] || export FZF_CTRL_T_OPTS="--preview '$__snshah_bat --style=numbers --color=always --line-range :200 {} 2>/dev/null || eza --tree --level=1 --color=always {} 2>/dev/null'"; fi`,
+    `unset __snshah_fd __snshah_bat __snshah_c`,
   ];
 }
 
@@ -3703,9 +3796,10 @@ function renderFish(op: ShellOp): string[] {
       ];
     case "fzf":
       return [
-        `if command -sq fd; set -q FZF_DEFAULT_COMMAND; or set -gx FZF_DEFAULT_COMMAND 'fd --type f --hidden --follow --exclude .git'; set -q FZF_CTRL_T_COMMAND; or set -gx FZF_CTRL_T_COMMAND 'fd --hidden --follow --exclude .git'; set -q FZF_ALT_C_COMMAND; or set -gx FZF_ALT_C_COMMAND 'fd --type d --hidden --follow --exclude .git'; end`,
+        `set -l __snshah_fd; for __snshah_c in fd fdfind; if command -sq $__snshah_c; set __snshah_fd $__snshah_c; break; end; end; set -l __snshah_bat; for __snshah_c in bat batcat; if command -sq $__snshah_c; set __snshah_bat $__snshah_c; break; end; end`,
+        `if test -n "$__snshah_fd"; set -q FZF_DEFAULT_COMMAND; or set -gx FZF_DEFAULT_COMMAND "$__snshah_fd --type f --hidden --follow --exclude .git"; set -q FZF_CTRL_T_COMMAND; or set -gx FZF_CTRL_T_COMMAND "$__snshah_fd --hidden --follow --exclude .git"; set -q FZF_ALT_C_COMMAND; or set -gx FZF_ALT_C_COMMAND "$__snshah_fd --type d --hidden --follow --exclude .git"; end`,
         `if command -sq eza; set -q FZF_ALT_C_OPTS; or set -gx FZF_ALT_C_OPTS "--preview 'eza --tree --level=2 --color=always {} | head -50'"; end`,
-        `if command -sq bat; set -q FZF_CTRL_T_OPTS; or set -gx FZF_CTRL_T_OPTS "--preview 'bat --style=numbers --color=always --line-range :200 {} 2>/dev/null || eza --tree --level=1 --color=always {} 2>/dev/null'"; end`,
+        `if test -n "$__snshah_bat"; set -q FZF_CTRL_T_OPTS; or set -gx FZF_CTRL_T_OPTS "--preview '$__snshah_bat --style=numbers --color=always --line-range :200 {} 2>/dev/null || eza --tree --level=1 --color=always {} 2>/dev/null'"; end; set -e __snshah_c`,
         `if command -sq fzf; and not functions -q fzf-file-widget; fzf --fish 2>/dev/null | source; end`,
       ];
     case "atuin":
@@ -7749,6 +7843,255 @@ type DirListing = {
   status: DirStatus | { kind: "gone" };
 };
 
+// ---------------------------------------------------------------------------
+// profile catalog: what each profile.d file is, whether it applies here, how to use it
+// ---------------------------------------------------------------------------
+
+/** A selector in plain words, for "turns on when ...". */
+export function selectorWords(selector: Selector): string {
+  switch (selector.kind) {
+    case "always":
+      return "always";
+    case "platform":
+      return `the platform is ${selector.is}`;
+    case "distro":
+      return `the distribution is ${selector.id} or like it`;
+    case "omarchy":
+      return "this is an Omarchy machine";
+    case "has":
+      return `${selector.command} is on PATH`;
+    case "service":
+      return `the ${selector.name} service is ${selector.state === "running" ? "running" : "installed"}`;
+    case "env":
+      return selector.equals === undefined
+        ? `$${selector.name} is set`
+        : `$${selector.name} is ${selector.equals}`;
+    case "exists":
+      return `${selector.path} exists`;
+    case "hostname":
+      return `the hostname is ${selector.is}`;
+    case "machine":
+      return "this is one particular machine";
+    case "all":
+      return selector.of.map((s) => selectorWords(s)).join(" and ");
+    case "any":
+      return selector.of.length === 1
+        ? selectorWords(selector.of[0]!)
+        : `any of: ${selector.of.map((s) => selectorWords(s)).join("; ")}`;
+    case "not":
+      return `not (${selectorWords(selector.selector)})`;
+    default:
+      return assertNever(selector);
+  }
+}
+
+export type CatalogEntry = {
+  id: string;
+  origin: Origin;
+  title: string;
+  summary: string;
+  use: string;
+  active: boolean;
+  appliesWhen: string;
+  /** What it adds, in words: settings, hooks, a command group, recommendations. */
+  contributes: string[];
+  install?: { manager?: PackageManager; command?: string; note?: string };
+  /** The repo file for a shipped profile; your own file for a private one. */
+  source: string;
+  docs?: { url?: string; file?: string };
+};
+
+function contributions(p: LoadedProfile): string[] {
+  const out: string[] = [];
+  const c = p.config;
+  if (c.workspacesHome) out.push(`workspaces root ${c.workspacesHome}`);
+  if (c.path?.length) out.push(`PATH: ${c.path.join(", ")}`);
+  if (c.aliases && Object.keys(c.aliases).length)
+    out.push(`aliases: ${Object.keys(c.aliases).join(", ")}`);
+  if (c.env && Object.keys(c.env).length)
+    out.push(`environment: ${Object.keys(c.env).join(", ")}`);
+  if (c.tools && Object.keys(c.tools).length)
+    out.push(`tools: ${Object.keys(c.tools).join(", ")}`);
+  if (p.hooks.length)
+    out.push(
+      `${p.hooks.length} file or command hook${p.hooks.length === 1 ? "" : "s"} (${[
+        ...new Set(p.hooks.map((h) => h.kind)),
+      ].join(", ")})`,
+    );
+  if (p.commands)
+    out.push(
+      `the command group snshah ${p.commands.group} (${Object.keys(p.commands.effects).filter(Boolean).join(", ")})`,
+    );
+  if (p.recommends?.length)
+    out.push(`recommends: ${p.recommends.map((r) => r.tool).join(", ")}`);
+  return out;
+}
+
+/** The markdown that explains a profile, if it is here: next to the profile, or in the checkout snshah was installed from. */
+async function profileDocFile(
+  ctx: Context,
+  p: LoadedProfile,
+): Promise<string | undefined> {
+  const name = `${p.id}.ts.md`;
+  const candidates =
+    p.origin === "private"
+      ? [join(ctx.profileDir, name)]
+      : [join(repoProfileSource(), name)];
+  const receipt = await readReceipt(ctx);
+  if (receipt && p.origin === "repo")
+    candidates.push(
+      join(receipt.checkout, upstream.directory, "profile.d", name),
+    );
+  return candidates.find((f) => existsSync(f));
+}
+
+export async function profileCatalogEntries(
+  ctx: Context,
+): Promise<CatalogEntry[]> {
+  const facts = factSource(ctx);
+  const profiles = [
+    ...(await loadProfileDir(repoProfileSource(), "repo")),
+    ...(await loadProfileDir(ctx.profileDir, "private")),
+  ];
+  const manager = detectManager(ctx);
+  const hasSudo =
+    isWindows || !!Bun.which("sudo", { PATH: ctx.env.PATH ?? "" });
+  const revision = (await readReceipt(ctx))?.revision ?? upstream.ref;
+  const entries: CatalogEntry[] = [];
+  for (const p of profiles) {
+    const active = matches(p.selector, facts);
+    const packages = manager ? p.install?.packages[manager] : undefined;
+    const docFile = await profileDocFile(ctx, p);
+    entries.push({
+      id: p.id,
+      origin: p.origin,
+      title: p.about?.title ?? p.id,
+      summary: p.about?.summary ?? "No description (add an `about` export).",
+      use: p.about?.use ?? "",
+      active,
+      appliesWhen: selectorWords(p.selector),
+      contributes: contributions(p),
+      ...(p.install
+        ? {
+            install: {
+              ...(manager ? { manager } : {}),
+              ...(packages
+                ? { command: installCommand(manager!, packages, hasSudo) }
+                : {}),
+              ...(p.install.note ? { note: p.install.note } : {}),
+            },
+          }
+        : {}),
+      source:
+        p.origin === "repo"
+          ? `${upstream.directory}/profile.d/${p.id}.ts`
+          : tilde(ctx, p.file),
+      ...(docFile || p.origin === "repo"
+        ? {
+            docs: {
+              ...(p.origin === "repo"
+                ? {
+                    url: `https://github.com/${upstream.owner}/${upstream.repo}/blob/${revision}/${upstream.directory}/profile.d/${p.id}.ts.md`,
+                  }
+                : {}),
+              ...(docFile ? { file: tilde(ctx, docFile) } : {}),
+            },
+          }
+        : {}),
+    });
+  }
+  return entries;
+}
+
+function catalogDetail(e: CatalogEntry): string[] {
+  const lines = [
+    `${e.id}: ${e.title} (${e.origin}; ${e.active ? "active here" : "not active here"})`,
+    "",
+    e.summary,
+    "",
+    `Applies when: ${e.appliesWhen}`,
+  ];
+  if (e.contributes.length) lines.push(`Adds: ${e.contributes.join("; ")}`);
+  if (e.use) lines.push("", `Use it: ${e.use}`);
+  if (e.install && !e.active) {
+    lines.push("");
+    if (e.install.command)
+      lines.push(
+        `To turn it on here (${e.install.manager}):`,
+        `  ${e.install.command}`,
+      );
+    else
+      lines.push(
+        e.install.manager
+          ? `To turn it on: no ${e.install.manager} package is listed; see the guide.`
+          : "To turn it on: snshah can't tell your package manager; see the guide.",
+      );
+    if (e.install.note) lines.push(`  ${e.install.note}`);
+  }
+  lines.push("", `Source: ${e.source}`);
+  if (e.docs?.url) lines.push(`Guide: ${e.docs.url}`);
+  if (e.docs?.file)
+    lines.push(`Read it here: snshah profile catalog ${e.id} --docs`);
+  else if (e.origin === "private")
+    lines.push(
+      `Guide: none yet (add ${e.id}.ts.md beside the profile to explain it)`,
+    );
+  return lines;
+}
+
+async function profileCatalog(
+  ctx: Context,
+  name: string | undefined,
+  o: { json?: boolean; active?: boolean; docs?: boolean },
+): Promise<void> {
+  const all = await profileCatalogEntries(ctx);
+  if (name) {
+    const e = all.find((x) => x.id === name || x.id.endsWith(`-${name}`));
+    if (!e) {
+      process.stderr.write(
+        `No profile named ${name}. Run snshah profile catalog to see them.\n`,
+      );
+      process.exitCode = 1;
+      return;
+    }
+    if (o.docs) {
+      const file = e.docs?.file
+        ? e.docs.file.replace(/^~/, ctx.home)
+        : undefined;
+      if (!file || !existsSync(file)) {
+        process.stderr.write(
+          `${e.id}: no guide on this machine.${e.docs?.url ? ` Read it at ${e.docs.url}` : ""}\n`,
+        );
+        process.exitCode = 1;
+        return;
+      }
+      process.stdout.write(await readFile(file, "utf8"));
+      return;
+    }
+    if (o.json) console.log(JSON.stringify(e, null, 2));
+    else console.log(catalogDetail(e).join("\n"));
+    return;
+  }
+  const shown = o.active ? all.filter((e) => e.active) : all;
+  if (o.json) {
+    console.log(JSON.stringify(shown, null, 2));
+    return;
+  }
+  const first = (text: string) => /^.*?[.!?](?=\s|$)/s.exec(text)?.[0] ?? text;
+  const row = (e: CatalogEntry) =>
+    `  ${e.id.padEnd(22)} ${e.title}: ${first(e.summary)}${e.active ? "" : `\n  ${"".padEnd(22)} turns on when ${e.appliesWhen}`}`;
+  const on = shown.filter((e) => e.active);
+  const off = shown.filter((e) => !e.active);
+  console.log(
+    `Profiles: ${all.filter((e) => e.active).length} of ${all.length} apply to this machine.`,
+  );
+  if (on.length) console.log(`\nActive here\n${on.map(row).join("\n")}`);
+  if (off.length) console.log(`\nNot active here\n${off.map(row).join("\n")}`);
+  console.log(
+    "\nDetails and how to turn one on: snshah profile catalog <name>   Guide: snshah profile catalog <name> --docs",
+  );
+}
+
 async function profileList(
   ctx: Context,
   options: { json?: boolean; all?: boolean; depth?: string },
@@ -8884,6 +9227,21 @@ export async function buildCli(
     .option("--json", "print JSON")
     .action(async (o: { json?: boolean; all?: boolean; depth?: string }) =>
       profileList(ctx, o),
+    );
+  profile
+    .command("catalog")
+    .description(
+      "The profile.d profiles: what each is, whether it applies here, how to turn it on and use it",
+    )
+    .argument("[name]", "show one profile in full")
+    .option("--active", "only the profiles that apply to this machine")
+    .option("--docs", "print the profile's full guide (needs a name)")
+    .option("--json", "print JSON")
+    .action(
+      async (
+        name: string | undefined,
+        o: { json?: boolean; active?: boolean; docs?: boolean },
+      ) => profileCatalog(ctx, name, o),
     );
   profile
     .command("prune")

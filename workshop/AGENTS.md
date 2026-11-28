@@ -102,6 +102,11 @@ Rules for a person or an AI agent changing anything in `workshop/`.
   config only where unset. Atuin loads after fzf so Ctrl-R stays Atuin's.
   zsh plugin and ble.sh paths live in `zshPlugins` and `bleFiles`; the shell
   init and `doctor` share them.
+- A new `profile.d/<name>.ts` needs an `about` export, a `<name>.ts.md`
+  guide with the required sections, a `docPath` in the ontology, and (when it
+  needs something installed) an `install` export. The loader, the ontology
+  check and the self-test all fail without them. `install` is advice: never
+  run it from snshah.
 - Install the CLI files last, so a failed apply keeps the old CLI working.
 
 ## Before every push

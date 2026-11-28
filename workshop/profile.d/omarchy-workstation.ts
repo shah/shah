@@ -3,7 +3,12 @@
 // Everything here is managed in marked blocks or files of its own and goes
 // away with `snshah uninstall`. The default browser, work accounts and cloud
 // folders are yours to choose: see the README for private profile.d examples.
-import type { Hook, Recommendation, Selector } from "../snshah.ts";
+import type {
+  Hook,
+  ProfileAbout,
+  Recommendation,
+  Selector,
+} from "../snshah.ts";
 
 export const selector = {
   kind: "all",
@@ -98,3 +103,10 @@ export const recommends = [
     why: "snshah vault keeps an encrypted backup of your private config",
   },
 ] satisfies Recommendation[];
+
+export const about = {
+  title: "Omarchy workstation",
+  summary:
+    "On an Omarchy machine with the Hyprland Lua configuration: an snshah entry in the Omarchy menu, a key binding that opens it, and Gmail, WhatsApp and Discord web apps.",
+  use: "Press Super+Alt+M, or open the Omarchy menu and choose snshah, for Doctor, Preview changes, Who is signed in, Update and Apply. `snshah uninstall` removes everything it added.",
+} satisfies ProfileAbout;

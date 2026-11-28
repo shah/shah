@@ -15,7 +15,7 @@ ws:snshah a ws:Toolkit ;
     doap:programming-language "TypeScript" ;
     dcterms:creator "Shahid Shah" ;
     eid:path "workshop/snshah.ts" ;
-    ws:version "0.16.0" ;
+    ws:version "0.17.0" ;
     ws:idempotent true ;
     ws:runtime ws:bun ;
     ws:upstream "shah/shah@main" ;
@@ -59,7 +59,7 @@ ws:snshah a ws:Toolkit ;
     ws:hasCommand ws:cmd-plan , ws:cmd-whoami , ws:cmd-apply , ws:cmd-doctor , ws:cmd-context , ws:cmd-commands , ws:cmd-shell , ws:cmd-exec ,
         ws:cmd-config-path , ws:cmd-config-check , ws:cmd-config-edit , ws:cmd-config-set-secret ,
         ws:cmd-git-root , ws:cmd-git-add , ws:cmd-git-list , ws:cmd-git-path , ws:cmd-git-clone , ws:cmd-git-update , ws:cmd-git-remove ,
-        ws:cmd-ssh-status , ws:cmd-ssh-keys , ws:cmd-ssh-new , ws:cmd-ssh-copy , ws:cmd-ssh-authorize , ws:cmd-ssh-authorized , ws:cmd-ssh-test , ws:cmd-ssh-harden , ws:cmd-ssh-host-add , ws:cmd-ssh-host-list , ws:cmd-ssh-host-remove , ws:cmd-profile-list , ws:cmd-profile-prune , ws:cmd-profile-show , ws:cmd-profile-allow , ws:cmd-profile-deny , ws:cmd-profile-init , ws:cmd-profile-check , ws:cmd-profile-why , ws:cmd-profile-load , ws:cmd-ux-fonts-status , ws:cmd-ux-fonts-installed , ws:cmd-ux-fonts-missing , ws:cmd-ux-fonts-reset , ws:cmd-ux-fonts-install , ws:cmd-signin , ws:cmd-agent-status , ws:cmd-agent-start , ws:cmd-wt-new , ws:cmd-wt-ls , ws:cmd-wt-prune , ws:cmd-uninstall , ws:cmd-update , ws:cmd-test .
+        ws:cmd-ssh-status , ws:cmd-ssh-keys , ws:cmd-ssh-new , ws:cmd-ssh-copy , ws:cmd-ssh-authorize , ws:cmd-ssh-authorized , ws:cmd-ssh-test , ws:cmd-ssh-harden , ws:cmd-ssh-host-add , ws:cmd-ssh-host-list , ws:cmd-ssh-host-remove , ws:cmd-profile-list , ws:cmd-profile-catalog , ws:cmd-profile-prune , ws:cmd-profile-show , ws:cmd-profile-allow , ws:cmd-profile-deny , ws:cmd-profile-init , ws:cmd-profile-check , ws:cmd-profile-why , ws:cmd-profile-load , ws:cmd-ux-fonts-status , ws:cmd-ux-fonts-installed , ws:cmd-ux-fonts-missing , ws:cmd-ux-fonts-reset , ws:cmd-ux-fonts-install , ws:cmd-signin , ws:cmd-agent-status , ws:cmd-agent-start , ws:cmd-wt-new , ws:cmd-wt-ls , ws:cmd-wt-prune , ws:cmd-uninstall , ws:cmd-update , ws:cmd-test .
 
 ws:bun a ws:Runtime ; rdfs:label "Bun" ; ws:minimumVersion "1.4.0" .
 
@@ -103,6 +103,7 @@ ws:cmd-ssh-host-add a ws:Command ; ws:name "ssh host add" ; rdfs:comment "Write 
 ws:cmd-ssh-host-list a ws:Command ; ws:name "ssh host list" ; rdfs:comment "List the Host blocks snshah wrote." .
 ws:cmd-ssh-host-remove a ws:Command ; ws:name "ssh host remove" ; rdfs:comment "Remove one Host block snshah wrote." .
 ws:cmd-profile-list a ws:Command ; ws:name "profile list" ; rdfs:comment "Find .snshah.profile.ts files here, above and below (with --all, in workspaces and checkouts) and show which are trusted. Alias ls. The default profile command." .
+ws:cmd-profile-catalog a ws:Command ; ws:name "profile catalog" ; rdfs:comment "List the profile.d profiles: what each is, whether it applies to this machine and why, how to turn it on (the package command for this machine) and use it, with a link to its guide on GitHub; with a name, one in full; --docs prints its guide; --active, --json." .
 ws:cmd-profile-prune a ws:Command ; ws:name "profile prune" ; rdfs:comment "Forget trust for directory profiles whose file no longer exists." .
 ws:cmd-profile-show a ws:Command ; ws:name "profile show" ; rdfs:comment "What the trusted directory profiles set here, and which file set it." .
 ws:cmd-profile-allow a ws:Command ; ws:name "profile allow" ; rdfs:comment "Read a directory profile, then trust its content hash. Alias: safe." .
@@ -172,31 +173,31 @@ ws:hook-file a ws:HookKind ; ws:name "file" ; rdfs:comment "A file the profile o
 ws:hook-block a ws:HookKind ; ws:name "block" ; rdfs:comment "One marked block per profile inside a file the user owns." .
 ws:hook-command a ws:HookKind ; ws:name "command" ; rdfs:comment "Runs before or after apply only while its required unless check fails." .
 
-ws:profile-10-omarchy a ws:Profile ; ws:name "10-omarchy" ; eid:path "workshop/profile.d/10-omarchy.ts" ;
+ws:profile-10-omarchy a ws:Profile ; ws:name "10-omarchy" ; eid:path "workshop/profile.d/10-omarchy.ts" ; ws:docPath "workshop/profile.d/10-omarchy.ts.md" ;
     ws:selectorKind ws:selector-omarchy ; rdfs:comment "Omarchy keeps work under ~/Work. $WORKSPACES_HOME and snshah.conf.ts still win." .
-ws:profile-20-debian-bat a ws:Profile ; ws:name "20-debian-bat" ; eid:path "workshop/profile.d/20-debian-bat.ts" ;
+ws:profile-20-debian-bat a ws:Profile ; ws:name "20-debian-bat" ; eid:path "workshop/profile.d/20-debian-bat.ts" ; ws:docPath "workshop/profile.d/20-debian-bat.ts.md" ;
     ws:selectorKind ws:selector-all ; rdfs:comment "Debian and Ubuntu ship bat as `batcat`; use the upstream name when it is free." .
-ws:profile-20-debian-fd a ws:Profile ; ws:name "20-debian-fd" ; eid:path "workshop/profile.d/20-debian-fd.ts" ;
+ws:profile-20-debian-fd a ws:Profile ; ws:name "20-debian-fd" ; eid:path "workshop/profile.d/20-debian-fd.ts" ; ws:docPath "workshop/profile.d/20-debian-fd.ts.md" ;
     ws:selectorKind ws:selector-all ; rdfs:comment "Debian and Ubuntu ship fd as `fdfind`; use the upstream name when it is free." .
-ws:profile-20-fedora a ws:Profile ; ws:name "20-fedora" ; eid:path "workshop/profile.d/20-fedora.ts" ;
+ws:profile-20-fedora a ws:Profile ; ws:name "20-fedora" ; eid:path "workshop/profile.d/20-fedora.ts" ; ws:docPath "workshop/profile.d/20-fedora.ts.md" ;
     ws:selectorKind ws:selector-distro ; rdfs:comment "Fedora and its relatives: one alias for a full refresh-and-upgrade." .
-ws:profile-30-macos a ws:Profile ; ws:name "30-macos" ; eid:path "workshop/profile.d/30-macos.ts" ;
+ws:profile-30-macos a ws:Profile ; ws:name "30-macos" ; eid:path "workshop/profile.d/30-macos.ts" ; ws:docPath "workshop/profile.d/30-macos.ts.md" ;
     ws:selectorKind ws:selector-platform ; rdfs:comment "Homebrew on Apple silicon lives in /opt/homebrew, which login shells may not have on PATH." .
-ws:profile-30-windows a ws:Profile ; ws:name "30-windows" ; eid:path "workshop/profile.d/30-windows.ts" ;
+ws:profile-30-windows a ws:Profile ; ws:name "30-windows" ; eid:path "workshop/profile.d/30-windows.ts" ; ws:docPath "workshop/profile.d/30-windows.ts.md" ;
     ws:selectorKind ws:selector-platform ; rdfs:comment "Windows PowerShell: `which` for people with Unix fingers. Other shells get nothing." .
-ws:profile-30-wsl a ws:Profile ; ws:name "30-wsl" ; eid:path "workshop/profile.d/30-wsl.ts" ;
+ws:profile-30-wsl a ws:Profile ; ws:name "30-wsl" ; eid:path "workshop/profile.d/30-wsl.ts" ; ws:docPath "workshop/profile.d/30-wsl.ts.md" ;
     ws:selectorKind ws:selector-platform ; rdfs:comment "WSL: reach the Windows clipboard and Explorer with familiar names." .
-ws:profile-vscode a ws:Profile ; ws:name "vscode" ; eid:path "workshop/profile.d/vscode.ts" ;
+ws:profile-vscode a ws:Profile ; ws:name "vscode" ; eid:path "workshop/profile.d/vscode.ts" ; ws:docPath "workshop/profile.d/vscode.ts.md" ;
     ws:selectorKind ws:selector-any ; ws:providesGroup "vscode" ; rdfs:comment "snshah vscode: VS Code settings and extensions, present where VS Code is (code on PATH or a VS Code terminal)." .
-ws:profile-efss a ws:Profile ; ws:name "efss" ; eid:path "workshop/profile.d/efss.ts" ;
+ws:profile-efss a ws:Profile ; ws:name "efss" ; eid:path "workshop/profile.d/efss.ts" ; ws:docPath "workshop/profile.d/efss.ts.md" ;
     ws:selectorKind ws:selector-has ; ws:providesGroup "efss" ; rdfs:comment "snshah efss: mirror OneDrive, SharePoint, Google Drive, Box, Dropbox, SMB, SFTP and WebDAV through rclone, present where rclone is." .
-ws:profile-share a ws:Profile ; ws:name "share" ; eid:path "workshop/profile.d/share.ts" ;
+ws:profile-share a ws:Profile ; ws:name "share" ; eid:path "workshop/profile.d/share.ts" ; ws:docPath "workshop/profile.d/share.ts.md" ;
     ws:selectorKind ws:selector-any ; ws:providesGroup "share" ; rdfs:comment "snshah share: audit Samba and NFS and print safe subnet-scoped configuration, present where smbd or an NFS server is." .
-ws:profile-ollama a ws:Profile ; ws:name "ollama" ; eid:path "workshop/profile.d/ollama.ts" ;
+ws:profile-ollama a ws:Profile ; ws:name "ollama" ; eid:path "workshop/profile.d/ollama.ts" ; ws:docPath "workshop/profile.d/ollama.ts.md" ;
     ws:selectorKind ws:selector-has ; ws:providesGroup "ollama" ; rdfs:comment "snshah ollama: status and pulls for local models, present where ollama is." .
-ws:profile-age a ws:Profile ; ws:name "age" ; eid:path "workshop/profile.d/age.ts" ;
+ws:profile-age a ws:Profile ; ws:name "age" ; eid:path "workshop/profile.d/age.ts" ; ws:docPath "workshop/profile.d/age.ts.md" ;
     ws:selectorKind ws:selector-has ; ws:providesGroup "vault" ; rdfs:comment "snshah vault: an age passphrase-encrypted backup of the private config, present where age is." .
-ws:profile-omarchy-workstation a ws:Profile ; ws:name "omarchy-workstation" ; eid:path "workshop/profile.d/omarchy-workstation.ts" ;
+ws:profile-omarchy-workstation a ws:Profile ; ws:name "omarchy-workstation" ; eid:path "workshop/profile.d/omarchy-workstation.ts" ; ws:docPath "workshop/profile.d/omarchy-workstation.ts.md" ;
     ws:selectorKind ws:selector-all ; rdfs:comment "Omarchy with the Hyprland Lua configuration: an snshah entry in the Omarchy menu, a key binding and a few web apps. Recommends rclone and age." .
 
 ws:bin-oh-my-posh a ws:PinnedBinary ; ws:name "oh-my-posh" ; ws:pinnedVersion "33.4.1" ;

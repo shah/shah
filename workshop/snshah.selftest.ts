@@ -14,7 +14,7 @@ import {
   stat,
   writeFile,
 } from "node:fs/promises";
-import { cpSync, existsSync, realpathSync } from "node:fs";
+import { cpSync, existsSync, readdirSync, realpathSync } from "node:fs";
 import { generateKeyPairSync } from "node:crypto";
 import { tmpdir } from "node:os";
 import { delimiter, dirname, join } from "node:path";
@@ -1932,6 +1932,33 @@ echo "__fzf_select__() { :; }; fzf-file-widget() { :; }; echo fzf-init-ran $1"
           text.slice(0, 300),
         );
       }
+      // fzf's source is a real program: Debian's fdfind counts, an alias would not.
+      await writeFile(join(bin, "fdfind"), "#!/bin/sh\nexit 0\n", {
+        mode: 0o755,
+      });
+      {
+        const file = join(ah, "init.bash");
+        const out = sh(
+          ["bash", "-c", `. "${file}"; printf %s "$FZF_DEFAULT_COMMAND"`],
+          ah,
+          ae,
+        ).out;
+        check(
+          "fzf uses fdfind when only Debian's name exists, and keeps what you set",
+          out.trim().split("\n").pop()!.startsWith("fdfind --type f"),
+          out,
+        );
+        const mine = sh(
+          ["bash", "-c", `. "${file}"; printf %s "$FZF_DEFAULT_COMMAND"`],
+          ah,
+          { ...ae, FZF_DEFAULT_COMMAND: "mine" },
+        ).out;
+        check(
+          "a FZF_DEFAULT_COMMAND you set is kept",
+          mine.trim().split("\n").pop() === "mine",
+          mine,
+        );
+      }
       // The Atuin config: unset keys only.
       const cfgDir = join(ah, ".config", "atuin");
       await mkdir(cfgDir, { recursive: true });
@@ -1954,6 +1981,164 @@ echo "__fzf_select__() { :; }; fzf-file-widget() { :; }; echo fzf-init-ran $1"
         second.out.includes("No changes needed"),
         second.out + second.err,
       );
+    }
+
+    // profile catalog: every profile described, with its guide, whether it applies and how to turn it on.
+    if (process.platform !== "win32") {
+      const ch = join(root, "catalog-home");
+      const pdir = join(ch, ".config", "snshah", "profile.d");
+      await mkdir(pdir, { recursive: true });
+      const bare = baseEnv(ch);
+      type Entry = {
+        id: string;
+        origin: string;
+        title: string;
+        summary: string;
+        use: string;
+        active: boolean;
+        appliesWhen: string;
+        install?: { command?: string; note?: string };
+        docs?: { url?: string; file?: string };
+        source: string;
+      };
+      const facts = json<Record<string, unknown>>(
+        cli(["whoami", "--json"], undefined, bare),
+      );
+      const nothing = join(ch, "facts-nothing.json");
+      await writeFile(nothing, JSON.stringify({ ...facts, commands: [] }));
+      const off = { ...bare, SNSHAH_FACTS: nothing };
+      const all = json<Entry[]>(
+        cli(["profile", "catalog", "--json"], undefined, off),
+      );
+      const shipped = readdirSync(join(import.meta.dir, "profile.d"))
+        .filter((f) => f.endsWith(".ts"))
+        .map((f) => f.slice(0, -3));
+      check(
+        "profile catalog lists every shipped profile with a title, summary and use",
+        !!all &&
+          shipped.every((id) =>
+            all.some(
+              (e) =>
+                e.id === id &&
+                e.origin === "repo" &&
+                e.title &&
+                e.summary &&
+                e.use,
+            ),
+          ),
+        JSON.stringify(all?.map((e) => e.id)),
+      );
+      check(
+        "each shipped profile links its guide on GitHub",
+        !!all &&
+          all
+            .filter((e) => e.origin === "repo")
+            .every(
+              (e) =>
+                e.docs?.url?.endsWith(`/workshop/profile.d/${e.id}.ts.md`) &&
+                e.docs.url.startsWith("https://github.com/shah/shah/blob/"),
+            ),
+      );
+      const share = all?.find((e) => e.id === "share");
+      check(
+        "a profile that needs an install says what turns it on, and the package for this machine",
+        !!share &&
+          !share.active &&
+          share.appliesWhen.includes("smbd") &&
+          !!share.install?.note &&
+          (share.install.command === undefined ||
+            share.install.command.includes("samba")),
+        JSON.stringify(share),
+      );
+      const text = cli(["profile", "catalog", "share"], undefined, off);
+      check(
+        "catalog <name> explains it in words",
+        text.code === 0 &&
+          text.out.includes("Applies when:") &&
+          text.out.includes("Use it:") &&
+          text.out.includes("Guide: https://github.com/shah/shah/blob/"),
+        text.out + text.err,
+      );
+      const withExportfs = join(ch, "facts-exportfs.json");
+      await writeFile(
+        withExportfs,
+        JSON.stringify({ ...facts, commands: ["exportfs"] }),
+      );
+      const on = json<Entry>(
+        cli(["profile", "catalog", "share", "--json"], undefined, {
+          ...bare,
+          SNSHAH_FACTS: withExportfs,
+        }),
+      );
+      check(
+        "the same profile is active where exportfs is",
+        on?.active === true,
+      );
+      const active = json<Entry[]>(
+        cli(["profile", "catalog", "--active", "--json"], undefined, off),
+      );
+      check(
+        "--active lists only what applies here",
+        !!active && active.every((e) => e.active),
+      );
+      const guide = cli(
+        ["profile", "catalog", "share", "--docs"],
+        undefined,
+        off,
+      );
+      check(
+        "--docs prints the guide offline",
+        guide.code === 0 &&
+          guide.out.includes("## What it is") &&
+          guide.out.includes("## Troubleshooting"),
+        guide.err,
+      );
+      const missing = cli(["profile", "catalog", "nope"], undefined, off);
+      check(
+        "an unknown name exits 1 and says so",
+        missing.code === 1 && missing.err.includes("No profile named nope"),
+      );
+      await writeFile(
+        join(pdir, "mine.ts"),
+        `import type { ProfileAbout, Selector } from "${join(import.meta.dir, "snshah.ts")}";
+export const selector = { kind: "always" } satisfies Selector;
+export const about = { title: "Mine", summary: "My own profile.", use: "Nothing to do." } satisfies ProfileAbout;
+`,
+        { mode: 0o600 },
+      );
+      await writeFile(join(pdir, "mine.ts.md"), "# mine\n");
+      await writeFile(
+        join(pdir, "plain.ts"),
+        `export const selector = { kind: "always" };\n`,
+        { mode: 0o600 },
+      );
+      const withPrivate = json<Entry[]>(
+        cli(["profile", "catalog", "--json"], undefined, off),
+      );
+      const mine = withPrivate?.find((e) => e.id === "mine");
+      const plain = withPrivate?.find((e) => e.id === "plain");
+      check(
+        "a private profile shows its own about and local guide; one without about is flagged",
+        mine?.origin === "private" &&
+          mine.title === "Mine" &&
+          !!mine.docs?.file &&
+          !mine.docs.url &&
+          plain?.summary.includes("No description") === true,
+        JSON.stringify([mine, plain]),
+      );
+      const bad = join(pdir, "bad.ts");
+      await writeFile(
+        bad,
+        `export const selector = { kind: "always" };\nexport const install = { packages: { nix: ["x"] } };\n`,
+        { mode: 0o600 },
+      );
+      const refused = cli(["profile", "catalog"], undefined, off);
+      check(
+        "an install for a package manager snshah doesn't know is refused",
+        refused.code !== 0 && refused.err.includes("nix"),
+        refused.err,
+      );
+      await rm(bad);
     }
 
     // wt: worktrees next to the repository; prune only what is safe.
@@ -2505,7 +2690,7 @@ echo "__fzf_select__() { :; }; fzf-file-widget() { :; }; echo fzf-init-ran $1"
       // A new commit upstream: a new profile.d file.
       await writeFile(
         join(seed, "workshop", "profile.d", "99-fixture.ts"),
-        'import type { Contribution, Selector } from "../snshah.ts";\nexport const selector = { kind: "always" } satisfies Selector;\nexport const config = { env: { SNSHAH_FIXTURE: "1" } } satisfies Contribution;\n',
+        'import type { Contribution, Selector } from "../snshah.ts";\nexport const selector = { kind: "always" } satisfies Selector;\nexport const config = { env: { SNSHAH_FIXTURE: "1" } } satisfies Contribution;\nexport const about = { title: "Fixture", summary: "A test profile.", use: "Nothing to do." };\n',
       );
       seedGit("add", "-A");
       seedGit("commit", "--quiet", "-m", "second");
@@ -3630,7 +3815,7 @@ echo "__fzf_select__() { :; }; fzf-file-widget() { :; }; echo fzf-init-ran $1"
         },
         expect: ["20-debian-bat", "20-debian-fd"],
         shell: "bash",
-        has: ["batcat", "fdfind"],
+        has: ["alias bat='batcat'", "alias fd='fdfind'"],
       },
       "debian-with-bat": {
         facts: {
@@ -3644,7 +3829,7 @@ echo "__fzf_select__() { :; }; fzf-file-widget() { :; }; echo fzf-init-ran $1"
         expect: [],
         shell: "bash",
         has: [],
-        lacks: ["batcat"],
+        lacks: ["alias bat="],
       },
       omarchy: {
         facts: {

@@ -369,6 +369,25 @@ run changes nothing.
   init MUST set PSReadLine list-view predictions from history, guarded by
   PSReadLine 2.2 or later. `snshah doctor` MUST report missing zsh plugins.
   No agent's shell gets any of FR-070 to FR-072.
+- **FR-073**: Every shipped `workshop/profile.d/*.ts` MUST export `about`
+  (`title`, `summary`, `use`) and have a sibling `<name>.ts.md` guide with the
+  sections What it is, When it applies, How it works, Install, Use it, Turn it
+  off and Troubleshooting. A shipped profile without them MUST fail to load,
+  and `ontology/check.ts` MUST fail on a missing guide or section. A profile
+  MAY export `install`: package names per supported package manager (and a
+  note), which is shown and never run.
+- **FR-074**: `snshah profile catalog` (a query) MUST list every repo and
+  private profile.d profile with its title, summary and whether it applies to
+  this machine, and for one that does not, the condition in plain words.
+  `catalog <name>` MUST add what it contributes, how to use it, the package
+  command for this machine's package manager when the profile has `install`
+  and is not active, and a link to its guide on GitHub at the installed
+  revision. `--docs` MUST print the guide from this machine, `--active`
+  filters, `--json` is complete. An unknown name MUST exit 1.
+- **FR-075**: fzf's `FZF_DEFAULT_COMMAND`, `FZF_CTRL_T_COMMAND` and
+  `FZF_ALT_C_COMMAND` MUST use `fd`, or `fdfind` where only Debian's name
+  exists, and the previews `bat` or `batcat`, only when the name resolves to a
+  real program (fzf runs them without shell aliases).
 - **FR-057**: `list`, `status` and `folder` MUST take `--json`; `schedule
   <name> <30m|6h|1d|off>` MUST write and enable a systemd user timer that runs
   `snshah efss pull`, idempotently; `remove` MUST forget the sign-in and
@@ -557,6 +576,7 @@ run changes nothing.
 | FR-023                 | Shahid N. Shah, decision, 2026-11-27 ("Yes, pinned and checksummed")                                                                                         |
 | FR-069                 | Shahid N. Shah, direct statement, 2026-11-27 (use zoxide; do not override `cd`; add `cdz`) |
 | FR-070 to FR-072       | Shahid N. Shah, direct statement, 2026-11-27 (a fish-like `cd` selector, fish-like experience in other shells, the best history command; plan approved with "proceed") |
+| FR-073 to FR-075       | Shahid N. Shah, direct statements, 2026-11-27 (`snshah profile catalog`; a `profile.d/*.ts.md` guide per profile, linked from GitHub, since profiles like smbd install differently per machine; asked for a lightweight way for profiles to suggest installs; plan approved with "proceed") |
 | FR-066 to FR-068       | Shahid N. Shah, direct statement, 2026-11-27 (anything Omarchy-specific from shah/workshop goes to an `omarchy-workstation` profile in shah/shah) |
 | FR-061 to FR-065       | Shahid N. Shah, direct statements, 2026-11-27 (headless features move into the core or into service-detecting profiles; ideas studied from shah/workshop: sign-in hints, agent sessions, the age vault, the private config workspace) |
 | FR-058 to FR-060       | Shahid N. Shah, direct statement, 2026-11-27 (`smbd` and `nfs` handled through print and audit, contributed by a service-detecting profile) |

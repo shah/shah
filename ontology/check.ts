@@ -216,6 +216,32 @@ for (const id of shipped) {
     problems.push(
       `profile ${id}: ontology group ${modeledGroup} vs file ${mod.commands?.group}`,
     );
+  const modeledDoc = iri ? one(iri, `${WS}docPath`) : undefined;
+  if (modeledDoc !== `workshop/profile.d/${id}.ts.md`)
+    problems.push(
+      `profile ${id}: ontology docPath ${modeledDoc} vs workshop/profile.d/${id}.ts.md`,
+    );
+  const docFile = join(profileDir, `${id}.ts.md`);
+  if (!existsSync(docFile))
+    problems.push(`profile ${id}: no guide ${id}.ts.md`);
+  else {
+    const doc = readFileSync(docFile, "utf8");
+    for (const heading of [
+      "What it is",
+      "When it applies",
+      "How it works",
+      "Install",
+      "Use it",
+      "Turn it off",
+      "Troubleshooting",
+    ])
+      if (!new RegExp(`^## ${heading}$`, "m").test(doc))
+        problems.push(`profile ${id}: guide lacks the section "${heading}"`);
+  }
+  const about = mod.about as Record<string, unknown> | undefined;
+  for (const key of ["title", "summary", "use"])
+    if (typeof about?.[key] !== "string" || !String(about[key]).trim())
+      problems.push(`profile ${id}: about.${key} is missing`);
   for (const kind of kindsIn(mod.selector))
     if (privateOnly.has(kind))
       problems.push(
