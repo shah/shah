@@ -388,6 +388,16 @@ run changes nothing.
   `FZF_ALT_C_COMMAND` MUST use `fd`, or `fdfind` where only Debian's name
   exists, and the previews `bat` or `batcat`, only when the name resolves to a
   real program (fzf runs them without shell aliases).
+- **FR-076**: An `osquery` profile MUST exist and MUST NOT be a default tool
+  or be installed by `snshah apply`. It MUST apply where `osqueryi` is on PATH
+  or the `osqueryd` service is running, and appear in `snshah profile catalog`
+  everywhere else, with install steps per platform. Its commands are `status`,
+  `queries`, `ask`, `audit` and `config`; `ask` and `audit` MUST take `--json`.
+- **FR-077**: `snshah osquery ask` MUST run exactly one SELECT (or WITH ...
+  SELECT) and refuse a second statement, dot-commands, statements that write
+  or attach, extension loading, and the `curl` and `curl_certificate` tables.
+  snshah MUST NOT load an osquery extension. `audit` MUST report checks it
+  skipped, MUST exit 1 on a high finding, and `config` MUST only print.
 - **FR-057**: `list`, `status` and `folder` MUST take `--json`; `schedule
   <name> <30m|6h|1d|off>` MUST write and enable a systemd user timer that runs
   `snshah efss pull`, idempotently; `remove` MUST forget the sign-in and
@@ -577,6 +587,7 @@ run changes nothing.
 | FR-069                 | Shahid N. Shah, direct statement, 2026-11-27 (use zoxide; do not override `cd`; add `cdz`) |
 | FR-070 to FR-072       | Shahid N. Shah, direct statement, 2026-11-27 (a fish-like `cd` selector, fish-like experience in other shells, the best history command; plan approved with "proceed") |
 | FR-073 to FR-075       | Shahid N. Shah, direct statements, 2026-11-27 (`snshah profile catalog`; a `profile.d/*.ts.md` guide per profile, linked from GitHub, since profiles like smbd install differently per machine; asked for a lightweight way for profiles to suggest installs; plan approved with "proceed") |
+| FR-076, FR-077         | Shahid N. Shah, direct statements, 2026-11-27 (an osQuery profile.d entry; not installed by default, available in the catalog, found when osqueryd is running or osqueryi is on PATH; plan approved with "proceed") |
 | FR-066 to FR-068       | Shahid N. Shah, direct statement, 2026-11-27 (anything Omarchy-specific from shah/workshop goes to an `omarchy-workstation` profile in shah/shah) |
 | FR-061 to FR-065       | Shahid N. Shah, direct statements, 2026-11-27 (headless features move into the core or into service-detecting profiles; ideas studied from shah/workshop: sign-in hints, agent sessions, the age vault, the private config workspace) |
 | FR-058 to FR-060       | Shahid N. Shah, direct statement, 2026-11-27 (`smbd` and `nfs` handled through print and audit, contributed by a service-detecting profile) |

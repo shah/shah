@@ -102,6 +102,10 @@ Rules for a person or an AI agent changing anything in `workshop/`.
   config only where unset. Atuin loads after fzf so Ctrl-R stays Atuin's.
   zsh plugin and ble.sh paths live in `zshPlugins` and `bleFiles`; the shell
   init and `doctor` share them.
+- `snshah osquery` is read-only. Keep `guardSql` strict (one SELECT; no
+  dot-commands, writes, attach or extensions; no `curl` tables), never load an
+  extension, and never write osquery's configuration (`config` prints).
+  osquery is not a default tool and snshah never installs it.
 - A new `profile.d/<name>.ts` needs an `about` export, a `<name>.ts.md`
   guide with the required sections, a `docPath` in the ontology, and (when it
   needs something installed) an `install` export. The loader, the ontology

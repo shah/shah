@@ -173,6 +173,16 @@ it, because installing a system service needs sudo and a decision. Your own
 profiles in `~/.config/snshah/profile.d/` show up too; add an `about` export and
 a `<name>.ts.md` beside the file and they get the same treatment.
 
+## Asking the machine questions: `snshah osquery`
+
+osquery is not installed for you. Where it is already there (`osqueryi` on
+PATH, or `osqueryd` running), `snshah osquery audit` checks the machine against a
+small baseline (what listens on the network, extra UID 0 accounts, setuid files
+in writable places, root's SSH keys) and exits 1 on a serious finding.
+`snshah osquery ask listening-ports` and your own single `SELECT` work too;
+only read-only queries are accepted and the network tables are refused.
+`snshah profile catalog osquery` says how to install it on your system.
+
 ## Agents, local models and backups
 
 - `snshah agent status` lists the agent CLIs (`claude`, `codex`) you have.

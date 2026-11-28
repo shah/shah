@@ -15,7 +15,7 @@ ws:snshah a ws:Toolkit ;
     doap:programming-language "TypeScript" ;
     dcterms:creator "Shahid Shah" ;
     eid:path "workshop/snshah.ts" ;
-    ws:version "0.17.0" ;
+    ws:version "0.18.0" ;
     ws:idempotent true ;
     ws:runtime ws:bun ;
     ws:upstream "shah/shah@main" ;
@@ -45,7 +45,8 @@ ws:snshah a ws:Toolkit ;
         ws:profile-efss ,
         ws:profile-share ,
         ws:profile-ollama ,
-        ws:profile-age ;
+        ws:profile-age ,
+        ws:profile-osquery ;
     ws:installs ws:bin-oh-my-posh , ws:bin-mise ;
     ws:toolManager ws:bin-mise ;
     ws:defaultTool "gh" , "ripgrep" , "fd" , "bat" , "fzf" , "jq" , "yq" , "delta" , "direnv" , "eza" , "zoxide" , "atuin" ;
@@ -197,6 +198,8 @@ ws:profile-ollama a ws:Profile ; ws:name "ollama" ; eid:path "workshop/profile.d
     ws:selectorKind ws:selector-has ; ws:providesGroup "ollama" ; rdfs:comment "snshah ollama: status and pulls for local models, present where ollama is." .
 ws:profile-age a ws:Profile ; ws:name "age" ; eid:path "workshop/profile.d/age.ts" ; ws:docPath "workshop/profile.d/age.ts.md" ;
     ws:selectorKind ws:selector-has ; ws:providesGroup "vault" ; rdfs:comment "snshah vault: an age passphrase-encrypted backup of the private config, present where age is." .
+ws:profile-osquery a ws:Profile ; ws:name "osquery" ; eid:path "workshop/profile.d/osquery.ts" ; ws:docPath "workshop/profile.d/osquery.ts.md" ;
+    ws:selectorKind ws:selector-any ; ws:providesGroup "osquery" ; rdfs:comment "snshah osquery: ask this machine questions in SQL and audit it against a small baseline, read-only. Not installed by default; present where osqueryi is on PATH or osqueryd is running." .
 ws:profile-omarchy-workstation a ws:Profile ; ws:name "omarchy-workstation" ; eid:path "workshop/profile.d/omarchy-workstation.ts" ; ws:docPath "workshop/profile.d/omarchy-workstation.ts.md" ;
     ws:selectorKind ws:selector-all ; rdfs:comment "Omarchy with the Hyprland Lua configuration: an snshah entry in the Omarchy menu, a key binding and a few web apps. Recommends rclone and age." .
 

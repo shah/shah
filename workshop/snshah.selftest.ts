@@ -2141,6 +2141,142 @@ export const about = { title: "Mine", summary: "My own profile.", use: "Nothing 
       await rm(bad);
     }
 
+    // osquery: read-only questions and a baseline audit; never installed by default.
+    if (process.platform !== "win32") {
+      const oh = join(root, "osquery-home");
+      const bin = join(oh, "stubs");
+      await mkdir(bin, { recursive: true });
+      const log = join(oh, "osqueryi.log");
+      await writeFile(
+        join(bin, "osqueryi"),
+        `#!/bin/sh
+echo "$*" >> "${log}"
+[ "$1" = --version ] && { echo "osqueryi version 5.99.0"; exit 0; }
+case "$2" in
+  *listening_ports*) echo '[{"port":"22","protocol":"6","address":"0.0.0.0","name":"sshd","path":"/usr/sbin/sshd"},{"port":"23","protocol":"6","address":"0.0.0.0","name":"telnetd","path":""},{"port":"631","protocol":"6","address":"127.0.0.1","name":"cupsd","path":""}]' ;;
+  *"WHERE uid = 0"*) echo '[{"uid":"0","username":"root"},{"uid":"0","username":"toor"}]' ;;
+  *suid_bin*) echo '[{"path":"/usr/bin/sudo","username":"root","permissions":"S"},{"path":"/tmp/evil","username":"root","permissions":"S"}]' ;;
+  *authorized_keys*) echo '[{"username":"root","key_file":"/root/.ssh/authorized_keys","algorithm":"ssh-ed25519","comment":"laptop"}]' ;;
+  *os_version*) echo '[{"name":"Stub","version":"1","platform":"linux","arch":"x86_64"}]' ;;
+  *) echo "Error: no such table: nothing" >&2; exit 1 ;;
+esac
+`,
+        { mode: 0o755 },
+      );
+      const bare = baseEnv(oh);
+      const oe = { ...bare, PATH: `${bin}${delimiter}${bare.PATH ?? ""}` };
+      type Found = { id: string; severity: string; message: string };
+      const audit = cli(["osquery", "audit", "--json"], undefined, oe);
+      const report = json<{ ran: string[]; findings: Found[] }>(audit);
+      const ids = report?.findings.map((f) => f.id) ?? [];
+      check(
+        "osquery audit finds a dangerous port, a second root, a setuid file in /tmp and root's key",
+        audit.code === 1 &&
+          ids.includes("port-dangerous") &&
+          ids.includes("uid-zero") &&
+          ids.includes("suid-writable") &&
+          ids.includes("root-key") &&
+          report!.findings.some((f) => f.message.includes("toor")) &&
+          report!.findings.some((f) => f.message.includes("/tmp/evil")),
+        audit.out + audit.err,
+      );
+      check(
+        "and leaves out loopback listeners and ordinary setuid programs",
+        !!report &&
+          !report.findings.some(
+            (f) =>
+              f.message.includes("cupsd") ||
+              f.message.includes("/usr/bin/sudo"),
+          ),
+      );
+      const os = json<Array<{ name: string }>>(
+        cli(["osquery", "ask", "os", "--json"], undefined, oe),
+      );
+      check("ask runs a named query", os?.[0]?.name === "Stub");
+      const mine = cli(
+        ["osquery", "ask", "SELECT name FROM os_version;", "--json"],
+        undefined,
+        oe,
+      );
+      check(
+        "ask runs your own single SELECT",
+        mine.code === 0,
+        mine.out + mine.err,
+      );
+      const before = (await readFile(log, "utf8")).split("\n").length;
+      for (const bad of [
+        "SELECT 1; DROP TABLE x",
+        "DELETE FROM users",
+        ".tables",
+        "SELECT * FROM curl WHERE url = 'http://example.com'",
+        "SELECT load_extension('x')",
+        "WITH x AS (SELECT 1) INSERT INTO y SELECT * FROM x",
+      ]) {
+        const refused = cli(["osquery", "ask", bad], undefined, oe);
+        check(
+          `ask refuses: ${bad}`,
+          refused.code === 1 && refused.err.length + refused.out.length > 0,
+          refused.out + refused.err,
+        );
+      }
+      check(
+        "a refused query never reaches osqueryi",
+        (await readFile(log, "utf8")).split("\n").length === before,
+      );
+      const queries = json<Array<{ name: string; sql: string }>>(
+        cli(["osquery", "queries", "--json"], undefined, oe),
+      );
+      check(
+        "queries lists the named questions, all plain SELECTs",
+        !!queries &&
+          queries.length >= 10 &&
+          queries.every((q) => /^select\b/i.test(q.sql)),
+      );
+      const conf = cli(["osquery", "config"], undefined, oe);
+      check(
+        "config prints a sample and changes nothing",
+        conf.code === 0 &&
+          conf.out.includes('"interval": 3600') &&
+          conf.out.includes('"snapshot": true'),
+        conf.out + conf.err,
+      );
+      const none = join(oh, "facts-none.json");
+      const facts = json<Record<string, unknown>>(
+        cli(["whoami", "--json"], undefined, bare),
+      );
+      await writeFile(none, JSON.stringify({ ...facts, commands: [] }));
+      const off = cli(["osquery", "status"], undefined, {
+        ...oe,
+        SNSHAH_FACTS: none,
+      });
+      check(
+        "osquery is inactive without osqueryi, and says when it turns on",
+        off.code === 2 && off.err.includes("turns on when"),
+        off.out + off.err,
+      );
+      const found = join(oh, "facts-found.json");
+      await writeFile(
+        found,
+        JSON.stringify({ ...facts, commands: ["osqueryi"] }),
+      );
+      const entry = json<{ active: boolean; appliesWhen: string }>(
+        cli(["profile", "catalog", "osquery", "--json"], undefined, {
+          ...oe,
+          SNSHAH_FACTS: found,
+        }),
+      );
+      check(
+        "the catalog lists osquery as active where osqueryi is, naming the daemon too",
+        entry?.active === true && entry.appliesWhen.includes("osqueryd"),
+        JSON.stringify(entry),
+      );
+      const plan = cli(["plan"], undefined, oe);
+      check(
+        "osquery is not installed by default",
+        !/install developer tools[^\n]*osquery/i.test(plan.out),
+      );
+    }
+
     // wt: worktrees next to the repository; prune only what is safe.
     {
       const wh = join(root, "wt-home");
