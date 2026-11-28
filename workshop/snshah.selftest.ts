@@ -59,6 +59,14 @@ if [ "$1" = hook ]; then
   esac
   exit 0
 fi
+if [ "__BIN__" = zoxide ]; then
+  db="$(dirname "$0")/../zoxide.db"
+  case "$1" in
+    add) echo "$2" >> "$db"; exit 0 ;;
+    query) if [ "$2" = --list ]; then cat "$db" 2>/dev/null; exit 0; fi; exit 1 ;;
+    init) echo ":"; exit 0 ;;
+  esac
+fi
 echo "__BIN__ 1.2.3"
 SHIM
       sed -i "s/__BIN__/$bin/" "$data/shims/$bin"
