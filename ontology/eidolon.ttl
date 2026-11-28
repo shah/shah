@@ -41,8 +41,6 @@ eid:spec-0001 a eid:Spec ; rdfs:label "Shahid N. Shah" ; eid:specId "0001-shahid
     eid:path "spec-kit/specs/0001-shahid-shah/spec.md" ; eid:partOf eid:eidolon .
 eid:spec-0002 a eid:Spec ; rdfs:label "Intellectual Frontiers" ; eid:specId "0002-intellectual-frontiers" ;
     eid:path "spec-kit/specs/0002-intellectual-frontiers/spec.md" ; eid:partOf eid:eidolon .
-eid:spec-0003 a eid:Spec ; rdfs:label "Workshop" ; eid:specId "0003-workshop" ;
-    eid:path "spec-kit/specs/0003-workshop/spec.md" ; eid:partOf eid:eidolon .
 
 # ---------- Artifacts (Labor as Code) ----------
 eid:skill-write-like-shahid a eid:Skill ; rdfs:label "write-like-shahid" ;
@@ -53,6 +51,5 @@ eid:skill-shahid-quick-audit a eid:Skill ; rdfs:label "shahid-quick-audit" ;
     eid:path "skills/shahid-quick-audit/SKILL.md" ; eid:specifiedBy eid:spec-0001 ; eid:partOf eid:eidolon .
 eid:eidolon-mcp-server a eid:McpServer ; rdfs:label "Eidolon MCP server" ;
     eid:path "mcp/eidolon-server" ; eid:specifiedBy eid:spec-0001 ; eid:partOf eid:eidolon .
-eid:ontology a eid:Ontology ; rdfs:label "Eidolon and Workshop ontology" ;
+eid:ontology a eid:Ontology ; rdfs:label "Eidolon ontology" ;
     eid:path "ontology" ; eid:partOf eid:eidolon .
-ws:snshah eid:partOf eid:eidolon ; eid:specifiedBy eid:spec-0003 .

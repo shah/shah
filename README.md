@@ -158,14 +158,8 @@ spec-kit/
     0002-intellectual-frontiers/
       spec.md                  thin — cites intellectual-frontiers/.github
                                 for everything, restates nothing
-    0003-workshop/
-      spec.md                  the CLI Workshop: what it must and must
-                                not do, and how to check it
 ontology/                      Turtle: vocabulary, an index of the specs
-                                (eidolon.ttl), the Workshop model
-                                (workshop.ttl), and check.ts
-workshop/                      my shell and creature comforts for all CLI
-                                work; see workshop/README.md
+                                (eidolon.ttl), and check.ts
 skills/                        portable Agent Skills — Labor as Code
                                 for voice and judgment; see skills/README.md
 mcp/
@@ -193,20 +187,14 @@ from `spec.md` rather than duplicating it as a second source of truth.
 [`ontology/`](ontology/) is a small Turtle model of this repository,
 reusing schema.org, PROV and DOAP. `eidolon.ttl` indexes the public-tier
 facts and cites the spec section each comes from; the specs stay the
-source of truth. `workshop.ttl` is the model of record for the Workshop.
+source of truth.
 `bun --no-env-file ontology/check.ts` fails if a cited path or heading is
-missing or if the Workshop model and its code disagree.
+missing.
 
 ## Workshop
 
-[`workshop/`](workshop/) holds my shell and "creature comforts" for all
-work that I do at the CLI: one typed TypeScript CLI on Bun 1.4+, for any
-Linux, WSL, macOS and Windows 11+, that adds a single block to each shell's
-startup file and is safe to re-run. Install with
-`curl -fsSL https://raw.githubusercontent.com/shah/shah/main/workshop/bootstrap.sh | sh`
-(or `bootstrap.ps1` on Windows). See
-[`workshop/README.md`](workshop/README.md) and
-[spec 0003](spec-kit/specs/0003-workshop/spec.md).
+My shell and "creature comforts" for all work that I do at the CLI moved to
+its own repository, [shah/workshop](https://github.com/shah/workshop).
 
 ## Build your own Eidolon
 

@@ -25,17 +25,14 @@ for that.
    the property exists, what it is, and how it relates to Shahid and to
    his other properties — not to duplicate its internal governance.
 4. [`../ontology/`](../ontology/) is the machine-readable index of these
-   specs (`eidolon.ttl`) and the model of record for the Workshop
-   (`workshop.ttl`). The specs win if the two disagree; fix the ontology to
+   specs (`eidolon.ttl`). The specs win if the two disagree; fix the ontology to
    match, and run `bun --no-env-file ontology/check.ts`.
-5. [`../skills/`](../skills/), [`../mcp/eidolon-server/`](../mcp/eidolon-server/)
-   and [`../workshop/`](../workshop/) are not specs — they're Labor as
+5. [`../skills/`](../skills/) and [`../mcp/eidolon-server/`](../mcp/eidolon-server/)
+   are not specs — they're Labor as
    Code built on top of this one: a skill packages a reusable *how*
    (Shahid's own voice and editing rules, verbatim), the MCP server
    serves this spec's own public-tier facts as callable tools instead of
-   an agent re-reading `spec.md` fresh each time, and the Workshop
-   packages how he works at a command line (governed by
-   [`specs/0003-workshop/spec.md`](specs/0003-workshop/spec.md)). None
+   an agent re-reading `spec.md` fresh each time. None
    invents a new fact about Shahid; each cites its spec and goes stale if
    that spec changes without it being updated to match.
 
