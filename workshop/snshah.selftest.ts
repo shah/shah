@@ -69,7 +69,7 @@ if [ "__BIN__" = zoxide ]; then
 fi
 echo "__BIN__ 1.2.3"
 SHIM
-      sed -i "s/__BIN__/$bin/" "$data/shims/$bin"
+      sed "s/__BIN__/$bin/" "$data/shims/$bin" > "$data/shims/$bin.tmp" && mv "$data/shims/$bin.tmp" "$data/shims/$bin"
       chmod +x "$data/shims/$bin"
       echo "stub: installed $name" >&2
     done
