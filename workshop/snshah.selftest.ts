@@ -1920,6 +1920,7 @@ echo "__fzf_select__() { :; }; fzf-file-widget() { :; }; echo fzf-init-ran $1"
         !/atuin init|fzf --|SNSHAH_BLE/.test(agentOut),
       );
       for (const shell of ["bash", "zsh"]) {
+        if (!Bun.which(shell)) continue; // CI images may not ship zsh
         const file = join(ah, `init.${shell}`);
         await writeFile(file, cli(["shell", shell], undefined, ae).out);
         const ran = sh([shell, "-c", `. "${file}"; . "${file}"`], ah, ae);
