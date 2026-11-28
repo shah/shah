@@ -135,6 +135,25 @@ is left alone. `snshah apply` tells zoxide about your registered checkouts
 directory you've never been in, use `fzf`'s `Alt-C`. Turn it off with
 `tools: { zoxide: false }`.
 
+## History, pickers and fish-style editing
+
+- **Atuin** (a default tool) owns Ctrl-R: searchable history with directory,
+  exit status and duration. The up arrow keeps its stock behavior. `snshah
+apply` fills only the Atuin settings you haven't set: no sync, no update
+  check, compact style, secrets filtered out. snshah never signs you in; to
+  sync across machines, run `atuin register` or `atuin login` yourself.
+- **fzf** pickers: Ctrl-T for files, Alt-C to jump to any directory with a tree
+  preview, using `fd` as the source (your own `FZF_*` settings win).
+- **zsh**: if installed, fzf-tab, zsh-autosuggestions and
+  zsh-syntax-highlighting are loaded for you; `snshah doctor` says which are
+  missing.
+- **bash**: for suggestions and highlighting as in fish, install
+  [ble.sh](https://github.com/akinomyoga/ble.sh) and set
+  `env: { SNSHAH_BLE: "1" }`. It is opt-in because it slows shell startup.
+- **PowerShell**: list-view predictions from history (PSReadLine 2.2+).
+- Agent shells get none of this. Turn Atuin or fzf off with
+  `tools: { atuin: false }` or `tools: { fzf: false }`.
+
 ## Agents, local models and backups
 
 - `snshah agent status` lists the agent CLIs (`claude`, `codex`) you have.

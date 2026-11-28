@@ -1850,6 +1850,111 @@ exit 0
       );
     }
 
+    // Atuin on Ctrl-R, fzf pickers, and fish-style extras; none of it for agents.
+    if (process.platform !== "win32") {
+      const ah = join(root, "atuin-home");
+      const bin = join(ah, "stubs");
+      await mkdir(bin, { recursive: true });
+      await writeFile(
+        join(bin, "atuin"),
+        `#!/bin/sh
+[ "$1" = init ] && { shift; echo "echo atuin-init-ran $*"; }
+exit 0
+`,
+        { mode: 0o755 },
+      );
+      await writeFile(
+        join(bin, "fzf"),
+        `#!/bin/sh
+echo "__fzf_select__() { :; }; fzf-file-widget() { :; }; echo fzf-init-ran $1"
+`,
+        { mode: 0o755 },
+      );
+      const bare = baseEnv(ah);
+      const ae = { ...bare, PATH: `${bin}${delimiter}${bare.PATH ?? ""}` };
+      for (const shell of ["bash", "zsh", "fish", "pwsh"]) {
+        const out = cli(["shell", shell], undefined, ae).out;
+        check(
+          `shell ${shell}: Atuin loads with the up arrow left alone`,
+          out.includes(
+            `atuin init ${shell === "pwsh" ? "powershell" : shell} --disable-up-arrow`,
+          ),
+          out.slice(0, 200),
+        );
+        const fzfAt = out.indexOf("fzf --");
+        check(
+          `shell ${shell}: fzf ${shell === "pwsh" ? "is left to PSFzf" : "loads before Atuin, so Ctrl-R stays Atuin's"}`,
+          shell === "pwsh"
+            ? fzfAt < 0
+            : fzfAt > 0 && fzfAt < out.indexOf("atuin init"),
+        );
+      }
+      const zsh = cli(["shell", "zsh"], undefined, ae).out;
+      const bash = cli(["shell", "bash"], undefined, ae).out;
+      const pwsh = cli(["shell", "pwsh"], undefined, ae).out;
+      check(
+        "zsh sources autosuggestions, then highlighting last, only when installed",
+        zsh.includes("zsh-autosuggestions.zsh") &&
+          zsh.indexOf("zsh-autosuggestions.zsh") <
+            zsh.indexOf("zsh-syntax-highlighting.zsh") &&
+          zsh.indexOf("fzf-tab") < zsh.indexOf("zsh-autosuggestions.zsh") &&
+          !bash.includes("zsh-autosuggestions"),
+      );
+      check(
+        "ble.sh is bash-only and opt-in",
+        bash.includes("SNSHAH_BLE") &&
+          bash.includes("ble-attach") &&
+          !zsh.includes("blesh"),
+      );
+      check(
+        "PowerShell gets list-view predictions guarded by version",
+        pwsh.includes("-PredictionViewStyle ListView") &&
+          pwsh.includes("2.2.0"),
+      );
+      const agentOut = cli(["shell", "bash"], undefined, {
+        ...ae,
+        CLAUDECODE: "1",
+      }).out;
+      check(
+        "an agent's shell gets no Atuin, fzf or ble.sh",
+        !/atuin init|fzf --|SNSHAH_BLE/.test(agentOut),
+      );
+      for (const shell of ["bash", "zsh"]) {
+        const file = join(ah, `init.${shell}`);
+        await writeFile(file, cli(["shell", shell], undefined, ae).out);
+        const ran = sh([shell, "-c", `. "${file}"; . "${file}"`], ah, ae);
+        const text = ran.out + ran.err;
+        check(
+          `${shell}: init runs Atuin and fzf once, even when sourced twice`,
+          (text.match(/atuin-init-ran/g) ?? []).length === 1 &&
+            (text.match(/fzf-init-ran/g) ?? []).length === 1,
+          text.slice(0, 300),
+        );
+      }
+      // The Atuin config: unset keys only.
+      const cfgDir = join(ah, ".config", "atuin");
+      await mkdir(cfgDir, { recursive: true });
+      await writeFile(join(cfgDir, "config.toml"), 'style = "full"\n');
+      const applied = cli(["apply", "--yes"], undefined, ae);
+      const cfg = await readFile(join(cfgDir, "config.toml"), "utf8");
+      check(
+        "apply fills Atuin's unset keys and keeps yours",
+        applied.code === 0 &&
+          cfg.includes('style = "full"') &&
+          !cfg.includes('style = "compact"') &&
+          cfg.includes("auto_sync = false") &&
+          cfg.includes("update_check = false") &&
+          cfg.includes("secrets_filter = true"),
+        applied.out + applied.err + cfg,
+      );
+      const second = cli(["apply", "--yes"], undefined, ae);
+      check(
+        "and a second apply changes nothing",
+        second.out.includes("No changes needed"),
+        second.out + second.err,
+      );
+    }
+
     // wt: worktrees next to the repository; prune only what is safe.
     {
       const wh = join(root, "wt-home");

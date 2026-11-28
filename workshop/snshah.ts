@@ -168,7 +168,7 @@ type Covers<T extends readonly string[], U extends string> = [
   ? true
   : ["missing", Exclude<U, T[number]>];
 
-export const cliVersion = "0.15.1";
+export const cliVersion = "0.16.0";
 export const minimumBun = "1.4.0";
 /** The Oh My Posh release snshah installs when none is on PATH, by Bun-style target. */
 export const ohMyPosh = {
@@ -267,6 +267,7 @@ export const defaultTools = {
   direnv: "latest",
   eza: "latest",
   zoxide: "latest",
+  atuin: "latest",
 } as const satisfies Record<string, string>;
 export const dependencies = {
   commander: "12.1.0",
@@ -2739,6 +2740,7 @@ export async function plan(
     );
 
   steps.push(...(await planAgentDefaults(ctx, config)));
+  steps.push(...(await planAtuin(ctx, config)));
 
   // Run from a git checkout, record which one and at what commit, so
   // `snshah update` knows where to pull from.
@@ -2981,6 +2983,53 @@ export function codexConfig(previous: string | undefined): string | undefined {
   return next;
 }
 
+/** Atuin settings snshah fills when they are unset: local history only, quiet, secrets kept out. */
+const atuinDefaults: ReadonlyArray<[string, string]> = [
+  ["auto_sync", "false"],
+  ["update_check", "false"],
+  ["style", '"compact"'],
+  ["secrets_filter", "true"],
+];
+
+export function atuinConfig(previous: string | undefined): string | undefined {
+  const text = previous ?? "";
+  const current = Bun.TOML.parse(text) as JsonObject;
+  const add = atuinDefaults
+    .filter(([key]) => current[key] === undefined)
+    .map(([key, value]) => `${key} = ${value}`);
+  if (!add.length) return previous;
+  // Top-level keys must come before any table.
+  const next = `# snshah defaults: fills unset keys only; no login, no sync\n${add.join("\n")}\n\n${text}`;
+  const parsed = Bun.TOML.parse(next) as JsonObject;
+  for (const [key, value] of Object.entries(current))
+    if (!Bun.deepEquals(parsed[key], value))
+      throw new Error(
+        "Could not add Atuin defaults without changing existing settings.",
+      );
+  return next;
+}
+
+async function planAtuin(
+  ctx: Context,
+  config: WorkshopConfig,
+): Promise<Step[]> {
+  if (config.tools?.atuin === false) return [];
+  const path = join(
+    ctx.env.ATUIN_CONFIG_DIR || join(xdgConfigHome(ctx), "atuin"),
+    "config.toml",
+  );
+  const previous = await readText(path);
+  const next = atuinConfig(previous);
+  if (next === undefined || next === previous) return [];
+  return contentStep(
+    "toml-fill",
+    path,
+    next,
+    0o644,
+    "Atuin defaults (unset keys only; no login, no sync)",
+  );
+}
+
 const guidanceBegin = "<!-- >>> snshah agent guidance >>> -->";
 const guidanceEnd = "<!-- <<< snshah agent guidance <<< -->";
 const guidance = [
@@ -3200,6 +3249,11 @@ export type ShellOp =
   | { kind: "mise"; binary: string }
   | { kind: "direnv" }
   | { kind: "zoxide" }
+  | { kind: "fzf" }
+  | { kind: "atuin" }
+  | { kind: "ble"; phase: "load" | "attach" }
+  | { kind: "zsh-plugins" }
+  | { kind: "psreadline" }
   | { kind: "prompt"; theme: string; binary: string };
 
 /** Variables that agents set in the shells they start. SNSHAH_AGENT=1 or 0 overrides the guess. */
@@ -3270,10 +3324,13 @@ export function shellOps(
       for (const command of secret.commands) wrapped.add(command);
   for (const command of [...wrapped].sort())
     ops.push({ kind: "wrap", command, wrapper: wrapperFor(ctx, shell) });
-  if (toolManagerOn(config)) ops.push({ kind: "mise", binary: ctx.miseBinary });
-  if (config.tools?.direnv !== false) ops.push({ kind: "direnv" });
   // An agent reads this output: no pagers, no password prompts, no icons, no prompt theme.
   const agent = runningUnderAgent(ctx.env);
+  // ble.sh (fish-style editing for bash) is opt-in: env SNSHAH_BLE=1. It loads
+  // first and attaches last, as its docs ask.
+  if (shell === "bash" && !agent) ops.push({ kind: "ble", phase: "load" });
+  if (toolManagerOn(config)) ops.push({ kind: "mise", binary: ctx.miseBinary });
+  if (config.tools?.direnv !== false) ops.push({ kind: "direnv" });
   if (agent)
     for (const [name, value] of [
       ["GIT_PAGER", "cat"],
@@ -3303,8 +3360,17 @@ export function shellOps(
   // zoxide's `z`, `zi` and `cdz`; `cd` itself is left alone. Not for agents: a
   // jumping cd makes their runs unpredictable.
   if (config.tools?.zoxide !== false && !agent) ops.push({ kind: "zoxide" });
+  // fzf's Ctrl-T and Alt-C pickers, then Atuin's Ctrl-R (loaded later, so it wins
+  // the key). Atuin keeps the up arrow's stock behavior. None of it for agents.
+  if (config.tools?.fzf !== false && !agent) ops.push({ kind: "fzf" });
+  if (config.tools?.atuin !== false && !agent) ops.push({ kind: "atuin" });
+  if (!agent) {
+    if (shell === "zsh") ops.push({ kind: "zsh-plugins" });
+    if (shell === "pwsh") ops.push({ kind: "psreadline" });
+  }
   // After the prompt, so its init can't replace the hook that follows your directory.
   ops.push({ kind: "dirhook" });
+  if (shell === "bash" && !agent) ops.push({ kind: "ble", phase: "attach" });
   return ops;
 }
 
@@ -3405,6 +3471,65 @@ export function renderShell(shell: Shell, ops: readonly ShellOp[]): string {
   return lines.join("\n") + "\n";
 }
 
+/** Where zsh plugins usually live: distro packages, Homebrew, or a manual clone. */
+export const zshPlugins = [
+  {
+    name: "fzf-tab",
+    purpose: "fuzzy menu for tab completion",
+    guard: "fzf-tab-complete",
+    files: ["fzf-tab.plugin.zsh", "fzf-tab.zsh"],
+  },
+  {
+    name: "zsh-autosuggestions",
+    purpose: "fish-style suggestions as you type",
+    guard: "_zsh_autosuggest_start",
+    files: ["zsh-autosuggestions.zsh"],
+  },
+  {
+    name: "zsh-syntax-highlighting",
+    purpose: "colors a command as you type it",
+    guard: "_zsh_highlight",
+    files: ["zsh-syntax-highlighting.zsh"],
+  },
+] as const;
+
+/** Candidate files for one plugin; `home` is "$HOME" in shell code or a real path in TypeScript. */
+export function zshPluginFiles(
+  plugin: (typeof zshPlugins)[number],
+  home: string,
+): string[] {
+  const roots = [
+    "/usr/share",
+    "/usr/share/zsh/plugins",
+    "/usr/local/share",
+    "/opt/homebrew/share",
+    `${home}/.local/share`,
+  ];
+  const names = [plugin.name, `${plugin.name}-git`];
+  return roots.flatMap((root) =>
+    names.flatMap((name) => plugin.files.map((f) => `${root}/${name}/${f}`)),
+  );
+}
+
+/** Where ble.sh (a line editor for bash) usually lives. */
+export function bleFiles(home: string): string[] {
+  return [
+    `${home}/.local/share/blesh/ble.sh`,
+    "/usr/share/blesh/ble.sh",
+    "/usr/local/share/blesh/ble.sh",
+    "/opt/homebrew/share/blesh/ble.sh",
+  ];
+}
+
+/** fzf's defaults, set only where you have not set them: fd as the source, previews with eza and bat. */
+function fzfEnvPosix(): string[] {
+  return [
+    `if command -v fd >/dev/null 2>&1; then [ -n "\${FZF_DEFAULT_COMMAND-}" ] || export FZF_DEFAULT_COMMAND='fd --type f --hidden --follow --exclude .git'; [ -n "\${FZF_CTRL_T_COMMAND-}" ] || export FZF_CTRL_T_COMMAND='fd --hidden --follow --exclude .git'; [ -n "\${FZF_ALT_C_COMMAND-}" ] || export FZF_ALT_C_COMMAND='fd --type d --hidden --follow --exclude .git'; fi`,
+    `if command -v eza >/dev/null 2>&1; then [ -n "\${FZF_ALT_C_OPTS-}" ] || export FZF_ALT_C_OPTS="--preview 'eza --tree --level=2 --color=always {} | head -50'"; fi`,
+    `if command -v bat >/dev/null 2>&1; then [ -n "\${FZF_CTRL_T_OPTS-}" ] || export FZF_CTRL_T_OPTS="--preview 'bat --style=numbers --color=always --line-range :200 {} 2>/dev/null || eza --tree --level=1 --color=always {} 2>/dev/null'"; fi`,
+  ];
+}
+
 function renderPosix(shell: "bash" | "zsh", op: ShellOp): string[] {
   const defined = (name: string) =>
     shell === "bash"
@@ -3469,6 +3594,47 @@ function renderPosix(shell: "bash" | "zsh", op: ShellOp): string[] {
       return [
         `if command -v zoxide >/dev/null 2>&1 && ! type __zoxide_z >/dev/null 2>&1; then eval "$(zoxide init ${shell})"; ${defined("cdz")} || alias cdz=z; fi`,
       ];
+    case "fzf":
+      return [
+        ...fzfEnvPosix(),
+        shell === "bash"
+          ? `if command -v fzf >/dev/null 2>&1 && ! declare -F __fzf_select__ >/dev/null 2>&1; then eval "$(fzf --bash 2>/dev/null)"; fi`
+          : `if command -v fzf >/dev/null 2>&1 && (( ! \${+functions[fzf-file-widget]} )); then source <(fzf --zsh 2>/dev/null); fi`,
+      ];
+    case "atuin":
+      return [
+        // --disable-up-arrow: Atuin takes Ctrl-R; the up arrow keeps its stock behavior.
+        // Not synced and never logged in by snshah. The marker is not exported, so a subshell loads Atuin itself.
+        `if command -v atuin >/dev/null 2>&1 && [ -z "\${__snshah_atuin-}" ]; then __snshah_atuin=1; eval "$(atuin init ${shell} --disable-up-arrow)"; fi`,
+      ];
+    case "ble":
+      if (op.phase === "attach")
+        return [`if [[ "\${BLE_VERSION-}" ]]; then ble-attach; fi`];
+      return [
+        `if [[ $- == *i* && "\${SNSHAH_BLE-}" == 1 && -z "\${BLE_VERSION-}" ]]; then for __snshah_f in ${bleFiles(
+          "$HOME",
+        )
+          .map((f) => `"${f}"`)
+          .join(
+            " ",
+          )}; do if [[ -r $__snshah_f ]]; then source "$__snshah_f" --noattach; break; fi; done; unset __snshah_f; fi`,
+      ];
+    case "zsh-plugins":
+      // Order matters: the completion menu first, suggestions next, highlighting last.
+      return zshPlugins.map((plugin) => {
+        const needsCompletion =
+          plugin.name === "fzf-tab" ? "\${+functions[compdef]} && " : "";
+        return `if [[ -o interactive ]] && (( ${needsCompletion}! \${+functions[${plugin.guard}]} )); then for __snshah_f in ${zshPluginFiles(
+          plugin,
+          "$HOME",
+        )
+          .map((f) => `"${f}"`)
+          .join(
+            " ",
+          )}; do if [[ -r $__snshah_f ]]; then source "$__snshah_f"; break; fi; done; unset __snshah_f; fi`;
+      });
+    case "psreadline":
+      return [];
     case "prompt":
       return [
         // Prefer an oh-my-posh on PATH; fall back to the copy snshah installed.
@@ -3535,6 +3701,21 @@ function renderFish(op: ShellOp): string[] {
       return [
         `if command -sq zoxide; and not functions -q __zoxide_z; zoxide init fish | source; functions -q cdz; or alias cdz z; end`,
       ];
+    case "fzf":
+      return [
+        `if command -sq fd; set -q FZF_DEFAULT_COMMAND; or set -gx FZF_DEFAULT_COMMAND 'fd --type f --hidden --follow --exclude .git'; set -q FZF_CTRL_T_COMMAND; or set -gx FZF_CTRL_T_COMMAND 'fd --hidden --follow --exclude .git'; set -q FZF_ALT_C_COMMAND; or set -gx FZF_ALT_C_COMMAND 'fd --type d --hidden --follow --exclude .git'; end`,
+        `if command -sq eza; set -q FZF_ALT_C_OPTS; or set -gx FZF_ALT_C_OPTS "--preview 'eza --tree --level=2 --color=always {} | head -50'"; end`,
+        `if command -sq bat; set -q FZF_CTRL_T_OPTS; or set -gx FZF_CTRL_T_OPTS "--preview 'bat --style=numbers --color=always --line-range :200 {} 2>/dev/null || eza --tree --level=1 --color=always {} 2>/dev/null'"; end`,
+        `if command -sq fzf; and not functions -q fzf-file-widget; fzf --fish 2>/dev/null | source; end`,
+      ];
+    case "atuin":
+      return [
+        `if command -sq atuin; and not set -q __snshah_atuin; set -g __snshah_atuin 1; atuin init fish --disable-up-arrow | source; end`,
+      ];
+    case "ble":
+    case "zsh-plugins":
+    case "psreadline":
+      return [];
     case "prompt":
       return [
         `set -l __snshah_omp (command -s oh-my-posh); or set __snshah_omp ${quoteFish(op.binary)}`,
@@ -3610,6 +3791,20 @@ function renderPwsh(op: ShellOp): string[] {
     case "direnv":
       return [
         `if ((Get-Command direnv -CommandType Application -ErrorAction SilentlyContinue) -and -not $global:__snshahDirenv) { $global:__snshahDirenv = $true; (& direnv hook pwsh) -join "\`n" | Invoke-Expression }`,
+      ];
+    case "fzf":
+    case "ble":
+    case "zsh-plugins":
+      return [];
+    case "atuin":
+      return [
+        // Atuin's PowerShell init needs a recent Atuin; skip quietly when it fails.
+        `if ((Get-Command atuin -CommandType Application -ErrorAction SilentlyContinue) -and -not $global:__snshahAtuin) { $global:__snshahAtuin = $true; $__snshahInit = & atuin init powershell --disable-up-arrow 2>$null; if ($LASTEXITCODE -eq 0 -and $__snshahInit) { ($__snshahInit) -join "\`n" | Invoke-Expression }; Remove-Variable __snshahInit -ErrorAction SilentlyContinue }`,
+      ];
+    case "psreadline":
+      return [
+        // Fish-style suggestions in a list under the line, from history. Needs PSReadLine 2.2+ in an interactive console.
+        `if (-not [Console]::IsInputRedirected -and -not [Console]::IsOutputRedirected) { try { $__snshahPsr = Get-Module PSReadLine; if (-not $__snshahPsr) { $__snshahPsr = Import-Module PSReadLine -PassThru -ErrorAction Stop }; if ($__snshahPsr.Version -ge [version]'2.2.0') { Set-PSReadLineOption -PredictionSource HistoryAndPlugin -PredictionViewStyle ListView -ErrorAction Stop } } catch {}; Remove-Variable __snshahPsr -ErrorAction SilentlyContinue }`,
       ];
     case "prompt":
       return [
@@ -4166,6 +4361,19 @@ const tools: Tool[] = [
     },
   },
   {
+    name: "atuin",
+    mise: "atuin",
+    purpose: "searchable shell history on Ctrl-R",
+    required: false,
+    advice: {
+      dnf: "atuin",
+      pacman: "atuin",
+      apk: "atuin",
+      brew: "atuin",
+      omarchy: "atuin",
+    },
+  },
+  {
     name: "eza",
     mise: "eza",
     purpose: "ls and tree with colors and icons",
@@ -4523,6 +4731,19 @@ async function doctor(ctx: Context): Promise<{
     row(name, "from your tools list", found, "warn");
     if (!found) byApply.push(name);
   }
+
+  // Fish-style extras in zsh: say so when a plugin isn't installed.
+  if (basename(ctx.env.SHELL ?? "") === "zsh")
+    for (const plugin of zshPlugins) {
+      const here = zshPluginFiles(plugin, ctx.home).find((f) => existsSync(f));
+      checks.push({
+        check: `zsh plugin: ${plugin.name}`,
+        status: here ? "ok" : "warn",
+        detail: here
+          ? `${plugin.purpose} (loaded by the shell init)`
+          : `${plugin.purpose}; not installed. Install the ${plugin.name} package; the shell init loads it when present.`,
+      });
+    }
 
   const next: NextStep[] = [];
   const gh = Bun.which("gh", { PATH });

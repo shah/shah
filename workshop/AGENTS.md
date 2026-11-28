@@ -97,6 +97,11 @@ Rules for a person or an AI agent changing anything in `workshop/`.
 - `omarchy-workstation` may only hold what any Omarchy owner could use:
   no work accounts, tenants or private URLs, and no default-browser change
   (that is a private profile). Keep its hooks idempotent.
+- Shell extras (zoxide, fzf, Atuin, zsh plugins, ble.sh, PSReadLine) never
+  load for an agent, never run `atuin login` or `register`, and fill Atuin's
+  config only where unset. Atuin loads after fzf so Ctrl-R stays Atuin's.
+  zsh plugin and ble.sh paths live in `zshPlugins` and `bleFiles`; the shell
+  init and `doctor` share them.
 - Install the CLI files last, so a failed apply keeps the old CLI working.
 
 ## Before every push

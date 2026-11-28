@@ -351,6 +351,24 @@ run changes nothing.
   MUST NOT replace `cd`. An agent's shell MUST NOT get it. `snshah apply` MUST
   teach zoxide the existing registered checkouts once, so a second apply
   changes nothing.
+- **FR-070**: `atuin` MUST be a default tool. Where it is installed, the shell
+  init MUST load `atuin init <shell> --disable-up-arrow` (bash, zsh, fish and,
+  when the installed Atuin supports it, pwsh) so Ctrl-R is Atuin's and the up
+  arrow keeps its stock behavior, once per shell. `snshah apply` MUST fill
+  only the unset Atuin keys `auto_sync = false`, `update_check = false`,
+  `style = "compact"` and `secrets_filter = true`, never change a key you set,
+  and MUST NOT run `atuin login` or `atuin register`.
+- **FR-071**: Where `fzf` is installed, the bash, zsh and fish shell init MUST
+  load `fzf --bash|--zsh|--fish` before Atuin (so Ctrl-R stays Atuin's), and
+  MUST set `FZF_DEFAULT_COMMAND`, `FZF_CTRL_T_COMMAND` and `FZF_ALT_C_COMMAND`
+  to `fd`, and the Alt-C and Ctrl-T previews to `eza` and `bat`, only where
+  unset and only when those tools exist.
+- **FR-072**: The zsh shell init MUST source zsh-fzf-tab, zsh-autosuggestions
+  and zsh-syntax-highlighting, in that order, only when installed in a usual
+  place. The bash init MUST source ble.sh only when `SNSHAH_BLE=1`. The pwsh
+  init MUST set PSReadLine list-view predictions from history, guarded by
+  PSReadLine 2.2 or later. `snshah doctor` MUST report missing zsh plugins.
+  No agent's shell gets any of FR-070 to FR-072.
 - **FR-057**: `list`, `status` and `folder` MUST take `--json`; `schedule
   <name> <30m|6h|1d|off>` MUST write and enable a systemd user timer that runs
   `snshah efss pull`, idempotently; `remove` MUST forget the sign-in and
@@ -538,6 +556,7 @@ run changes nothing.
 | FR-020, FR-022         | Shahid N. Shah, direct statement, 2026-11-27 (environment selectors first, fingerprint when needed, hostnames allowed); private-only rule proposed by Claude |
 | FR-023                 | Shahid N. Shah, decision, 2026-11-27 ("Yes, pinned and checksummed")                                                                                         |
 | FR-069                 | Shahid N. Shah, direct statement, 2026-11-27 (use zoxide; do not override `cd`; add `cdz`) |
+| FR-070 to FR-072       | Shahid N. Shah, direct statement, 2026-11-27 (a fish-like `cd` selector, fish-like experience in other shells, the best history command; plan approved with "proceed") |
 | FR-066 to FR-068       | Shahid N. Shah, direct statement, 2026-11-27 (anything Omarchy-specific from shah/workshop goes to an `omarchy-workstation` profile in shah/shah) |
 | FR-061 to FR-065       | Shahid N. Shah, direct statements, 2026-11-27 (headless features move into the core or into service-detecting profiles; ideas studied from shah/workshop: sign-in hints, agent sessions, the age vault, the private config workspace) |
 | FR-058 to FR-060       | Shahid N. Shah, direct statement, 2026-11-27 (`smbd` and `nfs` handled through print and audit, contributed by a service-detecting profile) |
