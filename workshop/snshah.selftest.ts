@@ -1792,7 +1792,7 @@ export const recommends = [{ tool: "bad tool", why: "x" }];
 echo "zoxide $*" >> "${log}"
 case "$1" in
   add) echo "$2" >> "${db}" ;;
-  query) grep -qxF "$3" "${db}" 2>/dev/null || exit 1 ;;
+  query) [ "$2" = --list ] && { cat "${db}" 2>/dev/null; exit 0; }; exit 1 ;;
 esac
 exit 0
 `,

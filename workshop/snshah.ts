@@ -168,7 +168,7 @@ type Covers<T extends readonly string[], U extends string> = [
   ? true
   : ["missing", Exclude<U, T[number]>];
 
-export const cliVersion = "0.15.0";
+export const cliVersion = "0.15.1";
 export const minimumBun = "1.4.0";
 /** The Oh My Posh release snshah installs when none is on PATH, by Bun-style target. */
 export const ohMyPosh = {
@@ -2867,26 +2867,30 @@ export async function plan(
   ) {
     const zoxide =
       Bun.which("zoxide", {
-        PATH: [ctx.miseShims, ctx.env.PATH ?? ""].join(delimiter),
+        PATH: [ctx.env.PATH ?? "", ctx.miseShims].join(delimiter),
       }) ?? join(ctx.miseShims, isWindows ? "zoxide.exe" : "zoxide");
     for (const repo of config.repositories ?? []) {
       const path = repoPath(ctx, config, repo);
       if (!existsSync(path)) continue;
-      // Skipped once zoxide already knows the folder, so a second apply changes nothing.
-      const known =
-        existsSync(zoxide) &&
-        Bun.spawnSync([zoxide, "query", "--exact", path], {
-          env: { ...ctx.env } as Record<string, string>,
-          stdin: "ignore",
-          stdout: "ignore",
-          stderr: "ignore",
-        }).exitCode === 0;
-      if (known) continue;
+      // Skipped once zoxide already knows the folder. `query --list` is the
+      // only exact membership test: keywords match path pieces, not whole paths.
+      const listed = existsSync(zoxide)
+        ? capture([zoxide, "query", "--list"], { env: ctx.env })
+        : undefined;
+      if (listed?.split("\n").some((line) => line.trim() === path)) continue;
+      if (isWindows) continue; // the membership check below needs sh
       seed.push({
         kind: "command",
         phase: "after-apply",
         run: [zoxide, "add", path],
-        unless: [zoxide, "query", "--exact", path],
+        unless: [
+          "sh",
+          "-c",
+          `"$1" query --list | grep -qxF "$2"`,
+          "sh",
+          zoxide,
+          path,
+        ],
         env: commandEnv(ctx.env, undefined, [], "zoxide"),
         path: "",
         label: `zoxide: remember ${tilde(ctx, path)}`,
